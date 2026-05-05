@@ -696,6 +696,50 @@ const hermesAPI = {
   ): Promise<{ success: boolean; error?: string }> =>
     ipcRenderer.invoke("trigger-cron-job", jobId, profile),
 
+  // Kanban
+  listKanbanBoard: (options?: {
+    board?: string;
+    tenant?: string;
+    includeArchived?: boolean;
+  }): Promise<unknown> => ipcRenderer.invoke("list-kanban-board", options),
+
+  getKanbanTask: (taskId: string, board?: string): Promise<unknown> =>
+    ipcRenderer.invoke("get-kanban-task", taskId, board),
+
+  createKanbanTask: (input: unknown): Promise<unknown> =>
+    ipcRenderer.invoke("create-kanban-task", input),
+
+  updateKanbanTaskStatus: (
+    taskId: string,
+    status: string,
+    options?: {
+      board?: string;
+      reason?: string;
+      summary?: string;
+      metadata?: Record<string, unknown>;
+    },
+  ): Promise<unknown> =>
+    ipcRenderer.invoke("update-kanban-task-status", taskId, status, options),
+
+  assignKanbanTask: (
+    taskId: string,
+    assignee: string | null,
+    board?: string,
+  ): Promise<unknown> =>
+    ipcRenderer.invoke("assign-kanban-task", taskId, assignee, board),
+
+  commentKanbanTask: (
+    taskId: string,
+    body: string,
+    board?: string,
+  ): Promise<unknown> =>
+    ipcRenderer.invoke("comment-kanban-task", taskId, body, board),
+
+  nudgeKanbanDispatcher: (board?: string): Promise<unknown> =>
+    ipcRenderer.invoke("nudge-kanban-dispatcher", board),
+
+  getKanbanDocs: (): Promise<unknown> => ipcRenderer.invoke("get-kanban-docs"),
+
   // Shell
   openExternal: (url: string): Promise<void> =>
     ipcRenderer.invoke("open-external", url),

@@ -579,6 +579,93 @@ export const installTauriBridge = (): void => {
         },
       ),
 
+    listKanbanBoard: (options) =>
+      call(
+        "list_kanban_board",
+        { options },
+        {
+          success: false,
+          error: fallbackNotice("list_kanban_board"),
+        },
+      ),
+    getKanbanTask: (taskId, board) =>
+      call(
+        "get_kanban_task",
+        { taskId, board },
+        {
+          success: false,
+          error: fallbackNotice("get_kanban_task"),
+        },
+      ),
+    createKanbanTask: (input) =>
+      call(
+        "create_kanban_task",
+        { input },
+        {
+          success: false,
+          error: fallbackNotice("create_kanban_task"),
+        },
+      ),
+    updateKanbanTaskStatus: (taskId, status, options) =>
+      call(
+        "update_kanban_task_status",
+        { taskId, status, options },
+        {
+          success: false,
+          error: fallbackNotice("update_kanban_task_status"),
+        },
+      ),
+    assignKanbanTask: (taskId, assignee, board) =>
+      call(
+        "assign_kanban_task",
+        { taskId, assignee, board },
+        {
+          success: false,
+          error: fallbackNotice("assign_kanban_task"),
+        },
+      ),
+    commentKanbanTask: (taskId, body, board) =>
+      call(
+        "comment_kanban_task",
+        { taskId, body, board },
+        {
+          success: false,
+          error: fallbackNotice("comment_kanban_task"),
+        },
+      ),
+    nudgeKanbanDispatcher: (board) =>
+      call(
+        "nudge_kanban_dispatcher",
+        { board },
+        {
+          success: false,
+          error: fallbackNotice("nudge_kanban_dispatcher"),
+        },
+      ),
+    getKanbanDocs: () =>
+      call(
+        "get_kanban_docs",
+        {},
+        {
+          pluginPath: "",
+          releaseNotesPath: "",
+          overviewPath: "",
+          tutorialPath: "",
+          workerPath: "",
+          orchestratorPath: "",
+          specPath: "",
+          mediumPagePath: "",
+          officialDocsUrl:
+            "https://hermes-agent.nousresearch.com/docs/user-guide/features/kanban",
+          officialTutorialUrl:
+            "https://hermes-agent.nousresearch.com/docs/user-guide/features/kanban-tutorial",
+          upstreamPluginUrl:
+            "https://github.com/NousResearch/hermes-agent/tree/main/plugins/kanban",
+          upstreamReleaseUrl:
+            "https://github.com/NousResearch/hermes-agent/releases/tag/v2026.4.30",
+        },
+      ),
+
     openExternal: (url) => call("open_external", { url }, undefined),
     windowMinimize: () => call("window_minimize", {}, undefined),
     windowToggleMaximize: () => call("window_toggle_maximize", {}, false),

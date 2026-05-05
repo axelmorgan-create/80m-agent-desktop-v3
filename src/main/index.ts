@@ -243,6 +243,18 @@ import {
   resumeCronJob,
   triggerCronJob,
 } from "./cronjobs";
+import {
+  assignKanbanTask,
+  commentKanbanTask,
+  createKanbanTask,
+  getKanbanDocs,
+  getKanbanTask,
+  listKanbanBoard,
+  nudgeKanbanDispatcher,
+  updateKanbanTaskStatus,
+  type CreateKanbanTaskInput,
+  type KanbanStatus,
+} from "./kanban";
 import { getAppLocale, setAppLocale } from "./locale";
 
 process.on("uncaughtException", (err) => {
@@ -1828,6 +1840,49 @@ function setupIPC(): void {
     "trigger-cron-job",
     (_event, jobId: string, profile?: string) => triggerCronJob(jobId, profile),
   );
+
+  // Kanban
+  ipcMain.handle(
+    "list-kanban-board",
+    (
+      _event,
+      options?: { board?: string; tenant?: string; includeArchived?: boolean },
+    ) => listKanbanBoard(options),
+  );
+  ipcMain.handle("get-kanban-task", (_event, taskId: string, board?: string) =>
+    getKanbanTask(taskId, board),
+  );
+  ipcMain.handle("create-kanban-task", (_event, input: CreateKanbanTaskInput) =>
+    createKanbanTask(input),
+  );
+  ipcMain.handle(
+    "update-kanban-task-status",
+    (
+      _event,
+      taskId: string,
+      status: KanbanStatus,
+      options?: {
+        board?: string;
+        reason?: string;
+        summary?: string;
+        metadata?: Record<string, unknown>;
+      },
+    ) => updateKanbanTaskStatus(taskId, status, options),
+  );
+  ipcMain.handle(
+    "assign-kanban-task",
+    (_event, taskId: string, assignee: string | null, board?: string) =>
+      assignKanbanTask(taskId, assignee, board),
+  );
+  ipcMain.handle(
+    "comment-kanban-task",
+    (_event, taskId: string, body: string, board?: string) =>
+      commentKanbanTask(taskId, body, board),
+  );
+  ipcMain.handle("nudge-kanban-dispatcher", (_event, board?: string) =>
+    nudgeKanbanDispatcher(board),
+  );
+  ipcMain.handle("get-kanban-docs", () => getKanbanDocs());
 
   // Shell
   ipcMain.handle("open-external", (_event, url: string) => {

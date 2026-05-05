@@ -10,6 +10,7 @@ import Tools from "../../screens/Tools/Tools";
 import Gateway from "../../screens/Gateway/Gateway";
 import Models from "../../screens/Models/Models";
 import Schedules from "../../screens/Schedules/Schedules";
+import Kanban from "../../screens/Kanban/Kanban";
 import CommandPalette from "./CommandPalette";
 import AgentPreviewPanel from "./AgentPreviewPanel";
 import ProjectsSidebar from "./ProjectsSidebar";
@@ -24,7 +25,8 @@ type View =
   | "gateway"
   | "settings"
   | "models"
-  | "schedules";
+  | "schedules"
+  | "kanban";
 
 const Layout80m: React.FC = () => {
   const [activeView, setActiveView] = useState<View>("chat");
@@ -226,6 +228,8 @@ const Layout80m: React.FC = () => {
             profile={selectedAgent !== "default" ? selectedAgent : undefined}
           />,
         );
+      case "kanban":
+        return wrap("KANBAN", <Kanban />);
       default:
         return (
           <ChatArea

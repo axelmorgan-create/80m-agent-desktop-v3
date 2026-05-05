@@ -119,6 +119,130 @@ interface AppNotificationPayload {
   createdAt?: number;
 }
 
+type KanbanStatus =
+  | "triage"
+  | "todo"
+  | "ready"
+  | "running"
+  | "blocked"
+  | "done"
+  | "archived";
+
+interface KanbanTask {
+  id: string;
+  title: string;
+  body: string | null;
+  assignee: string | null;
+  status: KanbanStatus;
+  priority: number;
+  tenant: string | null;
+  workspace_kind: string;
+  workspace_path: string | null;
+  created_by: string | null;
+  created_at: number;
+  started_at: number | null;
+  completed_at: number | null;
+  result: string | null;
+  skills: string[];
+}
+
+interface KanbanBoard {
+  slug: string;
+  name: string;
+  description?: string;
+  icon?: string;
+  color?: string;
+  db_path?: string;
+  is_current?: boolean;
+  counts?: Record<string, number>;
+  total?: number;
+}
+
+interface KanbanAssignee {
+  name: string;
+  on_disk: boolean;
+  counts: Record<string, number>;
+}
+
+interface KanbanDocs {
+  pluginPath: string;
+  releaseNotesPath: string;
+  overviewPath: string;
+  tutorialPath: string;
+  workerPath: string;
+  orchestratorPath: string;
+  specPath: string;
+  mediumPagePath: string;
+  officialDocsUrl: string;
+  officialTutorialUrl: string;
+  upstreamPluginUrl: string;
+  upstreamReleaseUrl: string;
+}
+
+interface KanbanBoardData {
+  tasks: KanbanTask[];
+  columns: Record<KanbanStatus, KanbanTask[]>;
+  boards: KanbanBoard[];
+  assignees: KanbanAssignee[];
+  stats: {
+    by_status: Record<string, number>;
+    by_assignee: Record<string, Record<string, number>>;
+    oldest_ready_age_seconds: number | null;
+    now: number;
+  };
+  docs: KanbanDocs;
+}
+
+interface KanbanTaskDetails {
+  task: KanbanTask;
+  parents: string[];
+  children: string[];
+  comments: Array<{
+    author: string;
+    body: string;
+    created_at: number;
+  }>;
+  events: Array<{
+    kind: string;
+    payload: unknown;
+    created_at: number;
+    run_id: number | null;
+  }>;
+  runs: Array<{
+    id: number;
+    profile: string | null;
+    status: string;
+    outcome: string | null;
+    summary: string | null;
+    error: string | null;
+    metadata: string | null;
+    worker_pid?: number | null;
+    started_at: number;
+    ended_at: number | null;
+  }>;
+}
+
+interface KanbanCommandResult<T = unknown> {
+  success: boolean;
+  data?: T;
+  output?: string;
+  error?: string;
+}
+
+interface CreateKanbanTaskInput {
+  title: string;
+  body?: string;
+  assignee?: string;
+  tenant?: string;
+  priority?: number;
+  workspace?: string;
+  triage?: boolean;
+  parents?: string[];
+  skills?: string[];
+  maxRuntime?: string;
+  board?: string;
+}
+
 interface HermesAPI {
   // Installation
   checkInstall: () => Promise<InstallStatus>;
@@ -585,6 +709,44 @@ interface HermesAPI {
     jobId: string,
     profile?: string,
   ) => Promise<{ success: boolean; error?: string }>;
+
+  // Kanban
+  listKanbanBoard: (options?: {
+    board?: string;
+    tenant?: string;
+    includeArchived?: boolean;
+  }) => Promise<KanbanCommandResult<KanbanBoardData>>;
+  getKanbanTask: (
+    taskId: string,
+    board?: string,
+  ) => Promise<KanbanCommandResult<KanbanTaskDetails>>;
+  createKanbanTask: (
+    input: CreateKanbanTaskInput,
+  ) => Promise<KanbanCommandResult<KanbanTask>>;
+  updateKanbanTaskStatus: (
+    taskId: string,
+    status: KanbanStatus,
+    options?: {
+      board?: string;
+      reason?: string;
+      summary?: string;
+      metadata?: Record<string, unknown>;
+    },
+  ) => Promise<KanbanCommandResult>;
+  assignKanbanTask: (
+    taskId: string,
+    assignee: string | null,
+    board?: string,
+  ) => Promise<KanbanCommandResult>;
+  commentKanbanTask: (
+    taskId: string,
+    body: string,
+    board?: string,
+  ) => Promise<KanbanCommandResult>;
+  nudgeKanbanDispatcher: (
+    board?: string,
+  ) => Promise<KanbanCommandResult<unknown>>;
+  getKanbanDocs: () => Promise<KanbanDocs>;
 
   // Shell
   openExternal: (url: string) => Promise<void>;

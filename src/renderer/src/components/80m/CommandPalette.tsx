@@ -58,6 +58,12 @@ const CommandPalette: React.FC<CommandPaletteProps> = ({
       action: () => onNavigate("skills"),
     },
     {
+      id: "kanban",
+      label: "Open Kanban",
+      icon: "KB",
+      action: () => onNavigate("kanban"),
+    },
+    {
       id: "tools",
       label: "Open Tools",
       icon: "🔧",
