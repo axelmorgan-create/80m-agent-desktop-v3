@@ -187,13 +187,13 @@ export function getKanbanDocs(): KanbanDocs {
     specPath: join(root, "hermes-kanban-v1-spec.pdf"),
     mediumPagePath: join(mediumRoot(), "HERMES_KANBAN_V012_MEDIUM_PAGE.md"),
     officialDocsUrl:
-      "https://hermes-agent.nousresearch.com/docs/user-guide/features/kanban",
+      "https://github.com/guapdad4000/80m-agent-desktop-v3/blob/main/docs/hermes-kanban/kanban.md",
     officialTutorialUrl:
-      "https://hermes-agent.nousresearch.com/docs/user-guide/features/kanban-tutorial",
+      "https://github.com/guapdad4000/80m-agent-desktop-v3/blob/main/docs/hermes-kanban/kanban-tutorial.md",
     upstreamPluginUrl:
-      "https://github.com/NousResearch/hermes-agent/tree/main/plugins/kanban",
+      "https://github.com/guapdad4000/80m-agent-desktop-v3/tree/main/vendor/hermes-kanban",
     upstreamReleaseUrl:
-      "https://github.com/NousResearch/hermes-agent/releases/tag/v2026.4.30",
+      "https://github.com/guapdad4000/80m-agent-desktop-v3/blob/main/docs/hermes-kanban/HERMES_AGENT_V0.12.0_RELEASE_NOTES.md",
   };
 }
 
@@ -204,7 +204,7 @@ function runKanbanCommand(
   if (!existsSync(HERMES_PYTHON) || !existsSync(HERMES_SCRIPT)) {
     return Promise.resolve({
       success: false,
-      error: "Hermes is not installed.",
+      error: "80M is not installed.",
     });
   }
 
@@ -546,7 +546,7 @@ export async function updateKanbanTaskStatus(
   if (status === "running") {
     return {
       success: false,
-      error: "Running tasks must be claimed by the Hermes dispatcher.",
+      error: "Running tasks must be claimed by the 80M dispatcher.",
     };
   }
   return setStatusDirect(taskId, status, options.board);

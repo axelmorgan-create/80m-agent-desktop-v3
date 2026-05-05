@@ -1,7 +1,7 @@
 export default {
   title: "Second Brain",
   subtitle:
-    "What Hermes remembers about you and your environment across sessions.",
+    "What 80M remembers about you and your environment across sessions.",
   sessions: "Sessions",
   messages: "Messages",
   memories: "Memories",
@@ -19,15 +19,14 @@ export default {
     "e.g. Name: Alex. Senior developer. Prefers concise answers. Uses macOS with zsh. Timezone: PST.",
   noProvidersFound: "No memory providers found in this installation.",
   openProviderWebsite: "Open provider website",
-  noMemoriesYet:
-    "No memories yet. Hermes will save important facts as you chat.",
+  noMemoriesYet: "No memories yet. 80M will save important facts as you chat.",
   noMemoryEntries: "No memory entries yet.",
   noToolsetsFound: "No toolsets found.",
   addManuallyHint: "You can also add memories manually using the button above.",
   userProfileHint:
-    "Tell Hermes about yourself — name, role, preferences, communication style.",
+    "Tell 80M about yourself — name, role, preferences, communication style.",
   providersHint:
-    "Pluggable memory providers give Hermes advanced long-term memory. Built-in memory (above) is always active alongside the selected provider.",
+    "Pluggable memory providers give 80M advanced long-term memory. Built-in memory (above) is always active alongside the selected provider.",
   providersHintActive: "Active: <strong>{{provider}}</strong>",
   providersHintInactive: "No external provider active — using built-in only.",
   enterEnvKey: "Enter {{key}}",

@@ -341,7 +341,7 @@ function Tools({ profile }: ToolsProps): React.JSX.Element {
               {toolGateway.available ? "Managed tools ready" : "Account gated"}
             </span>
           </div>
-          <div className="tools-card-label">Nous Tool Gateway</div>
+          <div className="tools-card-label">80M Tool Gateway</div>
           <div className="tools-card-description">{toolGateway.reason}</div>
           <div className="tools-card-description" style={{ marginTop: 8 }}>
             Managed tools: {toolGateway.managedTools.join(", ") || "none"}

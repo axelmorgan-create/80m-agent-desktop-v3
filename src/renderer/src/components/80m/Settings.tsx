@@ -114,28 +114,28 @@ interface CuratorCommandResult {
 const NOUS_MODEL_PRESETS: Record<string, ModelPreset> = {
   minimax: {
     id: "nous-minimax",
-    name: "MiniMax · Nous",
+    name: "MiniMax · Portal",
     provider: "nous",
     model: "minimax/minimax-m2.7",
     baseUrl: "",
   },
   openai: {
     id: "nous-openai",
-    name: "OpenAI · Nous",
+    name: "OpenAI · Portal",
     provider: "nous",
     model: "openai/gpt-5.5",
     baseUrl: "",
   },
   xai: {
     id: "nous-xai",
-    name: "xAI · Nous",
+    name: "xAI · Portal",
     provider: "nous",
     model: "x-ai/grok-4.20-beta",
     baseUrl: "",
   },
   qwen: {
     id: "nous-qwen",
-    name: "Qwen · Nous",
+    name: "Qwen · Portal",
     provider: "nous",
     model: "qwen/qwen3.5-plus-02-15",
     baseUrl: "",
@@ -196,22 +196,22 @@ function modelConfigIssue(
     return "Custom providers need a base URL.";
   }
   if (provider === "minimax" && !hasEnv(env, "MINIMAX_API_KEY")) {
-    return "MiniMax API mode needs MINIMAX_API_KEY saved in Hermes.";
+    return "MiniMax API mode needs MINIMAX_API_KEY saved in 80M.";
   }
   if (provider === "minimax-cn" && !hasEnv(env, "MINIMAX_CN_API_KEY")) {
-    return "MiniMax CN mode needs MINIMAX_CN_API_KEY saved in Hermes.";
+    return "MiniMax CN mode needs MINIMAX_CN_API_KEY saved in 80M.";
   }
   if (provider === "minimax-oauth" && !hasCredential(pool, "minimax-oauth")) {
     return "MiniMax OAuth mode needs a saved MiniMax OAuth credential from hermes model.";
   }
   if (provider === "nous" && !hasCredential(pool, "nous")) {
-    return "Nous Portal mode needs a saved Nous credential from hermes auth or hermes model.";
+    return "Portal mode needs a saved credential from the local runtime.";
   }
   if (provider === "openai-codex" && !hasCredential(pool, "openai-codex")) {
     return "OpenAI Codex mode needs a saved Codex OAuth credential from hermes model.";
   }
   if (provider === "alibaba" && !hasEnv(env, "DASHSCOPE_API_KEY")) {
-    return "Qwen DashScope mode needs DASHSCOPE_API_KEY saved in Hermes.";
+    return "Qwen DashScope mode needs DASHSCOPE_API_KEY saved in 80M.";
   }
   return null;
 }
@@ -858,7 +858,7 @@ const Settings80m: React.FC<Props> = ({ onBack, profile }) => {
               className="settings-80m-section"
             >
               <div className="settings-80m-health-header">
-                <label className="settings-80m-label">Hermes Health</label>
+                <label className="settings-80m-label">80M Health</label>
                 <button
                   type="button"
                   className="settings-80m-profile-btn"
@@ -958,7 +958,7 @@ const Settings80m: React.FC<Props> = ({ onBack, profile }) => {
                   <div className="settings-80m-health-grid">
                     <div className="settings-80m-health-card">
                       <span className="settings-80m-health-title">
-                        Hermes Version
+                        Runtime Version
                       </span>
                       <span
                         className={`settings-80m-health-pill ${
@@ -1045,7 +1045,7 @@ const Settings80m: React.FC<Props> = ({ onBack, profile }) => {
 
                     <div className="settings-80m-health-card">
                       <span className="settings-80m-health-title">
-                        Nous Tool Gateway
+                        80M Tool Gateway
                       </span>
                       <span
                         className={`settings-80m-health-pill ${
@@ -1093,7 +1093,7 @@ const Settings80m: React.FC<Props> = ({ onBack, profile }) => {
 
               {!capabilities?.supports.curator && (
                 <div className="settings-80m-result error">
-                  Curator controls require Hermes v0.12+. Run the safe upgrade
+                  Curator controls require runtime v0.12+. Run the safe upgrade
                   from Health first.
                 </div>
               )}
@@ -1281,7 +1281,7 @@ const Settings80m: React.FC<Props> = ({ onBack, profile }) => {
               className="settings-80m-section"
             >
               <div className="settings-80m-field">
-                <label className="settings-80m-label">Hermes Backup</label>
+                <label className="settings-80m-label">80M Backup</label>
                 <p
                   style={{
                     color: "#e8e8e8",
@@ -1290,7 +1290,7 @@ const Settings80m: React.FC<Props> = ({ onBack, profile }) => {
                     marginBottom: "12px",
                   }}
                 >
-                  Export all Hermes data including sessions, memory, skills, and
+                  Export all 80M data including sessions, memory, skills, and
                   configuration.
                 </p>
                 <button
@@ -1328,7 +1328,7 @@ const Settings80m: React.FC<Props> = ({ onBack, profile }) => {
                     marginBottom: "12px",
                   }}
                 >
-                  Restore from a previous Hermes backup. This will merge with
+                  Restore from a previous 80M backup. This will merge with
                   existing data.
                 </p>
                 <button
@@ -1377,14 +1377,14 @@ const Settings80m: React.FC<Props> = ({ onBack, profile }) => {
                     </span>
                   </div>
                   <div className="settings-80m-about-version">
-                    <span className="settings-80m-label">Hermes Engine</span>
+                    <span className="settings-80m-label">80M Runtime</span>
                     <span className="settings-80m-version-value">
                       {hermesVersion || "Unknown"}
                     </span>
                   </div>
                 </div>
                 <p className="settings-80m-about-desc">
-                  Agent Desktop — A brutalist dark UI for the Hermes multi-agent
+                  Agent Desktop — A brutalist dark UI for the 80M multi-agent
                   system.
                 </p>
               </div>

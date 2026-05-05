@@ -524,7 +524,7 @@ export default function Kanban(): React.JSX.Element {
         <div className="kanban-title-block">
           <div className="kanban-eyebrow">
             <GitBranch size={14} />
-            Hermes Kanban
+            80M Kanban
           </div>
           <h2 className="kanban-title">Multi-Agent Board</h2>
           <div className="kanban-stats-row">

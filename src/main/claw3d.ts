@@ -59,7 +59,7 @@ function getSavedWsUrl(): string {
 
 export function setClaw3dWsUrl(url: string): void {
   safeWriteFile(WS_URL_FILE, url);
-  // Also update the settings.json so Claw3D picks it up
+  // Also update the settings.json so 3D Office picks it up
   writeClaw3dSettings(url);
 }
 
@@ -68,7 +68,7 @@ export function getClaw3dWsUrl(): string {
 }
 
 /**
- * Write Claw3D settings to ~/.openclaw/claw3d/settings.json
+ * Write 3D Office settings to ~/.openclaw/claw3d/settings.json
  * and .env in the claw3d directory so onboarding is skipped.
  */
 function writeClaw3dSettings(wsUrl?: string): void {
@@ -104,7 +104,7 @@ function writeClaw3dSettings(wsUrl?: string): void {
       const envPath = join(HERMES_OFFICE_DIR, ".env");
       const port = getSavedPort();
       const envContent = [
-        "# Auto-configured by Hermes Desktop",
+        "# Auto-configured by 80M Agent Desktop",
         `PORT=${port}`,
         `HOST=127.0.0.1`,
         `NEXT_PUBLIC_GATEWAY_URL=${url}`,
@@ -112,7 +112,7 @@ function writeClaw3dSettings(wsUrl?: string): void {
         `CLAW3D_GATEWAY_TOKEN=`,
         `HERMES_ADAPTER_PORT=18789`,
         `HERMES_MODEL=hermes`,
-        `HERMES_AGENT_NAME=Hermes`,
+        `HERMES_AGENT_NAME=80M`,
         "",
       ].join("\n");
       safeWriteFile(envPath, envContent);
@@ -320,7 +320,7 @@ export async function setupClaw3d(
   const cloned = existsSync(join(HERMES_OFFICE_DIR, "package.json"));
 
   if (!cloned) {
-    emit(1, "Cloning Claw3D repository...", "Cloning from GitHub...\n");
+    emit(1, "Cloning 3D Office workspace...", "Cloning workspace...\n");
     await new Promise<void>((resolve, reject) => {
       const proc = spawn(
         "git",
@@ -333,15 +333,15 @@ export async function setupClaw3d(
       );
 
       proc.stdout?.on("data", (data: Buffer) => {
-        emit(1, "Cloning Claw3D repository...", stripAnsi(data.toString()));
+        emit(1, "Cloning 3D Office workspace...", stripAnsi(data.toString()));
       });
       proc.stderr?.on("data", (data: Buffer) => {
-        emit(1, "Cloning Claw3D repository...", stripAnsi(data.toString()));
+        emit(1, "Cloning 3D Office workspace...", stripAnsi(data.toString()));
       });
 
       proc.on("close", (code) => {
         if (code === 0) {
-          emit(1, "Cloning Claw3D repository...", "Clone complete.\n");
+          emit(1, "Cloning 3D Office workspace...", "Clone complete.\n");
           resolve();
         } else {
           reject(new Error(`git clone failed (exit code ${code})`));
@@ -354,7 +354,7 @@ export async function setupClaw3d(
   } else {
     emit(
       1,
-      "Claw3D already cloned",
+      "3D Office already cloned",
       "Repository already exists, pulling latest...\n",
     );
     await new Promise<void>((resolve) => {
@@ -365,10 +365,10 @@ export async function setupClaw3d(
       });
 
       proc.stdout?.on("data", (data: Buffer) => {
-        emit(1, "Updating Claw3D...", stripAnsi(data.toString()));
+        emit(1, "Updating 3D Office...", stripAnsi(data.toString()));
       });
       proc.stderr?.on("data", (data: Buffer) => {
-        emit(1, "Updating Claw3D...", stripAnsi(data.toString()));
+        emit(1, "Updating 3D Office...", stripAnsi(data.toString()));
       });
 
       proc.on("close", (code) => {
@@ -414,7 +414,7 @@ export async function setupClaw3d(
     );
   });
 
-  // Write config files so Claw3D skips onboarding
+  // Write config files so 3D Office skips onboarding
   writeClaw3dSettings();
 }
 
@@ -557,7 +557,7 @@ export function startAdapter(): boolean {
 
   proc.on("close", (code) => {
     if (code && code !== 0 && !adapterError) {
-      adapterError = `Hermes adapter exited with code ${code}`;
+      adapterError = `80M adapter exited with code ${code}`;
     }
     adapterProcess = null;
     cleanupPid(ADAPTER_PID_FILE);
@@ -592,7 +592,7 @@ export function startAll(): { success: boolean; error?: string } {
   if (!existsSync(join(HERMES_OFFICE_DIR, "node_modules"))) {
     return {
       success: false,
-      error: "Claw3D is not installed. Please install it first.",
+      error: "3D Office is not installed. Please install it first.",
     };
   }
 
@@ -610,7 +610,7 @@ export function startAll(): { success: boolean; error?: string } {
   // Start adapter
   const adapterOk = startAdapter();
   if (!adapterOk) {
-    return { success: false, error: "Failed to start Hermes adapter" };
+    return { success: false, error: "Failed to start 80M adapter" };
   }
 
   return { success: true };
