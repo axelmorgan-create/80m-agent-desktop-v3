@@ -9,6 +9,13 @@ files:
   - "!{.eslintcache,eslint.config.mjs,.prettierignore,.prettierrc.yaml,dev-app-update.yml,CHANGELOG.md,README.md}"
   - "!{.env,.env.*,.npmrc,pnpm-lock.yaml}"
   - "!{tsconfig.json,tsconfig.node.json,tsconfig.web.json}"
+extraResources:
+  - from: docs/hermes-kanban
+    to: hermes-kanban/docs
+  - from: docs/medium
+    to: hermes-kanban/medium
+  - from: vendor/hermes-kanban
+    to: hermes-kanban/vendor
 asarUnpack:
   - resources/**
 win:
@@ -44,4 +51,4 @@ npmRebuild: false
 publish:
   provider: github
   owner: guapdad4000
-  repo: 80m-agent-desktop
+  repo: 80m-agent-desktop-v3

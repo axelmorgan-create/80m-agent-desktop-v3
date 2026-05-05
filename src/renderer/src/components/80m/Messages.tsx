@@ -1,7 +1,7 @@
-import React, { useState } from "react";
-import ReactMarkdown from "react-markdown";
+import React, { useEffect, useState } from "react";
+import ReactMarkdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
-import rehypeHighlight from "rehype-highlight";
+import { Check, Copy, ExternalLink, PanelRightOpen } from "lucide-react";
 import Animated80MLogo from "../Animated80MLogo";
 
 export interface Message {
@@ -35,6 +35,26 @@ interface FileArtifactData {
   action: "created" | "moved" | "file" | "image" | "pdf";
   bytes?: number;
   output?: string;
+}
+
+interface DocumentPreviewData {
+  path: string;
+  name: string;
+  exists: boolean;
+  kind:
+    | "text"
+    | "markdown"
+    | "image"
+    | "pdf"
+    | "office"
+    | "directory"
+    | "binary"
+    | "missing";
+  size: number;
+  fileUrl?: string;
+  content?: string;
+  truncated?: boolean;
+  error?: string;
 }
 
 function parseJsonRecord(value?: string): JsonRecord | null {
@@ -106,10 +126,6 @@ function isImagePath(filePath?: string): boolean {
 
 function isPdfPath(filePath?: string): boolean {
   return extensionFor(filePath) === "pdf";
-}
-
-function localFileUrl(filePath: string): string {
-  return `file://${filePath.split("/").map(encodeURIComponent).join("/")}`;
 }
 
 function splitShellArgs(command: string): string[] {
@@ -211,22 +227,154 @@ function formatBytes(bytes?: number): string | null {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
+function dispatchToast(
+  title: string,
+  body: string,
+  tone: "info" | "success" | "warning" | "error" = "info",
+): void {
+  window.dispatchEvent(
+    new CustomEvent("desktop-toast", {
+      detail: { title, body, tone },
+    }),
+  );
+}
+
+function normalizeExternalHref(href?: string): string | null {
+  const value = href?.trim();
+  if (!value || value.startsWith("#")) return null;
+  if (/^https?:\/\//i.test(value) || /^mailto:/i.test(value)) return value;
+  if (/^www\./i.test(value)) return `https://${value}`;
+  return null;
+}
+
+function canPreviewHref(href: string | null): href is string {
+  return Boolean(href && /^https?:\/\//i.test(href));
+}
+
 function FileActions({ path }: { path?: string }): React.JSX.Element | null {
+  const [status, setStatus] = useState("");
   if (!path) return null;
+  const run = async (action: "open" | "reveal"): Promise<void> => {
+    const ok =
+      action === "open"
+        ? await window.hermesAPI.openLocalPath(path)
+        : await window.hermesAPI.revealLocalPath(path);
+    setStatus(ok ? "" : "Not found");
+    if (!ok) setTimeout(() => setStatus(""), 2200);
+  };
   return (
     <div className="tool-file-actions">
-      <button
-        type="button"
-        onClick={() => void window.hermesAPI.openLocalPath(path)}
-      >
+      <button type="button" onClick={() => void run("open")}>
         Open
       </button>
-      <button
-        type="button"
-        onClick={() => void window.hermesAPI.revealLocalPath(path)}
-      >
+      <button type="button" onClick={() => void run("reveal")}>
         Reveal
       </button>
+      {status && <span className="tool-file-action-status">{status}</span>}
+    </div>
+  );
+}
+
+function DocumentPreview({
+  path,
+}: {
+  path?: string;
+}): React.JSX.Element | null {
+  const [preview, setPreview] = useState<DocumentPreviewData | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    if (!path) {
+      setPreview(null);
+      return;
+    }
+    setLoading(true);
+    window.hermesAPI
+      .readDocumentPreview(path)
+      .then((result) => {
+        if (!cancelled) setPreview(result);
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setPreview({
+            path,
+            name: path.split("/").pop() || path,
+            exists: false,
+            kind: "missing",
+            size: 0,
+            error: "Preview unavailable",
+          });
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [path]);
+
+  if (!path) return null;
+  if (loading && !preview) {
+    return (
+      <div className="tool-document-preview-empty">Loading preview...</div>
+    );
+  }
+  if (!preview) return null;
+
+  if (!preview.exists) {
+    return (
+      <div className="tool-document-preview-empty">
+        {preview.error || "File not found"}
+      </div>
+    );
+  }
+
+  if (preview.kind === "image" && preview.fileUrl) {
+    return (
+      <div className="tool-media-preview">
+        <img src={preview.fileUrl} alt={preview.name} />
+      </div>
+    );
+  }
+
+  if (preview.kind === "pdf" && preview.fileUrl) {
+    return (
+      <div className="tool-pdf-preview">
+        <iframe src={preview.fileUrl} title={preview.name} />
+      </div>
+    );
+  }
+
+  if (
+    (preview.kind === "text" ||
+      preview.kind === "markdown" ||
+      preview.kind === "office") &&
+    preview.content
+  ) {
+    const lines = preview.content.split("\n").slice(0, 220);
+    return (
+      <pre className="tool-file-content tool-document-preview-content">
+        {lines.map((line, index) => (
+          <div className="tool-file-line" key={`${preview.path}-${index}`}>
+            <span className="tool-file-line-number">{index + 1}</span>
+            <code>{line || " "}</code>
+          </div>
+        ))}
+        {preview.truncated && (
+          <div className="tool-document-preview-empty">Preview truncated.</div>
+        )}
+      </pre>
+    );
+  }
+
+  return (
+    <div className="tool-document-preview-empty">
+      {preview.error ||
+        (preview.kind === "directory"
+          ? "Folder preview is unavailable."
+          : "Preview unavailable for this file type.")}
     </div>
   );
 }
@@ -303,16 +451,7 @@ function ToolFileArtifact({
         </div>
         <FileActions path={file.path || file.sourcePath} />
       </div>
-      {file.path && file.action === "image" && (
-        <div className="tool-media-preview">
-          <img src={localFileUrl(file.path)} alt={file.path} />
-        </div>
-      )}
-      {file.path && file.action === "pdf" && (
-        <div className="tool-pdf-preview">
-          <iframe src={localFileUrl(file.path)} title={file.path} />
-        </div>
-      )}
+      <DocumentPreview path={file.path || file.sourcePath} />
     </div>
   );
 }
@@ -383,6 +522,87 @@ function ToolMessage({ msg }: { msg: Message }): React.JSX.Element {
 
 const Messages: React.FC<Props> = ({ messages, isLoading }) => {
   const [hoveredMsg, setHoveredMsg] = useState<string | null>(null);
+  const [copiedMsg, setCopiedMsg] = useState<string | null>(null);
+
+  const copyMessage = async (msg: Message): Promise<void> => {
+    try {
+      await navigator.clipboard.writeText(msg.content);
+      setCopiedMsg(msg.id);
+      dispatchToast("Copied", "Message copied to clipboard.", "success");
+      window.setTimeout(() => setCopiedMsg(null), 1500);
+    } catch {
+      dispatchToast("Copy failed", "Clipboard permission was denied.", "error");
+    }
+  };
+
+  const openLink = (
+    href?: string,
+    mode: "external" | "preview" = "external",
+  ) => {
+    const target = normalizeExternalHref(href);
+    if (!target) {
+      dispatchToast(
+        "Link not opened",
+        "Only web and mail links can leave the app.",
+        "warning",
+      );
+      return;
+    }
+
+    if (mode === "preview") {
+      if (!canPreviewHref(target)) {
+        dispatchToast(
+          "Preview unavailable",
+          "Only web links can open in preview.",
+          "warning",
+        );
+        return;
+      }
+      window.dispatchEvent(
+        new CustomEvent("open-agent-preview-url", {
+          detail: { url: target },
+        }),
+      );
+      dispatchToast("Opening preview", target, "info");
+      return;
+    }
+
+    void window.hermesAPI.openExternal(target);
+  };
+
+  const markdownComponents: Components = {
+    a({ href, children, node: _node, ...props }) {
+      const target = normalizeExternalHref(href);
+      const previewable = canPreviewHref(target);
+      return (
+        <span className="msg-link-actions">
+          <a
+            {...props}
+            href={target || href}
+            title="Open outside"
+            onClick={(event) => {
+              event.preventDefault();
+              openLink(href, event.altKey ? "preview" : "external");
+            }}
+          >
+            {children}
+            <ExternalLink size={11} aria-hidden="true" />
+          </a>
+          {previewable && (
+            <button
+              type="button"
+              className="msg-link-preview-btn"
+              title="Open in preview"
+              aria-label="Open link in preview"
+              onClick={() => openLink(href, "preview")}
+            >
+              <PanelRightOpen size={12} />
+            </button>
+          )}
+        </span>
+      );
+    },
+  };
 
   return (
     <div className="messages-80m">
@@ -417,20 +637,19 @@ const Messages: React.FC<Props> = ({ messages, isLoading }) => {
             </div>
           )}
           <div className="msg-80m-bubble">
-            {msg.role === "assistant" && hoveredMsg === msg.id && (
+            {msg.role !== "tool" && hoveredMsg === msg.id && (
               <div className="msg-80m-actions">
-                <button className="msg-80m-action-btn" title="Copy">
-                  <svg
-                    width="12"
-                    height="12"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                  >
-                    <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
-                    <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
-                  </svg>
+                <button
+                  className="msg-80m-action-btn"
+                  title="Copy message"
+                  type="button"
+                  onClick={() => void copyMessage(msg)}
+                >
+                  {copiedMsg === msg.id ? (
+                    <Check size={12} />
+                  ) : (
+                    <Copy size={12} />
+                  )}
                 </button>
               </div>
             )}
@@ -453,7 +672,7 @@ const Messages: React.FC<Props> = ({ messages, isLoading }) => {
             {msg.role === "assistant" ? (
               <ReactMarkdown
                 remarkPlugins={[remarkGfm]}
-                rehypePlugins={[rehypeHighlight]}
+                components={markdownComponents}
               >
                 {msg.content +
                   (isLoading && index === messages.length - 1 ? " █" : "")}

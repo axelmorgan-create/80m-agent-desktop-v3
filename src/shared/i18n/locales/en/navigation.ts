@@ -6,9 +6,10 @@ export default {
   models: "Models",
   skills: "Skills",
   soul: "Persona",
-  memory: "Memory",
+  memory: "Second Brain",
   tools: "Tools",
   schedules: "Schedules",
+  kanban: "Kanban",
   gateway: "Gateway",
   settings: "Settings",
 } as const;

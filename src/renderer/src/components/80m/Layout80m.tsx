@@ -10,6 +10,7 @@ import Tools from "../../screens/Tools/Tools";
 import Gateway from "../../screens/Gateway/Gateway";
 import Models from "../../screens/Models/Models";
 import Schedules from "../../screens/Schedules/Schedules";
+import Kanban from "../../screens/Kanban/Kanban";
 import CommandPalette from "./CommandPalette";
 import AgentPreviewPanel from "./AgentPreviewPanel";
 import ProjectsSidebar from "./ProjectsSidebar";
@@ -24,7 +25,8 @@ type View =
   | "gateway"
   | "settings"
   | "models"
-  | "schedules";
+  | "schedules"
+  | "kanban";
 
 const Layout80m: React.FC = () => {
   const [activeView, setActiveView] = useState<View>("chat");
@@ -32,6 +34,7 @@ const Layout80m: React.FC = () => {
   const [showCommandPalette, setShowCommandPalette] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
   const [selectedAgent, setSelectedAgent] = useState<string>("default");
+  const [activeChatRuns, setActiveChatRuns] = useState(0);
 
   // Projects state
   const [activeProject, setActiveProject] = useState<string | null>(() => {
@@ -108,6 +111,31 @@ const Layout80m: React.FC = () => {
     window.addEventListener("layout-cmd", handleLayoutCmd);
     return () => window.removeEventListener("layout-cmd", handleLayoutCmd);
   }, [handleNewSession]);
+
+  useEffect(() => {
+    const handleChatStarted = () => {
+      setActiveChatRuns((count) => count + 1);
+    };
+    const handleChatFinished = () => {
+      setActiveChatRuns((count) => Math.max(0, count - 1));
+    };
+
+    window.addEventListener("chat-started", handleChatStarted);
+    window.addEventListener("chat-finished", handleChatFinished);
+    return () => {
+      window.removeEventListener("chat-started", handleChatStarted);
+      window.removeEventListener("chat-finished", handleChatFinished);
+    };
+  }, []);
+
+  useEffect(() => {
+    const handlePreviewUrl = () => {
+      setShowPreview(true);
+    };
+    window.addEventListener("open-agent-preview-url", handlePreviewUrl);
+    return () =>
+      window.removeEventListener("open-agent-preview-url", handlePreviewUrl);
+  }, []);
 
   const renderMainContent = () => {
     const wrap = (_title: string, el: ReactNode) => (
@@ -200,6 +228,8 @@ const Layout80m: React.FC = () => {
             profile={selectedAgent !== "default" ? selectedAgent : undefined}
           />,
         );
+      case "kanban":
+        return wrap("KANBAN", <Kanban />);
       default:
         return (
           <ChatArea
@@ -257,6 +287,8 @@ const Layout80m: React.FC = () => {
       <AgentPreviewPanel
         isOpen={showPreview}
         onClose={() => setShowPreview(false)}
+        activeProject={activeProject}
+        isAgentWorking={activeChatRuns > 0}
       />
 
       {!showPreview && (

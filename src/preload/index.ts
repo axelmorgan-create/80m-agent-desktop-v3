@@ -47,6 +47,23 @@ const hermesAPI = {
     ipcRenderer.invoke("run-hermes-doctor"),
   runHermesUpdate: (): Promise<{ success: boolean; error?: string }> =>
     ipcRenderer.invoke("run-hermes-update"),
+  runHermesUpdateCheck: (): Promise<{
+    success: boolean;
+    updateAvailable: boolean;
+    output: string;
+    error?: string;
+  }> => ipcRenderer.invoke("run-hermes-update-check"),
+  runSafeHermesUpgrade: (
+    profile?: string,
+  ): Promise<{
+    success: boolean;
+    backupPath?: string;
+    updateAvailable?: boolean;
+    checkOutput?: string;
+    error?: string;
+  }> => ipcRenderer.invoke("run-safe-hermes-upgrade", profile),
+  getHermesCapabilities: (profile?: string): Promise<unknown> =>
+    ipcRenderer.invoke("get-hermes-capabilities", profile),
 
   // OpenClaw migration
   checkOpenClaw: (): Promise<{ found: boolean; path: string | null }> =>
@@ -114,6 +131,7 @@ const hermesAPI = {
     resumeSessionId?: string,
     history?: Array<{ role: string; content: string }>,
     activeProject?: string | null,
+    requestId?: string,
   ): Promise<{ response: string; sessionId?: string }> =>
     ipcRenderer.invoke(
       "send-message",
@@ -122,33 +140,85 @@ const hermesAPI = {
       resumeSessionId,
       history,
       activeProject,
+      requestId,
     ),
 
-  abortChat: (): Promise<void> => ipcRenderer.invoke("abort-chat"),
+  abortChat: (requestId?: string): Promise<void> =>
+    ipcRenderer.invoke("abort-chat", requestId),
   openLocalPath: (path: string): Promise<boolean> =>
     ipcRenderer.invoke("open-local-path", path),
   revealLocalPath: (path: string): Promise<boolean> =>
     ipcRenderer.invoke("reveal-local-path", path),
+  readDocumentPreview: (path: string): Promise<unknown> =>
+    ipcRenderer.invoke("read-document-preview", path),
+  writeDocumentContent: (
+    path: string,
+    content: string,
+  ): Promise<{ success: boolean; error?: string; path?: string }> =>
+    ipcRenderer.invoke("write-document-content", path, content),
+  watchWorkspace: (path: string): Promise<boolean> =>
+    ipcRenderer.invoke("watch-workspace", path),
+  unwatchWorkspace: (): Promise<boolean> =>
+    ipcRenderer.invoke("unwatch-workspace"),
+  onWorkspaceFileChanged: (
+    callback: (change: {
+      root: string;
+      path: string;
+      name: string;
+      relativePath: string;
+      event: string;
+      size: number;
+      modifiedAt: number;
+    }) => void,
+  ): (() => void) => {
+    const handler = (
+      _event: Electron.IpcRendererEvent,
+      change: {
+        root: string;
+        path: string;
+        name: string;
+        relativePath: string;
+        event: string;
+        size: number;
+        modifiedAt: number;
+      },
+    ): void => callback(change);
+    ipcRenderer.on("workspace-file-changed", handler);
+    return () => ipcRenderer.removeListener("workspace-file-changed", handler);
+  },
 
-  onChatChunk: (callback: (chunk: string) => void): (() => void) => {
-    const handler = (_event: Electron.IpcRendererEvent, chunk: string): void =>
-      callback(chunk);
+  onChatChunk: (
+    callback: (chunk: string, requestId?: string) => void,
+  ): (() => void) => {
+    const handler = (
+      _event: Electron.IpcRendererEvent,
+      chunk: string,
+      requestId?: string,
+    ): void => callback(chunk, requestId);
     ipcRenderer.on("chat-chunk", handler);
     return () => ipcRenderer.removeListener("chat-chunk", handler);
   },
 
-  onChatDone: (callback: (sessionId?: string) => void): (() => void) => {
+  onChatDone: (
+    callback: (sessionId?: string, requestId?: string) => void,
+  ): (() => void) => {
     const handler = (
       _event: Electron.IpcRendererEvent,
       sessionId?: string,
-    ): void => callback(sessionId);
+      requestId?: string,
+    ): void => callback(sessionId, requestId);
     ipcRenderer.on("chat-done", handler);
     return () => ipcRenderer.removeListener("chat-done", handler);
   },
 
-  onChatToolProgress: (callback: (tool: string) => void): (() => void) => {
-    const handler = (_event: Electron.IpcRendererEvent, tool: string): void =>
-      callback(tool);
+  onChatToolProgress: (
+    callback: (tool: string, requestId?: string) => void,
+  ): (() => void) => {
+    const handler = (
+      _event: Electron.IpcRendererEvent,
+      tool: string,
+      requestId?: string,
+    ): void => callback(tool, requestId);
     ipcRenderer.on("chat-tool-progress", handler);
     return () => ipcRenderer.removeListener("chat-tool-progress", handler);
   },
@@ -178,9 +248,14 @@ const hermesAPI = {
     return () => ipcRenderer.removeListener("chat-usage", handler);
   },
 
-  onChatError: (callback: (error: string) => void): (() => void) => {
-    const handler = (_event: Electron.IpcRendererEvent, error: string): void =>
-      callback(error);
+  onChatError: (
+    callback: (error: string, requestId?: string) => void,
+  ): (() => void) => {
+    const handler = (
+      _event: Electron.IpcRendererEvent,
+      error: string,
+      requestId?: string,
+    ): void => callback(error, requestId);
     ipcRenderer.on("chat-error", handler);
     return () => ipcRenderer.removeListener("chat-error", handler);
   },
@@ -265,6 +340,12 @@ const hermesAPI = {
     dirPath: string,
   ): Promise<Array<{ name: string; isDirectory: boolean; path: string }>> =>
     ipcRenderer.invoke("read-directory", dirPath),
+
+  getObsidianVault: (): Promise<unknown> =>
+    ipcRenderer.invoke("get-obsidian-vault"),
+
+  setObsidianVault: (path: string): Promise<unknown> =>
+    ipcRenderer.invoke("set-obsidian-vault", path),
 
   setActiveProfile: (name: string): Promise<boolean> =>
     ipcRenderer.invoke("set-active-profile", name),
@@ -615,9 +696,89 @@ const hermesAPI = {
   ): Promise<{ success: boolean; error?: string }> =>
     ipcRenderer.invoke("trigger-cron-job", jobId, profile),
 
+  // Kanban
+  listKanbanBoard: (options?: {
+    board?: string;
+    tenant?: string;
+    includeArchived?: boolean;
+  }): Promise<unknown> => ipcRenderer.invoke("list-kanban-board", options),
+
+  getKanbanTask: (taskId: string, board?: string): Promise<unknown> =>
+    ipcRenderer.invoke("get-kanban-task", taskId, board),
+
+  createKanbanTask: (input: unknown): Promise<unknown> =>
+    ipcRenderer.invoke("create-kanban-task", input),
+
+  updateKanbanTaskStatus: (
+    taskId: string,
+    status: string,
+    options?: {
+      board?: string;
+      reason?: string;
+      summary?: string;
+      metadata?: Record<string, unknown>;
+    },
+  ): Promise<unknown> =>
+    ipcRenderer.invoke("update-kanban-task-status", taskId, status, options),
+
+  assignKanbanTask: (
+    taskId: string,
+    assignee: string | null,
+    board?: string,
+  ): Promise<unknown> =>
+    ipcRenderer.invoke("assign-kanban-task", taskId, assignee, board),
+
+  commentKanbanTask: (
+    taskId: string,
+    body: string,
+    board?: string,
+  ): Promise<unknown> =>
+    ipcRenderer.invoke("comment-kanban-task", taskId, body, board),
+
+  nudgeKanbanDispatcher: (board?: string): Promise<unknown> =>
+    ipcRenderer.invoke("nudge-kanban-dispatcher", board),
+
+  getKanbanDocs: (): Promise<unknown> => ipcRenderer.invoke("get-kanban-docs"),
+
   // Shell
   openExternal: (url: string): Promise<void> =>
     ipcRenderer.invoke("open-external", url),
+  windowMinimize: (): Promise<void> => ipcRenderer.invoke("window-minimize"),
+  windowToggleMaximize: (): Promise<boolean> =>
+    ipcRenderer.invoke("window-toggle-maximize"),
+  windowClose: (): Promise<void> => ipcRenderer.invoke("window-close"),
+  windowIsMaximized: (): Promise<boolean> =>
+    ipcRenderer.invoke("window-is-maximized"),
+  onWindowMaximized: (
+    callback: (isMaximized: boolean) => void,
+  ): (() => void) => {
+    const handler = (
+      _event: Electron.IpcRendererEvent,
+      isMaximized: boolean,
+    ): void => callback(isMaximized);
+    ipcRenderer.on("window-maximized", handler);
+    return () => ipcRenderer.removeListener("window-maximized", handler);
+  },
+  onAppNotification: (
+    callback: (payload: {
+      title: string;
+      body?: string;
+      tone?: "info" | "success" | "warning" | "error";
+      createdAt?: number;
+    }) => void,
+  ): (() => void) => {
+    const handler = (
+      _event: Electron.IpcRendererEvent,
+      payload: {
+        title: string;
+        body?: string;
+        tone?: "info" | "success" | "warning" | "error";
+        createdAt?: number;
+      },
+    ): void => callback(payload);
+    ipcRenderer.on("app-notification", handler);
+    return () => ipcRenderer.removeListener("app-notification", handler);
+  },
 
   // Backup / Import
   runHermesBackup: (
@@ -633,6 +794,29 @@ const hermesAPI = {
 
   // Debug dump
   runHermesDump: (): Promise<string> => ipcRenderer.invoke("run-hermes-dump"),
+  runHermesCurator: (
+    action: string,
+    skill?: string,
+    profile?: string,
+  ): Promise<unknown> =>
+    ipcRenderer.invoke("run-hermes-curator", action, skill, profile),
+  readCuratorReport: (profile?: string): Promise<unknown> =>
+    ipcRenderer.invoke("read-curator-report", profile),
+  startHermesRun: (
+    input: string,
+    profile?: string,
+    options?: {
+      sessionId?: string;
+      instructions?: string;
+      previousResponseId?: string;
+      conversationHistory?: Array<{ role: string; content: string }>;
+    },
+  ): Promise<unknown> =>
+    ipcRenderer.invoke("start-hermes-run", input, profile, options),
+  getHermesRun: (runId: string, profile?: string): Promise<unknown> =>
+    ipcRenderer.invoke("get-hermes-run", runId, profile),
+  stopHermesRun: (runId: string, profile?: string): Promise<unknown> =>
+    ipcRenderer.invoke("stop-hermes-run", runId, profile),
 
   // Memory providers
   discoverMemoryProviders: (
@@ -678,6 +862,13 @@ const hermesAPI = {
     ipcRenderer.on("playwright-navigated", handler);
     return () => ipcRenderer.removeListener("playwright-navigated", handler);
   },
+
+  // Voice
+  transcribeAudio: (audioData: number[], mimeType?: string): Promise<string> =>
+    ipcRenderer.invoke("transcribe-audio", audioData, mimeType),
+
+  ttsSpeak: (text: string): Promise<string> =>
+    ipcRenderer.invoke("tts-speak", text),
 };
 
 if (process.contextIsolated) {

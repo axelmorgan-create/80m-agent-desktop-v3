@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import AtmMascot from "./AtmMascot";
 import Animated80MLogo from "../Animated80MLogo";
-import { Plus } from "lucide-react";
+import { Brain, KanbanSquare, Plus } from "lucide-react";
 
 interface Session {
   id: string;
@@ -79,40 +79,113 @@ const Sidebar: React.FC<SidebarProps> = ({
     | "urgent"
     | "job-done"
   >("default");
+  const activeMascotRequestsRef = React.useRef<Set<string>>(new Set());
+  const mascotTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(
+    null,
+  );
+  const mascotPulseRef = React.useRef(0);
 
   useEffect(() => {
     if (!window.hermesAPI) return;
 
-    let timeout: NodeJS.Timeout;
+    const activeMascotRequests = activeMascotRequestsRef.current;
 
-    const unsubChunk = window.hermesAPI.onChatChunk?.(() => {
-      setMascotState("typing");
-      clearTimeout(timeout);
-      timeout = setTimeout(() => setMascotState("default"), 2000);
-    });
+    const clearMascotTimer = () => {
+      if (mascotTimerRef.current) {
+        clearTimeout(mascotTimerRef.current);
+        mascotTimerRef.current = null;
+      }
+    };
 
-    const unsubTool = window.hermesAPI.onChatToolProgress?.(() => {
-      setMascotState("searching");
-      clearTimeout(timeout);
-      timeout = setTimeout(() => setMascotState("default"), 3000);
-    });
+    const hasActiveWork = () => activeMascotRequests.size > 0;
 
-    const unsubDone = window.hermesAPI.onChatDone?.(() => {
-      setMascotState("job-done");
-      clearTimeout(timeout);
-      timeout = setTimeout(() => setMascotState("default"), 3000);
-    });
+    const scheduleWorkingPulse = () => {
+      clearMascotTimer();
+      if (!hasActiveWork()) return;
+      mascotTimerRef.current = setTimeout(() => {
+        const states = ["processing", "searching", "typing"] as const;
+        mascotPulseRef.current = (mascotPulseRef.current + 1) % states.length;
+        setMascotState(states[mascotPulseRef.current]);
+        scheduleWorkingPulse();
+      }, 4500);
+    };
 
-    const unsubError = window.hermesAPI.onChatError?.(() => {
-      setMascotState("error");
-      clearTimeout(timeout);
-      timeout = setTimeout(() => setMascotState("default"), 3000);
-    });
-
-    const handleChatStart = () => {
+    const markActive = (requestId?: string) => {
+      activeMascotRequests.add(requestId || "default");
       setMascotState("processing");
+      scheduleWorkingPulse();
+    };
+
+    const markSettled = (requestId?: string) => {
+      if (requestId) {
+        activeMascotRequests.delete(requestId);
+      } else {
+        activeMascotRequests.clear();
+      }
+      clearMascotTimer();
+    };
+
+    const settleToDefault = (state: "job-done" | "error") => {
+      if (hasActiveWork()) {
+        setMascotState("processing");
+        scheduleWorkingPulse();
+        return;
+      }
+      setMascotState(state);
+      mascotTimerRef.current = setTimeout(
+        () => setMascotState("default"),
+        3500,
+      );
+    };
+
+    const unsubChunk = window.hermesAPI.onChatChunk?.((_chunk, requestId) => {
+      if (requestId && !activeMascotRequests.has(requestId)) {
+        activeMascotRequests.add(requestId);
+      }
+      setMascotState("typing");
+      scheduleWorkingPulse();
+    });
+
+    const unsubTool = window.hermesAPI.onChatToolProgress?.(
+      (_tool, requestId) => {
+        if (requestId && !activeMascotRequests.has(requestId)) {
+          activeMascotRequests.add(requestId);
+        }
+        setMascotState("searching");
+        scheduleWorkingPulse();
+      },
+    );
+
+    const unsubDone = window.hermesAPI.onChatDone?.((_sessionId, requestId) => {
+      markSettled(requestId);
+      settleToDefault("job-done");
+    });
+
+    const unsubError = window.hermesAPI.onChatError?.((_error, requestId) => {
+      markSettled(requestId);
+      settleToDefault("error");
+    });
+
+    const handleChatStart = (event: Event) => {
+      const detail = (event as CustomEvent<{ requestId?: string }>).detail;
+      markActive(detail?.requestId);
     };
     window.addEventListener("chat-started", handleChatStart);
+
+    const handleSpeakingStart = () => {
+      setMascotState("typing");
+      scheduleWorkingPulse();
+    };
+    const handleSpeakingStop = () => {
+      if (hasActiveWork()) {
+        setMascotState("processing");
+        scheduleWorkingPulse();
+      } else {
+        setMascotState("default");
+      }
+    };
+    window.addEventListener("agent-speaking-start", handleSpeakingStart);
+    window.addEventListener("agent-speaking-stop", handleSpeakingStop);
 
     return () => {
       unsubChunk?.();
@@ -120,7 +193,10 @@ const Sidebar: React.FC<SidebarProps> = ({
       unsubDone?.();
       unsubError?.();
       window.removeEventListener("chat-started", handleChatStart);
-      clearTimeout(timeout);
+      window.removeEventListener("agent-speaking-start", handleSpeakingStart);
+      window.removeEventListener("agent-speaking-stop", handleSpeakingStop);
+      clearMascotTimer();
+      activeMascotRequests.clear();
     };
   }, []);
 
@@ -159,6 +235,14 @@ const Sidebar: React.FC<SidebarProps> = ({
   }, [loadSessions, currentSession]);
 
   useEffect(() => {
+    const refresh = () => {
+      void loadSessions();
+    };
+    window.addEventListener("sessions-updated", refresh);
+    return () => window.removeEventListener("sessions-updated", refresh);
+  }, [loadSessions]);
+
+  useEffect(() => {
     loadProfiles();
   }, [loadProfiles]);
 
@@ -194,21 +278,6 @@ const Sidebar: React.FC<SidebarProps> = ({
       ),
     },
     {
-      id: "memory",
-      label: "Memory",
-      icon: (
-        <svg
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2"
-        >
-          <path d="M12 5a3 3 0 1 0-5.997.125 4 4 0 0 0-2.526 5.77 4 4 0 0 0 .556 6.588A4 4 0 1 0 12 18Z" />
-          <path d="M12 5a3 3 0 1 1 5.997.125 4 4 0 0 1 2.526 5.77 4 4 0 0 1-.556 6.588A4 4 0 1 1 12 18Z" />
-        </svg>
-      ),
-    },
-    {
       id: "soul",
       label: "Soul",
       icon: (
@@ -235,6 +304,11 @@ const Sidebar: React.FC<SidebarProps> = ({
           <path d="M19.439 7.85c-.049.322.059.648.289.878l1.568 1.568c.47.47.706 1.087.706 1.704s-.235 1.233-.706 1.704l-1.611 1.611a.98.98 0 0 1-.837.276c-.47-.07-.802-.48-.968-.925a2.501 2.501 0 1 0-3.214 3.214c.446.166.855.497.925.968a.979.979 0 0 1-.276.837l-1.61 1.61a2.404 2.404 0 0 1-1.705.707 2.402 2.402 0 0 1-1.704-.706l-1.568-1.568a1.026 1.026 0 0 0-.877-.29c-.493.074-.84.504-1.02.968a2.5 2.5 0 1 1-3.237-3.237c.464-.18.894-.527.967-1.02a1.026 1.026 0 0 0-.289-.877l-1.568-1.568A2.402 2.402 0 0 1 1.998 12c0-.617.236-1.234.706-1.704L4.315 8.685a.98.98 0 0 1 .837-.276c.47.07.802.48.968.925a2.501 2.501 0 1 0 3.214-3.214c-.446-.166-.855-.497-.925-.968a.979.979 0 0 1 .276-.837l1.61-1.61a2.404 2.404 0 0 1 1.705-.707c.617 0 1.234.236 1.704.706l1.568 1.568c.23.23.556.338.877.29.493-.074.84-.504 1.02-.968a2.5 2.5 0 1 1 3.237 3.237c-.464.18-.894.527-.967 1.02z" />
         </svg>
       ),
+    },
+    {
+      id: "kanban",
+      label: "Kanban",
+      icon: <KanbanSquare size={18} />,
     },
     {
       id: "tools",
@@ -304,34 +378,25 @@ const Sidebar: React.FC<SidebarProps> = ({
             onAgentChange(e.target.value);
           }}
         >
-          <option value="default">🤖 Default Agent</option>
-          {/* Known named agents */}
-          {["Prawnius", "Claudnelius", "Knowledge Knaight", "Clawdette"].map(
-            (name) => (
-              <option key={name} value={name}>
-                🤖 {name}
-              </option>
-            ),
-          )}
-          {/* Any additional Hermes profiles not already listed */}
+          <option value="default">Default Agent</option>
           {profiles
-            .filter(
-              (p) =>
-                p.name !== "default" &&
-                ![
-                  "Prawnius",
-                  "Claudnelius",
-                  "Knowledge Knaight",
-                  "Clawdette",
-                ].includes(p.name),
-            )
+            .filter((p) => p.name !== "default")
             .map((p) => (
               <option key={p.name} value={p.name}>
-                🤖 {p.name}
+                {p.name}
               </option>
             ))}
         </select>
       </div>
+
+      <button
+        className={`sidebar-80m-second-brain${activeView === "memory" ? " active" : ""}`}
+        onClick={() => onViewChange("memory")}
+        title="Second Brain"
+      >
+        <Brain size={16} />
+        <span>Second Brain</span>
+      </button>
 
       {/* Navigation */}
       <div className="sidebar-80m-nav">

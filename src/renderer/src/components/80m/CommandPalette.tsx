@@ -41,7 +41,7 @@ const CommandPalette: React.FC<CommandPaletteProps> = ({
     },
     {
       id: "memory",
-      label: "Open Memory",
+      label: "Open Second Brain",
       icon: "🧠",
       action: () => onNavigate("memory"),
     },
@@ -56,6 +56,12 @@ const CommandPalette: React.FC<CommandPaletteProps> = ({
       label: "Open Skills",
       icon: "🛠️",
       action: () => onNavigate("skills"),
+    },
+    {
+      id: "kanban",
+      label: "Open Kanban",
+      icon: "KB",
+      action: () => onNavigate("kanban"),
     },
     {
       id: "tools",

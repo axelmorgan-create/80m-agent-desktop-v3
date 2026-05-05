@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Activity,
@@ -9,6 +9,7 @@ import {
   Wifi,
   WifiOff,
   Info,
+  Sparkles,
 } from "lucide-react";
 import Animated80MLogo from "../Animated80MLogo";
 
@@ -17,7 +18,13 @@ interface Props {
   profile?: string;
 }
 
-type TabId = "connection" | "health" | "profiles" | "backup" | "about";
+type TabId =
+  | "connection"
+  | "health"
+  | "curator"
+  | "profiles"
+  | "backup"
+  | "about";
 
 interface ModelPreset {
   id: string;
@@ -56,6 +63,52 @@ interface HermesHealth {
   };
   env: Record<string, boolean>;
   credentialProviders: Array<{ provider: string; count: number }>;
+}
+
+interface HermesCapabilities {
+  version: string | null;
+  semver: string | null;
+  isAtLeastV12: boolean;
+  updateAvailable: boolean;
+  api: {
+    ok: boolean;
+    status: number | null;
+    url: string;
+    error?: string;
+    features: Record<string, boolean>;
+    endpoints: Record<string, { method?: string; path?: string }>;
+    models: string[];
+  };
+  toolGateway: {
+    present: boolean;
+    available: boolean;
+    reason: string;
+    managedTools: string[];
+  };
+  supports: {
+    chatCompletions: boolean;
+    responses: boolean;
+    runs: boolean;
+    runEvents: boolean;
+    runStop: boolean;
+    toolProgress: boolean;
+    sessionContinuity: boolean;
+    curator: boolean;
+  };
+}
+
+interface CuratorCommandResult {
+  success: boolean;
+  supported: boolean;
+  output: string;
+  error?: string;
+  pinned: string[];
+  report: {
+    reportPath: string | null;
+    report: string;
+    runJsonPath: string | null;
+    runJson: unknown | null;
+  };
 }
 
 const NOUS_MODEL_PRESETS: Record<string, ModelPreset> = {
@@ -102,6 +155,26 @@ const PROVIDER_CHOICES = [
   "openrouter",
   "custom",
 ];
+
+function settingsChoiceButtonStyle(active: boolean): React.CSSProperties {
+  return {
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: "6px",
+    padding: "8px 16px",
+    borderRadius: "8px",
+    border: `1px solid ${active ? "#4ade80" : "rgba(229, 255, 237, 0.18)"}`,
+    background: active ? "rgba(74, 222, 128, 0.16)" : "rgba(40, 48, 44, 0.92)",
+    color: active ? "#4ade80" : "#f4fff7",
+    boxShadow: active ? "0 0 0 1px rgba(74, 222, 128, 0.18)" : "none",
+    fontFamily: "'Fira Code', monospace",
+    fontSize: "11px",
+    fontWeight: 700,
+    cursor: "pointer",
+    textTransform: "uppercase",
+  };
+}
 
 function hasEnv(env: Record<string, string>, key: string): boolean {
   return Boolean(env[key]?.trim());
@@ -263,10 +336,20 @@ const Settings80m: React.FC<Props> = ({ onBack, profile }) => {
   const [credentialPool, setCredentialPool] = useState<CredentialPool>({});
   const [health, setHealth] = useState<HermesHealth | null>(null);
   const [healthLoading, setHealthLoading] = useState(false);
+  const [capabilities, setCapabilities] = useState<HermesCapabilities | null>(
+    null,
+  );
+  const [capabilitiesLoading, setCapabilitiesLoading] = useState(false);
+  const [upgrading, setUpgrading] = useState(false);
+  const [upgradeResult, setUpgradeResult] = useState("");
+  const [curator, setCurator] = useState<CuratorCommandResult | null>(null);
+  const [curatorBusy, setCuratorBusy] = useState<string | null>(null);
+  const [curatorSkill, setCuratorSkill] = useState("");
+  const [curatorOutput, setCuratorOutput] = useState("");
 
   const activeModelPresets = buildActiveModelPresets(env, credentialPool);
 
-  const refreshHealth = async () => {
+  const refreshHealth = useCallback(async () => {
     if (!window.hermesAPI?.getHermesHealth) return;
     setHealthLoading(true);
     try {
@@ -276,6 +359,60 @@ const Settings80m: React.FC<Props> = ({ onBack, profile }) => {
       setHealth(next);
     } finally {
       setHealthLoading(false);
+    }
+  }, [profile]);
+
+  const refreshCapabilities = useCallback(async () => {
+    if (!window.hermesAPI?.getHermesCapabilities) return;
+    setCapabilitiesLoading(true);
+    try {
+      const next = (await window.hermesAPI.getHermesCapabilities(
+        profile,
+      )) as HermesCapabilities;
+      setCapabilities(next);
+    } finally {
+      setCapabilitiesLoading(false);
+    }
+  }, [profile]);
+
+  const runCuratorAction = useCallback(
+    async (action: string, skill?: string) => {
+      if (!window.hermesAPI?.runHermesCurator) return;
+      setCuratorBusy(action);
+      setCuratorOutput("");
+      try {
+        const result = (await window.hermesAPI.runHermesCurator(
+          action,
+          skill,
+          profile,
+        )) as CuratorCommandResult;
+        setCurator(result);
+        setCuratorOutput(result.output || result.error || "");
+      } catch (err) {
+        setCuratorOutput(err instanceof Error ? err.message : String(err));
+      } finally {
+        setCuratorBusy(null);
+      }
+    },
+    [profile],
+  );
+
+  const handleSafeUpgrade = async () => {
+    if (!window.hermesAPI?.runSafeHermesUpgrade) return;
+    setUpgrading(true);
+    setUpgradeResult("");
+    try {
+      const result = await window.hermesAPI.runSafeHermesUpgrade(profile);
+      setUpgradeResult(
+        result.success
+          ? `Upgrade complete. Backup: ${result.backupPath || "created"}`
+          : `Upgrade failed: ${result.error || "Unknown error"}`,
+      );
+      await Promise.all([refreshCapabilities(), refreshHealth()]);
+    } catch (err) {
+      setUpgradeResult(err instanceof Error ? err.message : String(err));
+    } finally {
+      setUpgrading(false);
     }
   };
 
@@ -314,6 +451,8 @@ const Settings80m: React.FC<Props> = ({ onBack, profile }) => {
       });
 
       void refreshHealth();
+      void refreshCapabilities();
+      void runCuratorAction("status");
 
       // Load profiles - use raw response, map to our interface
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -347,7 +486,7 @@ const Settings80m: React.FC<Props> = ({ onBack, profile }) => {
     } else {
       setLoading(false);
     }
-  }, [profile]);
+  }, [profile, refreshHealth, refreshCapabilities, runCuratorAction]);
 
   const handleSave = async () => {
     if (window.hermesAPI) {
@@ -460,7 +599,7 @@ const Settings80m: React.FC<Props> = ({ onBack, profile }) => {
           ? `Backup saved: ${result.path || "Success"}`
           : `Error: ${result?.error || "Unknown error"}`,
       );
-    } catch (e) {
+    } catch {
       setBackupResult("Backup failed");
     }
     setBackingUp(false);
@@ -477,7 +616,7 @@ const Settings80m: React.FC<Props> = ({ onBack, profile }) => {
           ? "Import complete"
           : `Error: ${result?.error || "Unknown error"}`,
       );
-    } catch (e) {
+    } catch {
       setImportResult("Import failed");
     }
     setImporting(false);
@@ -486,6 +625,7 @@ const Settings80m: React.FC<Props> = ({ onBack, profile }) => {
   const tabs: { id: TabId; label: string; icon: React.ReactNode }[] = [
     { id: "connection", label: "Connection", icon: <Wifi size={14} /> },
     { id: "health", label: "Health", icon: <Activity size={14} /> },
+    { id: "curator", label: "Curator", icon: <Sparkles size={14} /> },
     { id: "profiles", label: "Profiles", icon: <User size={14} /> },
     { id: "backup", label: "Backup", icon: <Download size={14} /> },
     { id: "about", label: "About", icon: <Info size={14} /> },
@@ -580,43 +720,15 @@ const Settings80m: React.FC<Props> = ({ onBack, profile }) => {
                 <div style={{ display: "flex", gap: "8px" }}>
                   <button
                     onClick={() => setConnMode("local")}
-                    style={{
-                      padding: "8px 16px",
-                      borderRadius: "8px",
-                      border: `1px solid ${connMode === "local" ? "#4ade80" : "rgba(74,222,128,0.15)"}`,
-                      background:
-                        connMode === "local"
-                          ? "rgba(74,222,128,0.1)"
-                          : "transparent",
-                      color: connMode === "local" ? "#4ade80" : "#e8e8e8",
-                      fontFamily: "'Fira Code', monospace",
-                      fontSize: "11px",
-                      fontWeight: 700,
-                      cursor: "pointer",
-                      textTransform: "uppercase",
-                    }}
+                    style={settingsChoiceButtonStyle(connMode === "local")}
                   >
-                    <Wifi size={12} style={{ marginRight: 4 }} /> Local
+                    <Wifi size={12} /> Local
                   </button>
                   <button
                     onClick={() => setConnMode("remote")}
-                    style={{
-                      padding: "8px 16px",
-                      borderRadius: "8px",
-                      border: `1px solid ${connMode === "remote" ? "#4ade80" : "rgba(74,222,128,0.15)"}`,
-                      background:
-                        connMode === "remote"
-                          ? "rgba(74,222,128,0.1)"
-                          : "transparent",
-                      color: connMode === "remote" ? "#4ade80" : "#e8e8e8",
-                      fontFamily: "'Fira Code', monospace",
-                      fontSize: "11px",
-                      fontWeight: 700,
-                      cursor: "pointer",
-                      textTransform: "uppercase",
-                    }}
+                    style={settingsChoiceButtonStyle(connMode === "remote")}
                   >
-                    <WifiOff size={12} style={{ marginRight: 4 }} /> Remote
+                    <WifiOff size={12} /> Remote
                   </button>
                 </div>
               </div>
@@ -662,24 +774,9 @@ const Settings80m: React.FC<Props> = ({ onBack, profile }) => {
                     <button
                       key={m.id}
                       onClick={() => handleQuickModelSelect(m)}
-                      style={{
-                        padding: "8px 16px",
-                        borderRadius: "8px",
-                        border: `1px solid ${provider === m.provider && model === m.model ? "#4ade80" : "rgba(74,222,128,0.15)"}`,
-                        background:
-                          provider === m.provider && model === m.model
-                            ? "rgba(74,222,128,0.1)"
-                            : "transparent",
-                        color:
-                          provider === m.provider && model === m.model
-                            ? "#4ade80"
-                            : "#e8e8e8",
-                        fontFamily: "'Fira Code', monospace",
-                        fontSize: "11px",
-                        fontWeight: 700,
-                        cursor: "pointer",
-                        textTransform: "uppercase",
-                      }}
+                      style={settingsChoiceButtonStyle(
+                        provider === m.provider && model === m.model,
+                      )}
                     >
                       {m.name || m.model}
                     </button>
@@ -705,21 +802,7 @@ const Settings80m: React.FC<Props> = ({ onBack, profile }) => {
                         }
                         setModelError(null);
                       }}
-                      style={{
-                        padding: "8px 16px",
-                        borderRadius: "8px",
-                        border: `1px solid ${provider === p ? "#4ade80" : "rgba(74,222,128,0.15)"}`,
-                        background:
-                          provider === p
-                            ? "rgba(74,222,128,0.1)"
-                            : "transparent",
-                        color: provider === p ? "#4ade80" : "#e8e8e8",
-                        fontFamily: "'Fira Code', monospace",
-                        fontSize: "11px",
-                        fontWeight: 700,
-                        cursor: "pointer",
-                        textTransform: "uppercase",
-                      }}
+                      style={settingsChoiceButtonStyle(provider === p)}
                     >
                       {p}
                     </button>
@@ -779,11 +862,16 @@ const Settings80m: React.FC<Props> = ({ onBack, profile }) => {
                 <button
                   type="button"
                   className="settings-80m-profile-btn"
-                  onClick={() => void refreshHealth()}
-                  disabled={healthLoading}
+                  onClick={() => {
+                    void refreshHealth();
+                    void refreshCapabilities();
+                  }}
+                  disabled={healthLoading || capabilitiesLoading}
                 >
                   <RefreshCw size={13} />
-                  {healthLoading ? "Checking" : "Refresh"}
+                  {healthLoading || capabilitiesLoading
+                    ? "Checking"
+                    : "Refresh"}
                 </button>
               </div>
 
@@ -862,6 +950,238 @@ const Settings80m: React.FC<Props> = ({ onBack, profile }) => {
                 <p className="settings-80m-health-empty">
                   Health data is not available yet.
                 </p>
+              )}
+
+              {capabilities && (
+                <>
+                  <div className="settings-80m-divider" />
+                  <div className="settings-80m-health-grid">
+                    <div className="settings-80m-health-card">
+                      <span className="settings-80m-health-title">
+                        Hermes Version
+                      </span>
+                      <span
+                        className={`settings-80m-health-pill ${
+                          capabilities.isAtLeastV12 ? "ok" : "bad"
+                        }`}
+                      >
+                        {capabilities.semver || "unknown"}
+                      </span>
+                      <p>
+                        v0.12 features:{" "}
+                        {capabilities.isAtLeastV12
+                          ? "enabled"
+                          : "upgrade gated"}
+                      </p>
+                      <p>
+                        Update:{" "}
+                        {capabilities.updateAvailable
+                          ? "available"
+                          : "not reported"}
+                      </p>
+                      <button
+                        type="button"
+                        className="settings-80m-profile-btn"
+                        onClick={() => void handleSafeUpgrade()}
+                        disabled={upgrading}
+                      >
+                        {upgrading ? "Upgrading" : "Backup + Upgrade"}
+                      </button>
+                      {upgradeResult && (
+                        <div
+                          className={`settings-80m-result ${
+                            upgradeResult.startsWith("Upgrade failed")
+                              ? "error"
+                              : "success"
+                          }`}
+                        >
+                          {upgradeResult}
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="settings-80m-health-card">
+                      <span className="settings-80m-health-title">
+                        API Surface
+                      </span>
+                      <span
+                        className={`settings-80m-health-pill ${
+                          capabilities.api.ok ? "ok" : "bad"
+                        }`}
+                      >
+                        {capabilities.api.ok ? "online" : "offline"}
+                      </span>
+                      <p>{capabilities.api.url}</p>
+                      <p>
+                        Models:{" "}
+                        {capabilities.api.models.join(", ") || "none reported"}
+                      </p>
+                    </div>
+
+                    <div className="settings-80m-health-card">
+                      <span className="settings-80m-health-title">
+                        Runs Runtime
+                      </span>
+                      <span
+                        className={`settings-80m-health-pill ${
+                          capabilities.supports.runs ? "ok" : "bad"
+                        }`}
+                      >
+                        {capabilities.supports.runs ? "ready" : "unavailable"}
+                      </span>
+                      <p>
+                        Responses:{" "}
+                        {capabilities.supports.responses ? "yes" : "no"}
+                      </p>
+                      <p>
+                        Events/stop:{" "}
+                        {capabilities.supports.runEvents
+                          ? "events"
+                          : "no events"}
+                        {" / "}
+                        {capabilities.supports.runStop ? "stop" : "no stop"}
+                      </p>
+                    </div>
+
+                    <div className="settings-80m-health-card">
+                      <span className="settings-80m-health-title">
+                        Nous Tool Gateway
+                      </span>
+                      <span
+                        className={`settings-80m-health-pill ${
+                          capabilities.toolGateway.available ? "ok" : "bad"
+                        }`}
+                      >
+                        {capabilities.toolGateway.available
+                          ? "available"
+                          : "gated"}
+                      </span>
+                      <p>{capabilities.toolGateway.reason}</p>
+                      <p>
+                        Managed tools:{" "}
+                        {capabilities.toolGateway.managedTools.join(", ") ||
+                          "none"}
+                      </p>
+                    </div>
+                  </div>
+                </>
+              )}
+            </motion.div>
+          )}
+
+          {activeTab === "curator" && (
+            <motion.div
+              key="curator"
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -8 }}
+              transition={{ duration: 0.15 }}
+              className="settings-80m-section"
+            >
+              <div className="settings-80m-health-header">
+                <label className="settings-80m-label">Curator</label>
+                <button
+                  type="button"
+                  className="settings-80m-profile-btn"
+                  onClick={() => void runCuratorAction("status")}
+                  disabled={Boolean(curatorBusy)}
+                >
+                  <RefreshCw size={13} />
+                  {curatorBusy === "status" ? "Checking" : "Status"}
+                </button>
+              </div>
+
+              {!capabilities?.supports.curator && (
+                <div className="settings-80m-result error">
+                  Curator controls require Hermes v0.12+. Run the safe upgrade
+                  from Health first.
+                </div>
+              )}
+
+              <div className="settings-80m-health-grid">
+                <div className="settings-80m-health-card">
+                  <span className="settings-80m-health-title">State</span>
+                  <span
+                    className={`settings-80m-health-pill ${
+                      curator?.success ? "ok" : "bad"
+                    }`}
+                  >
+                    {curator?.supported === false
+                      ? "not supported"
+                      : curator?.success
+                        ? "ready"
+                        : "unknown"}
+                  </span>
+                  <p>
+                    Pinned skills:{" "}
+                    {curator?.pinned.length
+                      ? curator.pinned.join(", ")
+                      : "none"}
+                  </p>
+                  <p>
+                    Report:{" "}
+                    {curator?.report.reportPath || "No curator report yet"}
+                  </p>
+                </div>
+
+                <div className="settings-80m-health-card">
+                  <span className="settings-80m-health-title">Actions</span>
+                  <div className="settings-80m-action-grid">
+                    {[
+                      ["dry-run", "Dry Run"],
+                      ["run", "Run"],
+                      ["pause", "Pause"],
+                      ["resume", "Resume"],
+                      ["backup", "Backup"],
+                      ["rollback", "Rollback"],
+                    ].map(([action, label]) => (
+                      <button
+                        key={action}
+                        type="button"
+                        className="settings-80m-profile-btn"
+                        onClick={() => void runCuratorAction(action)}
+                        disabled={Boolean(curatorBusy)}
+                      >
+                        {curatorBusy === action ? "Working" : label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              <div className="settings-80m-field">
+                <label className="settings-80m-label">Skill Guard</label>
+                <div style={{ display: "flex", gap: 8 }}>
+                  <input
+                    className="settings-80m-input"
+                    style={{ flex: 1 }}
+                    value={curatorSkill}
+                    onChange={(event) => setCuratorSkill(event.target.value)}
+                    placeholder="skill-name"
+                  />
+                  {["pin", "unpin", "restore"].map((action) => (
+                    <button
+                      key={action}
+                      type="button"
+                      className="settings-80m-profile-btn"
+                      onClick={() =>
+                        void runCuratorAction(action, curatorSkill.trim())
+                      }
+                      disabled={Boolean(curatorBusy) || !curatorSkill.trim()}
+                    >
+                      {action}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {(curatorOutput || curator?.report.report) && (
+                <div className="settings-80m-field">
+                  <label className="settings-80m-label">Latest Output</label>
+                  <pre className="settings-80m-log-block">
+                    {curatorOutput || curator?.report.report}
+                  </pre>
+                </div>
               )}
             </motion.div>
           )}
@@ -1072,232 +1392,6 @@ const Settings80m: React.FC<Props> = ({ onBack, profile }) => {
           )}
         </AnimatePresence>
       </div>
-
-      <style>{`
-        .settings-80m-tabs {
-          display: flex;
-          gap: 4px;
-          padding: 8px 16px;
-          border-bottom: 1px solid rgba(74, 222, 128, 0.1);
-          background: rgba(15, 15, 15, 0.6);
-          flex-shrink: 0;
-        }
-        .settings-80m-tab {
-          display: flex;
-          align-items: center;
-          gap: 6px;
-          padding: 8px 14px;
-          border-radius: 8px;
-          border: 1px solid transparent;
-          background: transparent;
-          color: #e8e8e8;
-          font-family: 'Fira Code', monospace;
-          font-size: 11px;
-          font-weight: 700;
-          text-transform: uppercase;
-          letter-spacing: 0.05em;
-          cursor: pointer;
-          transition: all 0.15s ease;
-        }
-        .settings-80m-tab:hover {
-          color: #9a9a9a;
-          background: rgba(255,255,255,0.04);
-        }
-        .settings-80m-tab.active {
-          color: #4ade80;
-          background: rgba(74, 222, 128, 0.1);
-          border-color: rgba(74, 222, 128, 0.2);
-        }
-        .settings-80m-content {
-          flex: 1;
-          overflow-y: auto;
-          padding: 24px;
-        }
-        .settings-80m-section {
-          max-width: 600px;
-          display: flex;
-          flex-direction: column;
-          gap: 20px;
-        }
-        .settings-80m-field {
-          display: flex;
-          flex-direction: column;
-          gap: 8px;
-        }
-        .settings-80m-label {
-          font-family: 'Fira Code', monospace;
-          font-size: 11px;
-          font-weight: 700;
-          letter-spacing: 0.15em;
-          color: #4ade80;
-          text-transform: uppercase;
-        }
-        .settings-80m-input {
-          padding: 10px 14px;
-          border-radius: 10px;
-          border: 1px solid rgba(74, 222, 128, 0.15);
-          background: #1a1a1a;
-          color: #e8e8e8;
-          font-family: 'Fira Code', monospace;
-          font-size: 13px;
-          outline: none;
-          transition: border-color 0.15s;
-        }
-        .settings-80m-input:focus {
-          border-color: rgba(74, 222, 128, 0.4);
-        }
-        .settings-80m-divider {
-          height: 1px;
-          background: rgba(74, 222, 128, 0.08);
-          margin: 4px 0;
-        }
-        .settings-80m-save-btn {
-          align-self: flex-start;
-          padding: 10px 24px;
-          border-radius: 10px;
-          border: none;
-          background: #4ade80;
-          color: #0f0f0f;
-          font-family: 'Fira Code', monospace;
-          font-size: 12px;
-          font-weight: 700;
-          cursor: pointer;
-          letter-spacing: 0.05em;
-          display: flex;
-          align-items: center;
-        }
-        .settings-80m-save-btn:hover {
-          background: #22c55e;
-        }
-        .settings-80m-save-btn:disabled {
-          opacity: 0.5;
-          cursor: not-allowed;
-        }
-        .settings-80m-profiles-list {
-          display: flex;
-          flex-direction: column;
-          gap: 8px;
-        }
-        .settings-80m-profile-card {
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
-          padding: 12px 16px;
-          border-radius: 10px;
-          border: 1px solid rgba(74, 222, 128, 0.08);
-          background: rgba(74, 222, 128, 0.03);
-        }
-        .settings-80m-profile-info {
-          display: flex;
-          align-items: center;
-          gap: 10px;
-        }
-        .settings-80m-profile-name {
-          font-family: 'Fira Code', monospace;
-          font-size: 13px;
-          font-weight: 600;
-          color: #e8e8e8;
-        }
-        .settings-80m-profile-badge {
-          font-family: 'Fira Code', monospace;
-          font-size: 9px;
-          font-weight: 700;
-          letter-spacing: 0.1em;
-          color: #0f0f0f;
-          background: #4ade80;
-          padding: 2px 8px;
-          border-radius: 4px;
-        }
-        .settings-80m-profile-actions {
-          display: flex;
-          gap: 8px;
-        }
-        .settings-80m-profile-btn {
-          padding: 6px 12px;
-          border-radius: 6px;
-          border: 1px solid rgba(74, 222, 128, 0.2);
-          background: transparent;
-          color: #4ade80;
-          font-family: 'Fira Code', monospace;
-          font-size: 10px;
-          font-weight: 700;
-          text-transform: uppercase;
-          cursor: pointer;
-          transition: all 0.15s;
-        }
-        .settings-80m-profile-btn:hover {
-          background: rgba(74, 222, 128, 0.1);
-        }
-        .settings-80m-profile-btn-danger {
-          border-color: rgba(248, 113, 113, 0.2);
-          color: #f87171;
-        }
-        .settings-80m-profile-btn-danger:hover {
-          background: rgba(248, 113, 113, 0.1);
-        }
-        .settings-80m-result {
-          margin-top: 12px;
-          padding: 10px 14px;
-          border-radius: 8px;
-          font-family: 'Fira Code', monospace;
-          font-size: 11px;
-        }
-        .settings-80m-result.success {
-          background: rgba(74, 222, 128, 0.1);
-          color: #4ade80;
-          border: 1px solid rgba(74, 222, 128, 0.2);
-        }
-        .settings-80m-result.error {
-          background: rgba(248, 113, 113, 0.1);
-          color: #f87171;
-          border: 1px solid rgba(248, 113, 113, 0.2);
-        }
-        .settings-80m-about {
-          display: flex;
-          flex-direction: column;
-          align-items: center;
-          gap: 16px;
-          padding: 32px;
-          text-align: center;
-        }
-        .settings-80m-about-tagline {
-          font-family: 'Fira Code', monospace;
-          font-size: 14px;
-          font-weight: 700;
-          color: #e8e8e8;
-          text-transform: uppercase;
-          letter-spacing: 0.2em;
-          margin: 0;
-        }
-        .settings-80m-about-versions {
-          display: flex;
-          flex-direction: column;
-          gap: 8px;
-          width: 100%;
-        }
-        .settings-80m-about-version {
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          padding: 10px 16px;
-          border-radius: 8px;
-          background: rgba(74, 222, 128, 0.05);
-          border: 1px solid rgba(74, 222, 128, 0.08);
-        }
-        .settings-80m-version-value {
-          font-family: 'Fira Code', monospace;
-          font-size: 12px;
-          font-weight: 700;
-          color: #4ade80;
-        }
-        .settings-80m-about-desc {
-          font-family: 'Fira Code', monospace;
-          font-size: 11px;
-          color: #e8e8e8;
-          margin: 0;
-          line-height: 1.8;
-        }
-      `}</style>
     </div>
   );
 };

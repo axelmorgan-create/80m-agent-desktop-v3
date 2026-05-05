@@ -45,6 +45,7 @@ Download the latest build from the [Releases](https://github.com/guapdad4000/80m
 - **Persona editor** — edit and reset your agent's SOUL.md personality
 - **Saved models** — CRUD management for model configurations across providers
 - **Scheduled tasks** — cron job builder with 15 delivery targets
+- **Kanban board** — Hermes v0.12 multi-agent task board with profiles, comments, run history, dispatcher nudges, and attached upstream notes
 - **16 messaging gateways** — Telegram, Discord, Slack, WhatsApp, Signal, Matrix, Mattermost, Email (IMAP/SMTP), SMS, iMessage, DingTalk, Feishu/Lark, WeCom, WeChat, Webhooks, Home Assistant
 - **Backup & import** — full data backup/restore from Settings
 - **Auto-updater** — check for and install updates automatically
@@ -88,6 +89,7 @@ Chat requests go through a local API server (`http://127.0.0.1:8642`) with SSE s
 | **Soul** | Edit the active profile's persona (SOUL.md) |
 | **Tools** | Enable or disable individual toolsets |
 | **Schedules** | Create and manage cron jobs with delivery targets |
+| **Kanban** | Create, assign, block, complete, and inspect Hermes multi-agent tasks |
 | **Gateway** | Configure and control messaging platform integrations |
 | **Settings** | Provider config, credential pools, backup/import, log viewer, network settings, theme |
 
