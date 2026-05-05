@@ -54,12 +54,16 @@ Download the latest build from the [Releases](https://github.com/guapdad4000/80m
 
 <table>
 <tr>
-<td width="50%" align="center"><b>80M Workspace</b><br/><img width="100%" alt="80M workspace preview" src="docs/assets/80m-agent-preview.png" /></td>
-<td width="50%" align="center"><b>ATM Mascot</b><br/><img width="100%" alt="80M ATM mascot" src="docs/assets/atm-mascot-rich.png" /></td>
+<td width="50%" align="center"><b>Chat</b><br/><img width="100%" alt="80M fresh chat screenshot" src="docs/assets/screenshots/chat.png" /></td>
+<td width="50%" align="center"><b>Kanban</b><br/><img width="100%" alt="80M Kanban board screenshot" src="docs/assets/screenshots/kanban.png" /></td>
 </tr>
 <tr>
-<td width="50%" align="center"><b>App Icon Source</b><br/><img width="100%" alt="80M ATM app icon" src="docs/assets/atm-mascot-icon-source.png" /></td>
-<td width="50%" align="center"><b>80M Mark</b><br/><img width="100%" alt="80M logo" src="docs/assets/80m-logo.png" /></td>
+<td width="50%" align="center"><b>Skills</b><br/><img width="100%" alt="80M skills screenshot" src="docs/assets/screenshots/skills.png" /></td>
+<td width="50%" align="center"><b>Settings</b><br/><img width="100%" alt="80M settings screenshot" src="docs/assets/screenshots/settings.png" /></td>
+</tr>
+<tr>
+<td width="50%" align="center"><b>Second Brain</b><br/><img width="100%" alt="80M second brain screenshot" src="docs/assets/screenshots/memory.png" /></td>
+<td width="50%" align="center"><b>Agent Control</b><br/><img width="100%" alt="80M agent control screenshot" src="docs/assets/screenshots/agent-control.png" /></td>
 </tr>
 </table>
 

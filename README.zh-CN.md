@@ -49,12 +49,16 @@
 
 <table>
 <tr>
-<td width="50%" align="center"><b>80M 工作区</b><br/><img width="100%" alt="80M 工作区预览" src="docs/assets/80m-agent-preview.png" /></td>
-<td width="50%" align="center"><b>ATM 吉祥物</b><br/><img width="100%" alt="80M ATM 吉祥物" src="docs/assets/atm-mascot-rich.png" /></td>
+<td width="50%" align="center"><b>聊天</b><br/><img width="100%" alt="80M 聊天截图" src="docs/assets/screenshots/chat.png" /></td>
+<td width="50%" align="center"><b>Kanban</b><br/><img width="100%" alt="80M Kanban 看板截图" src="docs/assets/screenshots/kanban.png" /></td>
 </tr>
 <tr>
-<td width="50%" align="center"><b>应用图标来源</b><br/><img width="100%" alt="80M ATM 应用图标" src="docs/assets/atm-mascot-icon-source.png" /></td>
-<td width="50%" align="center"><b>80M 标识</b><br/><img width="100%" alt="80M 标识" src="docs/assets/80m-logo.png" /></td>
+<td width="50%" align="center"><b>技能</b><br/><img width="100%" alt="80M 技能截图" src="docs/assets/screenshots/skills.png" /></td>
+<td width="50%" align="center"><b>设置</b><br/><img width="100%" alt="80M 设置截图" src="docs/assets/screenshots/settings.png" /></td>
+</tr>
+<tr>
+<td width="50%" align="center"><b>Second Brain</b><br/><img width="100%" alt="80M Second Brain 截图" src="docs/assets/screenshots/memory.png" /></td>
+<td width="50%" align="center"><b>Agent Control</b><br/><img width="100%" alt="80M Agent Control 截图" src="docs/assets/screenshots/agent-control.png" /></td>
 </tr>
 </table>
 
