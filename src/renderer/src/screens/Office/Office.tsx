@@ -122,7 +122,7 @@ function Office({ visible }: { visible?: boolean }): React.JSX.Element {
       if (e?.errorCode === -3) return; // Aborted — ignore (happens on reload)
       setWebviewError(
         e?.errorDescription ||
-          "Failed to load Claw3D. The dev server may still be starting up.",
+          "Failed to load 3D Office. The dev server may still be starting up.",
       );
     };
     wv.addEventListener("did-finish-load", onLoad);
@@ -170,7 +170,7 @@ function Office({ visible }: { visible?: boolean }): React.JSX.Element {
       setStarting(true);
       const result = await window.hermesAPI.claw3dStartAll();
       if (!result.success) {
-        setError(result.error || "Failed to start Claw3D");
+        setError(result.error || "Failed to start 3D Office");
         setStarting(false);
       } else {
         // Give processes a moment to actually start, polling will confirm
@@ -247,7 +247,7 @@ function Office({ visible }: { visible?: boolean }): React.JSX.Element {
                 className="btn btn-secondary"
                 onClick={() =>
                   window.hermesAPI.openExternal(
-                    "https://github.com/iamlukethedev/Claw3D",
+                    "https://github.com/guapdad4000/80m-agent-desktop-v3",
                   )
                 }
               >

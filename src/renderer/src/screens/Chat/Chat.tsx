@@ -118,7 +118,7 @@ const SLASH_COMMANDS: SlashCommand[] = [
   },
   { name: "/memory", description: "Show agent memory", category: "info" },
   { name: "/persona", description: "Show current persona", category: "info" },
-  { name: "/version", description: "Show Hermes version", category: "info" },
+  { name: "/version", description: "Show runtime version", category: "info" },
 ];
 
 function HermesAvatar({ size = 30 }: { size?: number }): React.JSX.Element {
@@ -773,7 +773,7 @@ function Chat({
           window.hermesAPI.getAppVersion(),
         ]);
         pushLocalResponse(
-          `**Hermes Agent:** ${hermesVer || "unknown"}\n**Desktop App:** v${appVer}`,
+          `**80M Runtime:** ${hermesVer || "unknown"}\n**Desktop App:** v${appVer}`,
         );
         return true;
       }

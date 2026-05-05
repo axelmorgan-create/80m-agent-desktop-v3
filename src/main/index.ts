@@ -1169,7 +1169,7 @@ function setupIPC(): void {
     };
 
     try {
-      emit("Backing up Hermes", "Creating a pre-upgrade snapshot.");
+      emit("Backing up 80M", "Creating a pre-upgrade snapshot.");
       const backup = await runHermesBackup(profile);
       if (!backup.success) {
         return {
@@ -1182,7 +1182,7 @@ function setupIPC(): void {
       emit("Checking for update", "Running hermes update --check.");
       const check = await runHermesUpdateCheck();
 
-      emit("Updating Hermes", "Running hermes update.");
+      emit("Updating 80M", "Running runtime update.");
       await runHermesUpdate((progress: InstallProgress) => {
         event.sender.send("install-progress", {
           ...progress,
@@ -1767,7 +1767,7 @@ function setupIPC(): void {
       updateModel(id, fields),
   );
 
-  // Claw3D
+  // 3D Office
   ipcMain.handle("claw3d-status", () => getClaw3dStatus());
 
   ipcMain.handle("claw3d-setup", async (event) => {
@@ -2156,8 +2156,8 @@ function setupUpdater(): void {
 }
 
 app.whenReady().then(() => {
-  app.name = "Hermes";
-  electronApp.setAppUserModelId("com.nousresearch.hermes");
+  app.name = "80m Agent Desktop";
+  electronApp.setAppUserModelId("com.80m.agent-desktop");
 
   app.on("browser-window-created", (_, window) => {
     optimizer.watchWindowShortcuts(window);

@@ -289,7 +289,7 @@ function parseToolGateway(
     return {
       present: false,
       available: false,
-      reason: "Status output did not include Nous Tool Gateway.",
+      reason: "Status output did not include managed tool gateway.",
       managedTools: [],
     };
   }
@@ -1519,8 +1519,8 @@ function sendMessageViaCli(
       const detail = stderrBuffer.trim();
       cb.onError(
         detail
-          ? `Hermes exited with code ${code}: ${detail}`
-          : `Hermes exited with code ${code}. Check your model configuration and API key.`,
+          ? `80M runtime exited with code ${code}: ${detail}`
+          : `80M runtime exited with code ${code}. Check your model configuration and API key.`,
       );
     }
   });

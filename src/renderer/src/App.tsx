@@ -35,7 +35,7 @@ function App(): React.JSX.Element {
           setNextScreen("main");
         } else {
           setInstallError(
-            `Cannot reach remote Hermes at ${conn.remoteUrl}. Check the URL or switch to local mode.`,
+            `Cannot reach remote 80M at ${conn.remoteUrl}. Check the URL or switch to local mode.`,
           );
           setNextScreen("welcome");
         }

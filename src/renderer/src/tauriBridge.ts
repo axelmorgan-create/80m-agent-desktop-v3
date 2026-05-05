@@ -656,13 +656,13 @@ export const installTauriBridge = (): void => {
           specPath: "",
           mediumPagePath: "",
           officialDocsUrl:
-            "https://hermes-agent.nousresearch.com/docs/user-guide/features/kanban",
+            "https://github.com/guapdad4000/80m-agent-desktop-v3/blob/main/docs/hermes-kanban/kanban.md",
           officialTutorialUrl:
-            "https://hermes-agent.nousresearch.com/docs/user-guide/features/kanban-tutorial",
+            "https://github.com/guapdad4000/80m-agent-desktop-v3/blob/main/docs/hermes-kanban/kanban-tutorial.md",
           upstreamPluginUrl:
-            "https://github.com/NousResearch/hermes-agent/tree/main/plugins/kanban",
+            "https://github.com/guapdad4000/80m-agent-desktop-v3/tree/main/vendor/hermes-kanban",
           upstreamReleaseUrl:
-            "https://github.com/NousResearch/hermes-agent/releases/tag/v2026.4.30",
+            "https://github.com/guapdad4000/80m-agent-desktop-v3/blob/main/docs/hermes-kanban/HERMES_AGENT_V0.12.0_RELEASE_NOTES.md",
         },
       ),
 

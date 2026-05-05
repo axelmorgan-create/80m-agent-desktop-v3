@@ -70,22 +70,22 @@ function modelConfigIssue(
     return "Custom providers need a base URL.";
   }
   if (provider === "minimax" && !hasEnv(env, "MINIMAX_API_KEY")) {
-    return "MiniMax API mode needs MINIMAX_API_KEY saved in Hermes.";
+    return "MiniMax API mode needs MINIMAX_API_KEY saved in 80M.";
   }
   if (provider === "minimax-cn" && !hasEnv(env, "MINIMAX_CN_API_KEY")) {
-    return "MiniMax CN mode needs MINIMAX_CN_API_KEY saved in Hermes.";
+    return "MiniMax CN mode needs MINIMAX_CN_API_KEY saved in 80M.";
   }
   if (provider === "minimax-oauth" && !hasCredential(pool, "minimax-oauth")) {
     return "MiniMax OAuth mode needs a saved MiniMax OAuth credential from hermes model.";
   }
   if (provider === "nous" && !hasCredential(pool, "nous")) {
-    return "Nous Portal mode needs a saved Nous credential from hermes auth or hermes model.";
+    return "Portal mode needs a saved credential from the local runtime.";
   }
   if (provider === "openai-codex" && !hasCredential(pool, "openai-codex")) {
     return "OpenAI Codex mode needs a saved Codex OAuth credential from hermes model.";
   }
   if (provider === "alibaba" && !hasEnv(env, "DASHSCOPE_API_KEY")) {
-    return "Qwen DashScope mode needs DASHSCOPE_API_KEY saved in Hermes.";
+    return "Qwen DashScope mode needs DASHSCOPE_API_KEY saved in 80M.";
   }
   return null;
 }

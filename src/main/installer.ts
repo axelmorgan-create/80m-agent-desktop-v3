@@ -216,7 +216,7 @@ function runHermesCommand(
     return Promise.resolve({
       success: false,
       output: "",
-      error: "Hermes is not installed.",
+      error: "80M is not installed.",
     });
   }
 
@@ -279,7 +279,7 @@ export function runHermesUpdateCheck(): Promise<
 
 export function runHermesDoctor(): string {
   if (!existsSync(HERMES_PYTHON) || !existsSync(HERMES_SCRIPT)) {
-    return "Hermes is not installed.";
+    return "80M is not installed.";
   }
   try {
     const output = execSync(`"${HERMES_PYTHON}" "${HERMES_SCRIPT}" doctor`, {
@@ -316,12 +316,12 @@ export async function runClawMigrate(
   onProgress: (progress: InstallProgress) => void,
 ): Promise<void> {
   if (!existsSync(HERMES_PYTHON) || !existsSync(HERMES_SCRIPT)) {
-    throw new Error("Hermes is not installed.");
+    throw new Error("80M is not installed.");
   }
 
   const openclaw = checkOpenClawExists();
   if (!openclaw.found) {
-    throw new Error("No OpenClaw installation found.");
+    throw new Error("No legacy office installation found.");
   }
 
   let log = "";
@@ -330,7 +330,7 @@ export async function runClawMigrate(
     onProgress({
       step: 1,
       totalSteps: 1,
-      title: "Migrating from OpenClaw",
+      title: "Migrating legacy office",
       detail: text.trim().slice(0, 120),
       log,
     });
@@ -380,7 +380,7 @@ export async function runHermesUpdate(
   onProgress: (progress: InstallProgress) => void,
 ): Promise<void> {
   if (!existsSync(HERMES_PYTHON) || !existsSync(HERMES_SCRIPT)) {
-    throw new Error("Hermes is not installed. Please install it first.");
+    throw new Error("80M is not installed. Please install it first.");
   }
 
   let log = "";
@@ -515,7 +515,7 @@ export async function runInstall(
     });
   }
 
-  emit("Running official Hermes install script...\n");
+  emit("Running 80M runtime install script...\n");
 
   return new Promise((resolve, reject) => {
     const home = homedir();
@@ -555,10 +555,10 @@ export async function runInstall(
       } else {
         // The install script can exit non-zero due to benign issues
         // (e.g. git stash pop failure on already-clean repo).
-        // If Hermes is actually installed and working, treat as success.
+        // If the runtime is actually installed and working, treat as success.
         if (existsSync(HERMES_PYTHON) && existsSync(HERMES_SCRIPT)) {
           emit(
-            "\nInstall script exited with warnings, but Hermes is installed successfully.\n",
+            "\nInstall script exited with warnings, but 80M is installed successfully.\n",
           );
           resolve();
         } else {
@@ -585,7 +585,7 @@ export async function runHermesBackup(
   profile?: string,
 ): Promise<{ success: boolean; path?: string; error?: string }> {
   if (!existsSync(HERMES_PYTHON) || !existsSync(HERMES_SCRIPT)) {
-    return { success: false, error: "Hermes is not installed." };
+    return { success: false, error: "80M is not installed." };
   }
   const args = [HERMES_SCRIPT, "backup"];
   if (profile && profile !== "default") args.push("-p", profile);
@@ -632,7 +632,7 @@ export async function runHermesImport(
   profile?: string,
 ): Promise<{ success: boolean; error?: string }> {
   if (!existsSync(HERMES_PYTHON) || !existsSync(HERMES_SCRIPT)) {
-    return { success: false, error: "Hermes is not installed." };
+    return { success: false, error: "80M is not installed." };
   }
   const args = [HERMES_SCRIPT, "import", archivePath];
   if (profile && profile !== "default") args.push("-p", profile);
@@ -672,7 +672,7 @@ export async function runHermesImport(
 
 export function runHermesDump(): Promise<string> {
   if (!existsSync(HERMES_PYTHON) || !existsSync(HERMES_SCRIPT)) {
-    return Promise.resolve("Hermes is not installed.");
+    return Promise.resolve("80M is not installed.");
   }
   return new Promise((resolve) => {
     execFile(
