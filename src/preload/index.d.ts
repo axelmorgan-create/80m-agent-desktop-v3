@@ -45,6 +45,26 @@ interface HermesHealth {
   credentialProviders: Array<{ provider: string; count: number }>;
 }
 
+interface TailscaleMobileStatus {
+  installed: boolean;
+  daemonRunning: boolean;
+  backendState: string;
+  online: boolean;
+  dnsName: string;
+  tailnetUrl: string;
+  pairUrl: string;
+  tailscaleIps: string[];
+  serveEnabled: boolean;
+  serveTarget: string;
+  mobileServerRunning: boolean;
+  mobileServerPort: number;
+  pairingToken: string;
+  version: string;
+  error: string;
+  serveStatus: string;
+  noFunnel: true;
+}
+
 interface HermesCapabilities {
   version: string | null;
   semver: string | null;
@@ -308,6 +328,10 @@ interface HermesAPI {
   ) => Promise<boolean>;
   testRemoteConnection: (url: string, apiKey?: string) => Promise<boolean>;
   getHermesHealth: (profile?: string) => Promise<HermesHealth>;
+  getTailscaleMobileStatus: () => Promise<TailscaleMobileStatus>;
+  enableTailscaleMobileAccess: () => Promise<TailscaleMobileStatus>;
+  disableTailscaleMobileAccess: () => Promise<TailscaleMobileStatus>;
+  rotateTailscalePairingToken: () => Promise<TailscaleMobileStatus>;
 
   // Chat
   sendMessage: (

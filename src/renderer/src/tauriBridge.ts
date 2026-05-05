@@ -38,6 +38,26 @@ const onEvent = <T>(
 const fallbackNotice = (command: string): string =>
   `Tauri command "${command}" has not been ported yet. Use the Electron build for this feature while the native shell is being migrated.`;
 
+const fallbackTailscaleMobileStatus = () => ({
+  installed: false,
+  daemonRunning: false,
+  backendState: "unknown",
+  online: false,
+  dnsName: "",
+  tailnetUrl: "",
+  pairUrl: "",
+  tailscaleIps: [],
+  serveEnabled: false,
+  serveTarget: "",
+  mobileServerRunning: false,
+  mobileServerPort: 8780,
+  pairingToken: "",
+  version: "",
+  error: fallbackNotice("tailscale_mobile_access"),
+  serveStatus: "",
+  noFunnel: true as const,
+});
+
 const call = async <T>(
   command: string,
   args: Record<string, unknown> = {},
@@ -246,6 +266,26 @@ export const installTauriBridge = (): void => {
           },
           credentialProviders: [],
         },
+      ),
+    getTailscaleMobileStatus: () =>
+      call("get_tailscale_mobile_status", {}, fallbackTailscaleMobileStatus()),
+    enableTailscaleMobileAccess: () =>
+      call(
+        "enable_tailscale_mobile_access",
+        {},
+        fallbackTailscaleMobileStatus(),
+      ),
+    disableTailscaleMobileAccess: () =>
+      call(
+        "disable_tailscale_mobile_access",
+        {},
+        fallbackTailscaleMobileStatus(),
+      ),
+    rotateTailscalePairingToken: () =>
+      call(
+        "rotate_tailscale_pairing_token",
+        {},
+        fallbackTailscaleMobileStatus(),
       ),
 
     sendMessage: async (

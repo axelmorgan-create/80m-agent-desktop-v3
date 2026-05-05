@@ -1,3 +1,4 @@
+import { randomBytes } from "crypto";
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from "fs";
 import { join } from "path";
 import { HERMES_HOME } from "./installer";
@@ -10,6 +11,14 @@ export interface ConnectionConfig {
   remoteUrl: string;
   apiKey: string;
 }
+
+export interface MobileAccessConfig {
+  enabled: boolean;
+  port: number;
+  pairingToken: string;
+}
+
+export const DEFAULT_MOBILE_ACCESS_PORT = 8780;
 
 // Lazy getter — avoids circular dependency with installer.ts
 // (HERMES_HOME may not be assigned yet when this module first loads)
@@ -48,6 +57,74 @@ export function setConnectionConfig(config: ConnectionConfig): void {
   data.connectionMode = config.mode;
   data.remoteUrl = config.remoteUrl;
   data.remoteApiKey = config.apiKey;
+  writeDesktopConfig(data);
+}
+
+function normalizeMobileAccessPort(port: unknown): number {
+  const parsed = typeof port === "number" ? port : Number(port);
+  if (Number.isInteger(parsed) && parsed >= 1024 && parsed <= 65535) {
+    return parsed;
+  }
+  return DEFAULT_MOBILE_ACCESS_PORT;
+}
+
+function createMobilePairingToken(): string {
+  return randomBytes(24).toString("base64url");
+}
+
+export function getMobileAccessConfig(): MobileAccessConfig {
+  const data = readDesktopConfig();
+  return {
+    enabled: data.mobileAccessEnabled === true,
+    port: normalizeMobileAccessPort(data.mobileAccessPort),
+    pairingToken:
+      typeof data.mobilePairingToken === "string"
+        ? data.mobilePairingToken
+        : "",
+  };
+}
+
+export function ensureMobilePairingToken(): string {
+  const data = readDesktopConfig();
+  if (typeof data.mobilePairingToken === "string" && data.mobilePairingToken) {
+    return data.mobilePairingToken;
+  }
+
+  const token = createMobilePairingToken();
+  data.mobilePairingToken = token;
+  if (!data.mobileAccessPort) {
+    data.mobileAccessPort = DEFAULT_MOBILE_ACCESS_PORT;
+  }
+  writeDesktopConfig(data);
+  return token;
+}
+
+export function rotateMobilePairingToken(): string {
+  const data = readDesktopConfig();
+  const token = createMobilePairingToken();
+  data.mobilePairingToken = token;
+  if (!data.mobileAccessPort) {
+    data.mobileAccessPort = DEFAULT_MOBILE_ACCESS_PORT;
+  }
+  writeDesktopConfig(data);
+  return token;
+}
+
+export function setMobileAccessEnabled(enabled: boolean): void {
+  const data = readDesktopConfig();
+  data.mobileAccessEnabled = enabled;
+  if (!data.mobileAccessPort) {
+    data.mobileAccessPort = DEFAULT_MOBILE_ACCESS_PORT;
+  }
+  if (!data.mobilePairingToken) {
+    data.mobilePairingToken = createMobilePairingToken();
+  }
+  writeDesktopConfig(data);
+}
+
+export function setMobileAccessPort(port: number): void {
+  const data = readDesktopConfig();
+  data.mobileAccessPort = normalizeMobileAccessPort(port);
   writeDesktopConfig(data);
 }
 

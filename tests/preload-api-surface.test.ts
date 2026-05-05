@@ -121,6 +121,18 @@ describe("New APIs from v0.8/v0.9 features", () => {
       expect(typeMethods).toContain(method);
     }
   });
+
+  it("has Tailscale mobile access APIs", () => {
+    for (const method of [
+      "getTailscaleMobileStatus",
+      "enableTailscaleMobileAccess",
+      "disableTailscaleMobileAccess",
+      "rotateTailscalePairingToken",
+    ]) {
+      expect(preloadMethods).toContain(method);
+      expect(typeMethods).toContain(method);
+    }
+  });
 });
 
 // ─── Legacy APIs still present ──────────────────────────

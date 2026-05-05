@@ -255,6 +255,13 @@ import {
   type CreateKanbanTaskInput,
   type KanbanStatus,
 } from "./kanban";
+import {
+  bootstrapMobileAccess,
+  disableTailscaleMobileAccess,
+  enableTailscaleMobileAccess,
+  getTailscaleMobileStatus,
+  rotateTailscaleMobilePairingToken,
+} from "./tailscale";
 import { getAppLocale, setAppLocale } from "./locale";
 
 process.on("uncaughtException", (err) => {
@@ -1307,6 +1314,19 @@ function setupIPC(): void {
     (_event, url: string, apiKey?: string) => testRemoteConnection(url, apiKey),
   );
 
+  ipcMain.handle("get-tailscale-mobile-status", () =>
+    getTailscaleMobileStatus(),
+  );
+  ipcMain.handle("enable-tailscale-mobile-access", () =>
+    enableTailscaleMobileAccess(),
+  );
+  ipcMain.handle("disable-tailscale-mobile-access", () =>
+    disableTailscaleMobileAccess(),
+  );
+  ipcMain.handle("rotate-tailscale-pairing-token", () =>
+    rotateTailscaleMobilePairingToken(),
+  );
+
   ipcMain.handle("get-hermes-health", async (_event, profile?: string) => {
     const install = checkInstallStatus();
     const connection = getConnectionConfig();
@@ -2165,6 +2185,9 @@ app.whenReady().then(() => {
 
   buildMenu();
   setupIPC();
+  bootstrapMobileAccess().catch((error) => {
+    console.error("Failed to bootstrap Tailscale mobile access:", error);
+  });
   createWindow();
   setupUpdater();
 

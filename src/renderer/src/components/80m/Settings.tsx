@@ -1,9 +1,17 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import QRCode from "qrcode";
 import {
   Activity,
+  Copy,
   Download,
+  ExternalLink,
   RefreshCw,
+  Power,
+  QrCode,
+  RotateCcw,
+  ShieldCheck,
+  Smartphone,
   Upload,
   User,
   Wifi,
@@ -20,6 +28,7 @@ interface Props {
 
 type TabId =
   | "connection"
+  | "mobile"
   | "health"
   | "curator"
   | "profiles"
@@ -95,6 +104,26 @@ interface HermesCapabilities {
     sessionContinuity: boolean;
     curator: boolean;
   };
+}
+
+interface TailscaleMobileStatus {
+  installed: boolean;
+  daemonRunning: boolean;
+  backendState: string;
+  online: boolean;
+  dnsName: string;
+  tailnetUrl: string;
+  pairUrl: string;
+  tailscaleIps: string[];
+  serveEnabled: boolean;
+  serveTarget: string;
+  mobileServerRunning: boolean;
+  mobileServerPort: number;
+  pairingToken: string;
+  version: string;
+  error: string;
+  serveStatus: string;
+  noFunnel: true;
 }
 
 interface CuratorCommandResult {
@@ -346,6 +375,14 @@ const Settings80m: React.FC<Props> = ({ onBack, profile }) => {
   const [curatorBusy, setCuratorBusy] = useState<string | null>(null);
   const [curatorSkill, setCuratorSkill] = useState("");
   const [curatorOutput, setCuratorOutput] = useState("");
+  const [tailscale, setTailscale] = useState<TailscaleMobileStatus | null>(
+    null,
+  );
+  const [tailscaleBusy, setTailscaleBusy] = useState<
+    "enable" | "disable" | "rotate" | null
+  >(null);
+  const [tailscaleError, setTailscaleError] = useState("");
+  const [tailscaleQr, setTailscaleQr] = useState("");
 
   const activeModelPresets = buildActiveModelPresets(env, credentialPool);
 
@@ -396,6 +433,58 @@ const Settings80m: React.FC<Props> = ({ onBack, profile }) => {
     },
     [profile],
   );
+
+  const refreshTailscale = useCallback(async () => {
+    if (!window.hermesAPI?.getTailscaleMobileStatus) return;
+    try {
+      const status = await window.hermesAPI.getTailscaleMobileStatus();
+      setTailscale(status);
+      setTailscaleError(status.error || "");
+    } catch (err) {
+      setTailscaleError(err instanceof Error ? err.message : String(err));
+    }
+  }, []);
+
+  const runTailscaleAction = useCallback(
+    async (action: "enable" | "disable" | "rotate") => {
+      setTailscaleBusy(action);
+      setTailscaleError("");
+      try {
+        const api = window.hermesAPI;
+        if (!api?.enableTailscaleMobileAccess) return;
+        const status =
+          action === "enable"
+            ? await api.enableTailscaleMobileAccess()
+            : action === "disable"
+              ? await api.disableTailscaleMobileAccess()
+              : await api.rotateTailscalePairingToken();
+        setTailscale(status);
+        setTailscaleError(status.error || "");
+      } catch (err) {
+        setTailscaleError(err instanceof Error ? err.message : String(err));
+      } finally {
+        setTailscaleBusy(null);
+      }
+    },
+    [],
+  );
+
+  const copyMobileUrl = useCallback(async () => {
+    const url = tailscale?.pairUrl || tailscale?.tailnetUrl;
+    if (!url) return;
+    try {
+      await navigator.clipboard.writeText(url);
+      setTailscaleError("Mobile URL copied.");
+    } catch (err) {
+      setTailscaleError(err instanceof Error ? err.message : String(err));
+    }
+  }, [tailscale?.pairUrl, tailscale?.tailnetUrl]);
+
+  const openMobileUrl = useCallback(() => {
+    const url = tailscale?.pairUrl || tailscale?.tailnetUrl;
+    if (!url) return;
+    void window.hermesAPI?.openExternal?.(url);
+  }, [tailscale?.pairUrl, tailscale?.tailnetUrl]);
 
   const handleSafeUpgrade = async () => {
     if (!window.hermesAPI?.runSafeHermesUpgrade) return;
@@ -452,6 +541,7 @@ const Settings80m: React.FC<Props> = ({ onBack, profile }) => {
 
       void refreshHealth();
       void refreshCapabilities();
+      void refreshTailscale();
       void runCuratorAction("status");
 
       // Load profiles - use raw response, map to our interface
@@ -486,7 +576,38 @@ const Settings80m: React.FC<Props> = ({ onBack, profile }) => {
     } else {
       setLoading(false);
     }
-  }, [profile, refreshHealth, refreshCapabilities, runCuratorAction]);
+  }, [
+    profile,
+    refreshHealth,
+    refreshCapabilities,
+    refreshTailscale,
+    runCuratorAction,
+  ]);
+
+  useEffect(() => {
+    const url = tailscale?.pairUrl || tailscale?.tailnetUrl;
+    if (!url) {
+      setTailscaleQr("");
+      return;
+    }
+
+    let active = true;
+    QRCode.toDataURL(url, {
+      width: 220,
+      margin: 1,
+      color: { dark: "#111611", light: "#f4fff7" },
+    })
+      .then((dataUrl) => {
+        if (active) setTailscaleQr(dataUrl);
+      })
+      .catch(() => {
+        if (active) setTailscaleQr("");
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [tailscale?.pairUrl, tailscale?.tailnetUrl]);
 
   const handleSave = async () => {
     if (window.hermesAPI) {
@@ -624,6 +745,7 @@ const Settings80m: React.FC<Props> = ({ onBack, profile }) => {
 
   const tabs: { id: TabId; label: string; icon: React.ReactNode }[] = [
     { id: "connection", label: "Connection", icon: <Wifi size={14} /> },
+    { id: "mobile", label: "Mobile", icon: <Smartphone size={14} /> },
     { id: "health", label: "Health", icon: <Activity size={14} /> },
     { id: "curator", label: "Curator", icon: <Sparkles size={14} /> },
     { id: "profiles", label: "Profiles", icon: <User size={14} /> },
@@ -845,6 +967,188 @@ const Settings80m: React.FC<Props> = ({ onBack, profile }) => {
               <button onClick={handleSave} className="settings-80m-save-btn">
                 {saved ? "SAVED ✓" : "SAVE CONFIG"}
               </button>
+            </motion.div>
+          )}
+
+          {activeTab === "mobile" && (
+            <motion.div
+              key="mobile"
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -8 }}
+              transition={{ duration: 0.15 }}
+              className="settings-80m-section"
+            >
+              <div className="settings-80m-health-header">
+                <label className="settings-80m-label">
+                  Tailscale Mobile Access
+                </label>
+                <button
+                  type="button"
+                  className="settings-80m-profile-btn"
+                  onClick={() => void refreshTailscale()}
+                  disabled={Boolean(tailscaleBusy)}
+                >
+                  <RefreshCw size={13} />
+                  Refresh
+                </button>
+              </div>
+
+              <div className="settings-80m-health-grid">
+                <div className="settings-80m-health-card">
+                  <span className="settings-80m-health-title">
+                    Tailscale CLI
+                  </span>
+                  <span
+                    className={`settings-80m-health-pill ${
+                      tailscale?.installed && tailscale.daemonRunning
+                        ? "ok"
+                        : "bad"
+                    }`}
+                  >
+                    {tailscale?.installed
+                      ? tailscale.daemonRunning
+                        ? "ready"
+                        : "daemon off"
+                      : "missing"}
+                  </span>
+                  <p>{tailscale?.version || "No CLI version reported"}</p>
+                  <p>{tailscale?.backendState || "unknown state"}</p>
+                </div>
+
+                <div className="settings-80m-health-card">
+                  <span className="settings-80m-health-title">Tailnet</span>
+                  <span
+                    className={`settings-80m-health-pill ${
+                      tailscale?.online ? "ok" : "bad"
+                    }`}
+                  >
+                    {tailscale?.online ? "online" : "offline"}
+                  </span>
+                  <p>{tailscale?.dnsName || "MagicDNS not reported"}</p>
+                  <p>
+                    {(tailscale?.tailscaleIps || []).join(", ") ||
+                      "No tailnet IP"}
+                  </p>
+                </div>
+
+                <div className="settings-80m-health-card">
+                  <span className="settings-80m-health-title">Mobile PWA</span>
+                  <span
+                    className={`settings-80m-health-pill ${
+                      tailscale?.mobileServerRunning ? "ok" : "bad"
+                    }`}
+                  >
+                    {tailscale?.mobileServerRunning ? "running" : "stopped"}
+                  </span>
+                  <p>Local port: {tailscale?.mobileServerPort || 8780}</p>
+                  <p>
+                    Pairing token: {tailscale?.pairingToken ? "set" : "new"}
+                  </p>
+                </div>
+
+                <div className="settings-80m-health-card">
+                  <span className="settings-80m-health-title">
+                    Private Serve
+                  </span>
+                  <span
+                    className={`settings-80m-health-pill ${
+                      tailscale?.serveEnabled ? "ok" : "bad"
+                    }`}
+                  >
+                    {tailscale?.serveEnabled ? "enabled" : "off"}
+                  </span>
+                  <p>No Funnel</p>
+                  <p>{tailscale?.serveTarget || "localhost:8780"}</p>
+                </div>
+              </div>
+
+              <div className="settings-80m-divider" />
+
+              <div className="settings-80m-mobile-pairing">
+                <div className="settings-80m-mobile-url-card">
+                  <label className="settings-80m-label">Pairing URL</label>
+                  <div className="settings-80m-mobile-url-row">
+                    <input
+                      readOnly
+                      className="settings-80m-input"
+                      value={tailscale?.pairUrl || tailscale?.tailnetUrl || ""}
+                      placeholder="Enable Tailscale Mobile Access"
+                    />
+                    <button
+                      type="button"
+                      className="settings-80m-profile-btn"
+                      onClick={() => void copyMobileUrl()}
+                      disabled={!(tailscale?.pairUrl || tailscale?.tailnetUrl)}
+                      title="Copy"
+                    >
+                      <Copy size={13} />
+                    </button>
+                    <button
+                      type="button"
+                      className="settings-80m-profile-btn"
+                      onClick={openMobileUrl}
+                      disabled={!(tailscale?.pairUrl || tailscale?.tailnetUrl)}
+                      title="Open"
+                    >
+                      <ExternalLink size={13} />
+                    </button>
+                  </div>
+                  <div className="settings-80m-action-grid">
+                    <button
+                      type="button"
+                      className="settings-80m-save-btn"
+                      onClick={() => void runTailscaleAction("enable")}
+                      disabled={
+                        Boolean(tailscaleBusy) || tailscale?.installed === false
+                      }
+                    >
+                      <Power size={13} />
+                      {tailscaleBusy === "enable" ? "Starting" : "Enable"}
+                    </button>
+                    <button
+                      type="button"
+                      className="settings-80m-profile-btn"
+                      onClick={() => void runTailscaleAction("disable")}
+                      disabled={Boolean(tailscaleBusy)}
+                    >
+                      <Power size={13} />
+                      {tailscaleBusy === "disable" ? "Stopping" : "Disable"}
+                    </button>
+                    <button
+                      type="button"
+                      className="settings-80m-profile-btn"
+                      onClick={() => void runTailscaleAction("rotate")}
+                      disabled={Boolean(tailscaleBusy)}
+                    >
+                      <RotateCcw size={13} />
+                      {tailscaleBusy === "rotate" ? "Rotating" : "Rotate"}
+                    </button>
+                  </div>
+                </div>
+
+                <div className="settings-80m-qr-card">
+                  {tailscaleQr ? (
+                    <img src={tailscaleQr} alt="80M mobile pairing QR code" />
+                  ) : (
+                    <QrCode size={64} />
+                  )}
+                  <span>
+                    <ShieldCheck size={13} />
+                    Tailnet only
+                  </span>
+                </div>
+              </div>
+
+              {tailscaleError && (
+                <div
+                  className={`settings-80m-result ${
+                    tailscaleError.includes("copied") ? "success" : "error"
+                  }`}
+                >
+                  {tailscaleError}
+                </div>
+              )}
             </motion.div>
           )}
 

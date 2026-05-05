@@ -123,6 +123,14 @@ const hermesAPI = {
     ipcRenderer.invoke("test-remote-connection", url, apiKey),
   getHermesHealth: (profile?: string): Promise<unknown> =>
     ipcRenderer.invoke("get-hermes-health", profile),
+  getTailscaleMobileStatus: (): Promise<unknown> =>
+    ipcRenderer.invoke("get-tailscale-mobile-status"),
+  enableTailscaleMobileAccess: (): Promise<unknown> =>
+    ipcRenderer.invoke("enable-tailscale-mobile-access"),
+  disableTailscaleMobileAccess: (): Promise<unknown> =>
+    ipcRenderer.invoke("disable-tailscale-mobile-access"),
+  rotateTailscalePairingToken: (): Promise<unknown> =>
+    ipcRenderer.invoke("rotate-tailscale-pairing-token"),
 
   // Chat
   sendMessage: (
