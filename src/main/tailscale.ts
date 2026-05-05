@@ -1,4 +1,7 @@
 import { execFile } from "child_process";
+import { existsSync } from "fs";
+import { homedir } from "os";
+import { join } from "path";
 import {
   getMobileAccessConfig,
   ensureMobilePairingToken,
@@ -69,9 +72,10 @@ function runTailscale(
   timeoutMs = 12000,
 ): Promise<CommandResult> {
   return new Promise((resolve) => {
+    const socketPath = resolveTailscaleSocketPath();
     execFile(
       "tailscale",
-      args,
+      socketPath ? [`--socket=${socketPath}`, ...args] : args,
       {
         timeout: timeoutMs,
         env: {
@@ -91,6 +95,20 @@ function runTailscale(
       },
     );
   });
+}
+
+function resolveTailscaleSocketPath(): string {
+  const home = homedir();
+  const candidates = [
+    process.env.TS_SOCKET,
+    process.env.TAILSCALE_SOCKET,
+    "/var/run/tailscale/tailscaled.sock",
+    "/run/tailscale/tailscaled.sock",
+    join(home, ".local", "run", "tailscale", "tailscaled.sock"),
+    join(home, "~", ".local", "run", "tailscale", "tailscaled.sock"),
+  ].filter(Boolean) as string[];
+
+  return candidates.find((candidate) => existsSync(candidate)) || "";
 }
 
 function parseVersion(output: string): string {
