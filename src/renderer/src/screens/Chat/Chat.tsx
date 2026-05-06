@@ -492,7 +492,15 @@ function Chat({
     });
 
     const cleanupToolProgress = window.hermesAPI.onChatToolProgress((tool) => {
-      setToolProgress(tool);
+      setToolProgress(
+        typeof tool === "string"
+          ? tool
+          : tool.label ||
+              tool.preview ||
+              tool.tool ||
+              tool.name ||
+              "Tool activity",
+      );
     });
 
     const cleanupUsage = window.hermesAPI.onChatUsage((u) => {

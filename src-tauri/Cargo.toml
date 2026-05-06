@@ -3,6 +3,7 @@ name = "eighty-m-agent-desktop"
 version = "0.8.0"
 description = "80m Agent Desktop Tauri shell"
 authors = ["80M"]
+license = "MIT"
 edition = "2021"
 
 [lib]

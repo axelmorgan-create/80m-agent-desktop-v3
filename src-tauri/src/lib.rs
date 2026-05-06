@@ -1,6 +1,6 @@
 use once_cell::sync::Lazy;
 use reqwest::header::{AUTHORIZATION, CONTENT_TYPE};
-use rusqlite::Connection;
+use rusqlite::{Connection, OptionalExtension};
 use serde::Deserialize;
 use serde::Serialize;
 use serde_json::{Map, Value};
@@ -9,7 +9,7 @@ use std::env;
 use std::fs;
 use std::io::{BufRead, BufReader};
 use std::net::TcpStream;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
 use std::sync::Mutex;
 use std::thread;
@@ -566,6 +566,307 @@ fn strip_ansi(text: &str) -> String {
         return text.to_string();
     };
     re.replace_all(text, "").to_string()
+}
+
+fn app_repo_root() -> PathBuf {
+    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .map(Path::to_path_buf)
+        .unwrap_or_else(|| PathBuf::from("."))
+}
+
+fn normalize_profile_name(profile: Option<&str>) -> String {
+    let name = profile.unwrap_or("default").trim();
+    if name.is_empty() || name.eq_ignore_ascii_case("default") {
+        "default".to_string()
+    } else {
+        name.to_lowercase()
+    }
+}
+
+fn is_valid_profile_name(profile: Option<&str>) -> bool {
+    let name = normalize_profile_name(profile);
+    if name == "default" {
+        return true;
+    }
+    regex::Regex::new(r"^[a-z0-9][a-z0-9_-]{0,63}$")
+        .map(|re| re.is_match(&name))
+        .unwrap_or(false)
+}
+
+fn is_spawnable_profile(profile: Option<&str>) -> bool {
+    let name = normalize_profile_name(profile);
+    if !is_valid_profile_name(Some(&name)) {
+        return false;
+    }
+    name == "default" || hermes_home().join("profiles").join(name).exists()
+}
+
+fn normalize_assignee_input(assignee: Option<&str>) -> Result<Option<String>, String> {
+    let Some(raw) = assignee.map(str::trim).filter(|value| !value.is_empty()) else {
+        return Ok(None);
+    };
+    let profile = normalize_profile_name(Some(raw));
+    if !is_valid_profile_name(Some(&profile)) {
+        return Err("Assignee must be a valid 80M profile id: lowercase letters, numbers, dashes, or underscores.".to_string());
+    }
+    if !is_spawnable_profile(Some(&profile)) {
+        return Err(format!(
+            "Profile '{profile}' is not available to the Kanban dispatcher."
+        ));
+    }
+    Ok(Some(profile))
+}
+
+fn hermes_command_owned(
+    args: &[String],
+    profile: Option<&str>,
+    timeout_note: &str,
+) -> Result<String, String> {
+    let mut cmd = Command::new(hermes_python());
+    cmd.arg(hermes_script());
+    let profile_name = normalize_profile_name(profile);
+    if profile_name != "default" {
+        cmd.arg("-p").arg(profile_name);
+    }
+    cmd.args(args)
+        .current_dir(hermes_repo())
+        .env("PATH", enhanced_path())
+        .env(
+            "HOME",
+            home_dir()
+                .unwrap_or_else(|| PathBuf::from("."))
+                .to_string_lossy()
+                .to_string(),
+        )
+        .env("HERMES_HOME", hermes_home())
+        .env("TERM", "dumb")
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped());
+
+    let output = cmd
+        .output()
+        .map_err(|error| format!("{timeout_note}: {error}"))?;
+    let stdout = strip_ansi(&String::from_utf8_lossy(&output.stdout));
+    let stderr = strip_ansi(&String::from_utf8_lossy(&output.stderr));
+    if output.status.success() {
+        Ok(if stdout.trim().is_empty() {
+            stderr
+        } else {
+            stdout
+        })
+    } else {
+        Err(if stderr.trim().is_empty() {
+            stdout
+        } else {
+            stderr
+        })
+    }
+}
+
+fn extract_json_value(text: &str) -> Result<Value, String> {
+    let Some(start) = text
+        .char_indices()
+        .find(|(_, ch)| *ch == '{' || *ch == '[')
+        .map(|(idx, _)| idx)
+    else {
+        return Err("No JSON payload found.".to_string());
+    };
+    let source = &text[start..];
+    let opener = source.chars().next().unwrap_or('{');
+    let closer = if opener == '{' { '}' } else { ']' };
+    let mut depth = 0i64;
+    let mut in_string = false;
+    let mut escaped = false;
+    let mut close_index = None;
+
+    for (offset, ch) in source.char_indices() {
+        if escaped {
+            escaped = false;
+            continue;
+        }
+        if ch == '\\' {
+            escaped = true;
+            continue;
+        }
+        if ch == '"' {
+            in_string = !in_string;
+            continue;
+        }
+        if in_string {
+            continue;
+        }
+        if ch == opener {
+            depth += 1;
+        }
+        if ch == closer {
+            depth -= 1;
+        }
+        if depth == 0 {
+            close_index = Some(offset + ch.len_utf8());
+            break;
+        }
+    }
+
+    let Some(close_index) = close_index else {
+        return Err("JSON payload was incomplete.".to_string());
+    };
+    serde_json::from_str(&source[..close_index]).map_err(|error| error.to_string())
+}
+
+fn parse_hermes_semver(version: Option<&str>) -> Option<String> {
+    let re = regex::Regex::new(r"v(\d+\.\d+\.\d+)").ok()?;
+    re.captures(version.unwrap_or(""))
+        .and_then(|captures| captures.get(1))
+        .map(|value| value.as_str().to_string())
+}
+
+fn semver_at_least(value: Option<&str>, minimum: &str) -> bool {
+    let Some(value) = value else {
+        return false;
+    };
+    let current = value
+        .split('.')
+        .map(|part| part.parse::<i64>().unwrap_or(0))
+        .collect::<Vec<_>>();
+    let target = minimum
+        .split('.')
+        .map(|part| part.parse::<i64>().unwrap_or(0))
+        .collect::<Vec<_>>();
+    for idx in 0..target.len() {
+        let a = *current.get(idx).unwrap_or(&0);
+        let b = *target.get(idx).unwrap_or(&0);
+        if a > b {
+            return true;
+        }
+        if a < b {
+            return false;
+        }
+    }
+    true
+}
+
+fn parse_tool_gateway(status_text: &str) -> Value {
+    let section = status_text
+        .split("◆ Nous Tool Gateway")
+        .nth(1)
+        .and_then(|rest| rest.split("\n◆ ").next())
+        .unwrap_or("");
+    if section.trim().is_empty() {
+        return serde_json::json!({
+            "present": false,
+            "available": false,
+            "reason": "Status output did not include managed tool gateway.",
+            "managedTools": [],
+        });
+    }
+    let unavailable =
+        regex::Regex::new("(?i)does not include|upgrade|free-tier|not included|not available")
+            .map(|re| re.is_match(section))
+            .unwrap_or(false);
+    let reason = section
+        .lines()
+        .map(str::trim)
+        .filter(|line| !line.is_empty())
+        .collect::<Vec<_>>()
+        .join(" ");
+    serde_json::json!({
+        "present": true,
+        "available": !unavailable,
+        "reason": reason,
+        "managedTools": if unavailable {
+            Vec::<&str>::new()
+        } else {
+            vec!["web", "image_gen", "tts", "browser"]
+        },
+    })
+}
+
+async fn api_json_value(
+    path: &str,
+    profile: Option<&str>,
+    method: &str,
+    body: Option<Value>,
+) -> (bool, Option<u16>, Value, Option<String>) {
+    let client = match reqwest::Client::builder()
+        .timeout(Duration::from_secs(8))
+        .build()
+    {
+        Ok(client) => client,
+        Err(error) => return (false, None, Value::Null, Some(error.to_string())),
+    };
+    let target = format!(
+        "{}/{}",
+        api_url().trim_end_matches('/'),
+        path.trim_start_matches('/')
+    );
+    let mut req = match method {
+        "POST" => client.post(target),
+        _ => client.get(target),
+    };
+    req = req.header("Accept", "application/json");
+    if let Some(key) = api_auth(profile) {
+        req = req.header(AUTHORIZATION, format!("Bearer {key}"));
+    }
+    if let Some(body) = body {
+        req = req.header(CONTENT_TYPE, "application/json").json(&body);
+    }
+    let response = match req.send().await {
+        Ok(response) => response,
+        Err(error) => return (false, None, Value::Null, Some(error.to_string())),
+    };
+    let status = response.status();
+    let code = Some(status.as_u16());
+    let text = match response.text().await {
+        Ok(text) => text,
+        Err(error) => return (false, code, Value::Null, Some(error.to_string())),
+    };
+    let parsed = if text.trim().is_empty() {
+        Value::Null
+    } else {
+        serde_json::from_str::<Value>(&text).unwrap_or(Value::Null)
+    };
+    let error = if status.is_success() {
+        None
+    } else if let Some(message) = parsed
+        .get("error")
+        .and_then(|error| error.get("message"))
+        .and_then(Value::as_str)
+    {
+        Some(message.to_string())
+    } else {
+        Some(text.chars().take(500).collect())
+    };
+    (status.is_success(), code, parsed, error)
+}
+
+fn run_hermes_python_json(script: &str, args: &[String]) -> Value {
+    let output = Command::new(hermes_python())
+        .arg("-c")
+        .arg(script)
+        .args(args)
+        .current_dir(hermes_repo())
+        .env("PATH", enhanced_path())
+        .env("HERMES_HOME", hermes_home())
+        .env("PYTHONUNBUFFERED", "1")
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .output();
+    let Ok(output) = output else {
+        return serde_json::json!({ "success": false, "error": "Failed to run Hermes Python." });
+    };
+    if !output.status.success() {
+        return serde_json::json!({
+            "success": false,
+            "error": strip_ansi(&String::from_utf8_lossy(&output.stderr)),
+        });
+    }
+    serde_json::from_slice::<Value>(&output.stdout).unwrap_or_else(|_| {
+        serde_json::json!({
+            "success": false,
+            "error": strip_ansi(&String::from_utf8_lossy(&output.stdout)),
+        })
+    })
 }
 
 fn hermes_office_dir() -> PathBuf {
@@ -2638,6 +2939,210 @@ fn hermes_command(args: &[&str], timeout_note: &str) -> Result<String, String> {
     }
 }
 
+fn kanban_docs() -> Value {
+    let root = app_repo_root();
+    let docs_root = root.join("docs").join("hermes-kanban");
+    serde_json::json!({
+        "pluginPath": root.join("vendor").join("hermes-kanban").to_string_lossy().to_string(),
+        "releaseNotesPath": docs_root.join("HERMES_AGENT_V0.12.0_RELEASE_NOTES.md").to_string_lossy().to_string(),
+        "overviewPath": docs_root.join("kanban.md").to_string_lossy().to_string(),
+        "tutorialPath": docs_root.join("kanban-tutorial.md").to_string_lossy().to_string(),
+        "workerPath": docs_root.join("devops-kanban-worker.md").to_string_lossy().to_string(),
+        "orchestratorPath": docs_root.join("devops-kanban-orchestrator.md").to_string_lossy().to_string(),
+        "specPath": docs_root.join("hermes-kanban-v1-spec.pdf").to_string_lossy().to_string(),
+        "mediumPagePath": root.join("docs").join("medium").join("HERMES_KANBAN_V012_MEDIUM_PAGE.md").to_string_lossy().to_string(),
+        "officialDocsUrl": "https://github.com/guapdad4000/80m-agent-desktop-v3/blob/main/docs/hermes-kanban/kanban.md",
+        "officialTutorialUrl": "https://github.com/guapdad4000/80m-agent-desktop-v3/blob/main/docs/hermes-kanban/kanban-tutorial.md",
+        "upstreamPluginUrl": "https://github.com/guapdad4000/80m-agent-desktop-v3/tree/main/vendor/hermes-kanban",
+        "upstreamReleaseUrl": "https://github.com/guapdad4000/80m-agent-desktop-v3/blob/main/docs/hermes-kanban/HERMES_AGENT_V0.12.0_RELEASE_NOTES.md",
+    })
+}
+
+fn board_from_value(value: Option<&Value>) -> Option<String> {
+    value
+        .and_then(|options| options.get("board"))
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .filter(|board| !board.is_empty() && *board != "default")
+        .map(ToString::to_string)
+}
+
+fn run_kanban_command(args: Vec<String>, board: Option<&str>) -> Result<String, String> {
+    let mut cli_args = vec!["kanban".to_string()];
+    if let Some(board) = board.filter(|value| !value.is_empty() && *value != "default") {
+        cli_args.push("--board".to_string());
+        cli_args.push(board.to_string());
+    }
+    cli_args.extend(args);
+    hermes_command_owned(&cli_args, None, "kanban command failed")
+}
+
+fn run_kanban_json(args: Vec<String>, board: Option<&str>) -> Value {
+    match run_kanban_command(args, board) {
+        Ok(output) => match extract_json_value(&output) {
+            Ok(data) => serde_json::json!({ "success": true, "data": data, "output": output }),
+            Err(error) => serde_json::json!({ "success": false, "error": error, "output": output }),
+        },
+        Err(error) => serde_json::json!({ "success": false, "error": error, "output": error }),
+    }
+}
+
+fn empty_kanban_columns() -> Map<String, Value> {
+    [
+        "triage", "todo", "ready", "running", "blocked", "done", "archived",
+    ]
+    .iter()
+    .map(|status| ((*status).to_string(), Value::Array(Vec::new())))
+    .collect()
+}
+
+fn build_kanban_columns(tasks: &[Value]) -> Value {
+    let mut columns = empty_kanban_columns();
+    for task in tasks {
+        let status = task
+            .get("status")
+            .and_then(Value::as_str)
+            .filter(|status| columns.contains_key(*status))
+            .unwrap_or("todo");
+        if let Some(Value::Array(list)) = columns.get_mut(status) {
+            list.push(task.clone());
+        }
+    }
+    Value::Object(columns)
+}
+
+fn normalize_kanban_assignees(assignees: &[Value]) -> Value {
+    let mut merged: HashMap<String, Value> = HashMap::new();
+    for assignee in assignees {
+        let name = normalize_profile_name(assignee.get("name").and_then(Value::as_str));
+        if !is_valid_profile_name(Some(&name)) {
+            continue;
+        }
+        let mut counts = assignee
+            .get("counts")
+            .cloned()
+            .unwrap_or_else(|| serde_json::json!({}));
+        if let Some(existing_counts) = merged.get(&name).and_then(|value| value.get("counts")) {
+            if let (Some(next), Some(existing)) =
+                (counts.as_object_mut(), existing_counts.as_object())
+            {
+                for (key, value) in existing {
+                    next.entry(key.clone()).or_insert_with(|| value.clone());
+                }
+            }
+        }
+        let on_disk = assignee
+            .get("on_disk")
+            .and_then(Value::as_bool)
+            .unwrap_or(false)
+            || merged
+                .get(&name)
+                .and_then(|value| value.get("on_disk"))
+                .and_then(Value::as_bool)
+                .unwrap_or(false);
+        merged.insert(
+            name.clone(),
+            serde_json::json!({
+                "name": name,
+                "on_disk": on_disk,
+                "spawnable": is_spawnable_profile(Some(&name)),
+                "counts": counts,
+            }),
+        );
+    }
+    let mut values = merged.into_values().collect::<Vec<_>>();
+    values.sort_by(|a, b| {
+        a.get("name")
+            .and_then(Value::as_str)
+            .unwrap_or("")
+            .cmp(b.get("name").and_then(Value::as_str).unwrap_or(""))
+    });
+    Value::Array(values)
+}
+
+fn kanban_db_path(board: Option<&str>) -> Result<PathBuf, String> {
+    if let Some(board) = board.filter(|value| !value.is_empty() && *value != "default") {
+        let slug = board.to_lowercase();
+        let re =
+            regex::Regex::new(r"^[a-z0-9][a-z0-9_-]{0,63}$").map_err(|error| error.to_string())?;
+        if !re.is_match(&slug) {
+            return Err("Invalid board slug.".to_string());
+        }
+        Ok(hermes_home()
+            .join("kanban")
+            .join("boards")
+            .join(slug)
+            .join("kanban.db"))
+    } else {
+        Ok(hermes_home().join("kanban.db"))
+    }
+}
+
+fn set_kanban_status_direct(task_id: &str, status: &str, board: Option<&str>) -> Value {
+    if !["triage", "todo", "ready"].contains(&status) {
+        return serde_json::json!({ "success": false, "error": format!("Cannot direct-set status {status}.") });
+    }
+    let db_path = match kanban_db_path(board) {
+        Ok(path) => path,
+        Err(error) => return serde_json::json!({ "success": false, "error": error }),
+    };
+    if !db_path.exists() {
+        return serde_json::json!({ "success": false, "error": "Kanban database does not exist yet." });
+    }
+    let mut db = match Connection::open(db_path) {
+        Ok(db) => db,
+        Err(error) => return serde_json::json!({ "success": false, "error": error.to_string() }),
+    };
+    let row = db
+        .query_row(
+            "SELECT status, current_run_id FROM tasks WHERE id = ?1",
+            rusqlite::params![task_id],
+            |row| Ok((row.get::<_, String>(0)?, row.get::<_, Option<i64>>(1)?)),
+        )
+        .optional();
+    let Ok(row) = row else {
+        return serde_json::json!({ "success": false, "error": "Failed to read task." });
+    };
+    let Some((previous_status, current_run_id)) = row else {
+        return serde_json::json!({ "success": false, "error": "Task not found." });
+    };
+    let now = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_secs() as i64;
+    let tx = match db.transaction() {
+        Ok(tx) => tx,
+        Err(error) => return serde_json::json!({ "success": false, "error": error.to_string() }),
+    };
+    if let Err(error) = tx.execute(
+        "UPDATE tasks SET status = ?1, claim_lock = NULL, claim_expires = NULL, worker_pid = NULL WHERE id = ?2",
+        rusqlite::params![status, task_id],
+    ) {
+        return serde_json::json!({ "success": false, "error": error.to_string() });
+    }
+    if previous_status == "running" {
+        if let Some(run_id) = current_run_id {
+            let _ = tx.execute(
+                "UPDATE task_runs SET status = 'reclaimed', outcome = 'reclaimed', summary = ?1, ended_at = ?2 WHERE id = ?3",
+                rusqlite::params![format!("status changed to {status} (80m desktop)"), now, run_id],
+            );
+        }
+    }
+    let _ = tx.execute(
+        "INSERT INTO task_events (task_id, run_id, kind, payload, created_at) VALUES (?1, ?2, 'status', ?3, ?4)",
+        rusqlite::params![
+            task_id,
+            if previous_status == "running" { current_run_id } else { None },
+            serde_json::json!({ "status": status }).to_string(),
+            now,
+        ],
+    );
+    match tx.commit() {
+        Ok(_) => serde_json::json!({ "success": true }),
+        Err(error) => serde_json::json!({ "success": false, "error": error.to_string() }),
+    }
+}
+
 #[tauri::command]
 fn run_hermes_doctor() -> String {
     hermes_command(&["doctor"], "doctor failed").unwrap_or_else(|error| error)
@@ -2650,7 +3155,7 @@ fn run_hermes_dump() -> String {
 
 #[tauri::command]
 fn run_hermes_update() -> ActionResult {
-    match hermes_command(&["self", "update"], "update failed") {
+    match hermes_command(&["update"], "update failed") {
         Ok(_) => ActionResult {
             success: true,
             error: None,
@@ -2659,6 +3164,61 @@ fn run_hermes_update() -> ActionResult {
             success: false,
             error: Some(error),
         },
+    }
+}
+
+#[tauri::command]
+fn run_hermes_update_check() -> Value {
+    let args = vec!["update".to_string(), "--check".to_string()];
+    match hermes_command_owned(&args, None, "update check failed") {
+        Ok(output) => {
+            let update_available =
+                regex::Regex::new("(?i)update available|commits behind|new version")
+                    .map(|re| re.is_match(&output))
+                    .unwrap_or(false);
+            serde_json::json!({
+                "success": true,
+                "output": output,
+                "error": null,
+                "updateAvailable": update_available,
+            })
+        }
+        Err(error) => {
+            let update_available =
+                regex::Regex::new("(?i)update available|commits behind|new version")
+                    .map(|re| re.is_match(&error))
+                    .unwrap_or(false);
+            serde_json::json!({
+                "success": false,
+                "output": error,
+                "error": error,
+                "updateAvailable": update_available,
+            })
+        }
+    }
+}
+
+#[tauri::command]
+fn run_safe_hermes_upgrade(profile: Option<String>) -> Value {
+    let args = vec!["update".to_string(), "--backup".to_string()];
+    match hermes_command_owned(&args, profile.as_deref(), "safe upgrade failed") {
+        Ok(output) => {
+            let backup_path = regex::Regex::new(r"Saved:\s+([^\n]+\.zip)")
+                .ok()
+                .and_then(|re| re.captures(&output))
+                .and_then(|captures| captures.get(1))
+                .map(|value| value.as_str().trim().to_string());
+            serde_json::json!({
+                "success": true,
+                "backupPath": backup_path,
+                "output": output,
+                "error": null,
+            })
+        }
+        Err(error) => serde_json::json!({
+            "success": false,
+            "error": error,
+        }),
     }
 }
 
@@ -2805,6 +3365,297 @@ fn resume_cron_job(_job_id: String, _profile: Option<String>) -> ActionResult {
 #[tauri::command]
 fn trigger_cron_job(_job_id: String, _profile: Option<String>) -> ActionResult {
     remove_cron_job(_job_id, _profile)
+}
+
+#[tauri::command]
+fn get_kanban_docs() -> Value {
+    kanban_docs()
+}
+
+#[tauri::command]
+fn list_kanban_board(options: Option<Value>) -> Value {
+    let board = board_from_value(options.as_ref());
+    let tenant = options
+        .as_ref()
+        .and_then(|value| value.get("tenant"))
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(ToString::to_string);
+    let include_archived = options
+        .as_ref()
+        .and_then(|value| value.get("includeArchived"))
+        .and_then(Value::as_bool)
+        .unwrap_or(false);
+
+    let mut list_args = vec!["list".to_string(), "--json".to_string()];
+    if let Some(tenant) = tenant {
+        list_args.push("--tenant".to_string());
+        list_args.push(tenant);
+    }
+    if include_archived {
+        list_args.push("--archived".to_string());
+    }
+
+    let tasks_result = run_kanban_json(list_args, board.as_deref());
+    if !tasks_result
+        .get("success")
+        .and_then(Value::as_bool)
+        .unwrap_or(false)
+    {
+        return tasks_result;
+    }
+    let tasks = tasks_result
+        .get("data")
+        .and_then(Value::as_array)
+        .cloned()
+        .unwrap_or_default();
+    let boards_result = run_kanban_json(
+        vec![
+            "boards".to_string(),
+            "list".to_string(),
+            "--json".to_string(),
+        ],
+        board.as_deref(),
+    );
+    let assignees_result = run_kanban_json(
+        vec!["assignees".to_string(), "--json".to_string()],
+        board.as_deref(),
+    );
+    let stats_result = run_kanban_json(
+        vec!["stats".to_string(), "--json".to_string()],
+        board.as_deref(),
+    );
+
+    serde_json::json!({
+        "success": true,
+        "data": {
+            "tasks": tasks,
+            "columns": build_kanban_columns(&tasks),
+            "boards": boards_result.get("data").cloned().unwrap_or_else(|| serde_json::json!([])),
+            "assignees": normalize_kanban_assignees(
+                assignees_result
+                    .get("data")
+                    .and_then(Value::as_array)
+                    .map(Vec::as_slice)
+                    .unwrap_or(&[])
+            ),
+            "stats": stats_result.get("data").cloned().unwrap_or_else(|| serde_json::json!({
+                "by_status": {},
+                "by_assignee": {},
+                "oldest_ready_age_seconds": null,
+                "now": SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default().as_secs(),
+            })),
+            "docs": kanban_docs(),
+        },
+    })
+}
+
+#[tauri::command]
+fn get_kanban_task(task_id: String, board: Option<String>) -> Value {
+    run_kanban_json(
+        vec!["show".to_string(), task_id, "--json".to_string()],
+        board.as_deref(),
+    )
+}
+
+#[tauri::command]
+fn create_kanban_task(input: Value) -> Value {
+    let title = input
+        .get("title")
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .unwrap_or("");
+    if title.is_empty() {
+        return serde_json::json!({ "success": false, "error": "Task title is required." });
+    }
+    let assignee = match normalize_assignee_input(input.get("assignee").and_then(Value::as_str)) {
+        Ok(value) => value,
+        Err(error) => return serde_json::json!({ "success": false, "error": error }),
+    };
+    let mut args = vec![
+        "create".to_string(),
+        title.to_string(),
+        "--json".to_string(),
+    ];
+    for (flag, key) in [
+        ("--body", "body"),
+        ("--tenant", "tenant"),
+        ("--workspace", "workspace"),
+        ("--max-runtime", "maxRuntime"),
+    ] {
+        if let Some(value) = input
+            .get(key)
+            .and_then(Value::as_str)
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+        {
+            args.push(flag.to_string());
+            args.push(value.to_string());
+        }
+    }
+    if let Some(assignee) = assignee {
+        args.push("--assignee".to_string());
+        args.push(assignee);
+    }
+    if let Some(priority) = input.get("priority").and_then(Value::as_i64) {
+        args.push("--priority".to_string());
+        args.push(priority.to_string());
+    }
+    if input
+        .get("triage")
+        .and_then(Value::as_bool)
+        .unwrap_or(false)
+    {
+        args.push("--triage".to_string());
+    }
+    if let Some(parents) = input.get("parents").and_then(Value::as_array) {
+        for parent in parents.iter().filter_map(Value::as_str).map(str::trim) {
+            if !parent.is_empty() {
+                args.push("--parent".to_string());
+                args.push(parent.to_string());
+            }
+        }
+    }
+    if let Some(skills) = input.get("skills").and_then(Value::as_array) {
+        for skill in skills.iter().filter_map(Value::as_str).map(str::trim) {
+            if !skill.is_empty() {
+                args.push("--skill".to_string());
+                args.push(skill.to_string());
+            }
+        }
+    }
+    let board = input.get("board").and_then(Value::as_str);
+    run_kanban_json(args, board)
+}
+
+#[tauri::command]
+fn assign_kanban_task(task_id: String, assignee: Option<String>, board: Option<String>) -> Value {
+    let profile = match normalize_assignee_input(assignee.as_deref()) {
+        Ok(Some(value)) => value,
+        Ok(None) => "none".to_string(),
+        Err(error) => return serde_json::json!({ "success": false, "error": error }),
+    };
+    match run_kanban_command(
+        vec!["assign".to_string(), task_id, profile],
+        board.as_deref(),
+    ) {
+        Ok(output) => serde_json::json!({ "success": true, "output": output }),
+        Err(error) => serde_json::json!({ "success": false, "error": error, "output": error }),
+    }
+}
+
+#[tauri::command]
+fn comment_kanban_task(task_id: String, body: String, board: Option<String>) -> Value {
+    let body = body.trim();
+    if body.is_empty() {
+        return serde_json::json!({ "success": false, "error": "Comment is required." });
+    }
+    match run_kanban_command(
+        vec![
+            "comment".to_string(),
+            "--author".to_string(),
+            "80m-desktop".to_string(),
+            task_id,
+            body.to_string(),
+        ],
+        board.as_deref(),
+    ) {
+        Ok(output) => serde_json::json!({ "success": true, "output": output }),
+        Err(error) => serde_json::json!({ "success": false, "error": error, "output": error }),
+    }
+}
+
+#[tauri::command]
+fn update_kanban_task_status(task_id: String, status: String, options: Option<Value>) -> Value {
+    let board = board_from_value(options.as_ref());
+    match status.as_str() {
+        "done" => {
+            let mut args = vec!["complete".to_string(), task_id.clone()];
+            if let Some(summary) = options
+                .as_ref()
+                .and_then(|value| value.get("summary"))
+                .and_then(Value::as_str)
+                .map(str::trim)
+                .filter(|value| !value.is_empty())
+            {
+                args.push("--summary".to_string());
+                args.push(summary.to_string());
+            }
+            if let Some(metadata) = options.as_ref().and_then(|value| value.get("metadata")) {
+                args.push("--metadata".to_string());
+                args.push(metadata.to_string());
+            }
+            match run_kanban_command(args, board.as_deref()) {
+                Ok(output) => serde_json::json!({ "success": true, "output": output }),
+                Err(error) => {
+                    serde_json::json!({ "success": false, "error": error, "output": error })
+                }
+            }
+        }
+        "blocked" => {
+            let reason = options
+                .as_ref()
+                .and_then(|value| value.get("reason"))
+                .and_then(Value::as_str)
+                .map(str::trim)
+                .filter(|value| !value.is_empty())
+                .unwrap_or("Blocked from 80m desktop");
+            match run_kanban_command(
+                vec!["block".to_string(), task_id, reason.to_string()],
+                board.as_deref(),
+            ) {
+                Ok(output) => serde_json::json!({ "success": true, "output": output }),
+                Err(error) => {
+                    serde_json::json!({ "success": false, "error": error, "output": error })
+                }
+            }
+        }
+        "archived" => {
+            match run_kanban_command(vec!["archive".to_string(), task_id], board.as_deref()) {
+                Ok(output) => serde_json::json!({ "success": true, "output": output }),
+                Err(error) => {
+                    serde_json::json!({ "success": false, "error": error, "output": error })
+                }
+            }
+        }
+        "ready" => {
+            let current = run_kanban_json(
+                vec!["show".to_string(), task_id.clone(), "--json".to_string()],
+                board.as_deref(),
+            );
+            if current
+                .get("data")
+                .and_then(|value| value.get("task"))
+                .and_then(|task| task.get("status"))
+                .and_then(Value::as_str)
+                == Some("blocked")
+            {
+                match run_kanban_command(vec!["unblock".to_string(), task_id], board.as_deref()) {
+                    Ok(output) => serde_json::json!({ "success": true, "output": output }),
+                    Err(error) => {
+                        serde_json::json!({ "success": false, "error": error, "output": error })
+                    }
+                }
+            } else {
+                set_kanban_status_direct(&task_id, &status, board.as_deref())
+            }
+        }
+        "running" => serde_json::json!({
+            "success": false,
+            "error": "Running tasks must be claimed by the 80M dispatcher.",
+        }),
+        "triage" | "todo" => set_kanban_status_direct(&task_id, &status, board.as_deref()),
+        _ => serde_json::json!({ "success": false, "error": format!("Unknown status {status}.") }),
+    }
+}
+
+#[tauri::command]
+fn nudge_kanban_dispatcher(board: Option<String>) -> Value {
+    run_kanban_json(
+        vec!["dispatch".to_string(), "--json".to_string()],
+        board.as_deref(),
+    )
 }
 
 #[tauri::command]
@@ -3192,6 +4043,152 @@ async fn get_hermes_health(profile: Option<String>) -> Value {
 }
 
 #[tauri::command]
+async fn get_hermes_capabilities(profile: Option<String>) -> Value {
+    let version = get_hermes_version();
+    let semver = parse_hermes_semver(version.as_deref());
+    let status_args = vec!["status".to_string()];
+    let status_text = hermes_command_owned(&status_args, None, "status failed").unwrap_or_default();
+    let curator_args = vec!["curator".to_string(), "status".to_string()];
+    let curator_text =
+        hermes_command_owned(&curator_args, profile.as_deref(), "curator status failed")
+            .unwrap_or_default();
+    let (caps_ok, caps_status, caps_data, caps_error) =
+        api_json_value("/v1/capabilities", profile.as_deref(), "GET", None).await;
+    let (_, _, models_data, _) =
+        api_json_value("/v1/models", profile.as_deref(), "GET", None).await;
+    let features = caps_data
+        .get("features")
+        .cloned()
+        .unwrap_or_else(|| serde_json::json!({}));
+    let endpoints = caps_data
+        .get("endpoints")
+        .cloned()
+        .unwrap_or_else(|| serde_json::json!({}));
+    let models = models_data
+        .get("data")
+        .and_then(Value::as_array)
+        .map(|items| {
+            items
+                .iter()
+                .filter_map(|item| item.get("id").and_then(Value::as_str))
+                .map(|id| Value::String(id.to_string()))
+                .collect::<Vec<_>>()
+        })
+        .unwrap_or_default();
+    let feature = |key: &str| features.get(key).and_then(Value::as_bool).unwrap_or(false);
+    let update_re =
+        regex::Regex::new("(?i)update available|commits behind|run 'hermes update'").unwrap();
+    serde_json::json!({
+        "version": version,
+        "semver": semver,
+        "isAtLeastV12": semver_at_least(semver.as_deref(), "0.12.0"),
+        "updateAvailable": update_re.is_match(&format!("{}\n{}", version.clone().unwrap_or_default(), status_text)),
+        "api": {
+            "ok": caps_ok,
+            "status": caps_status,
+            "url": api_url(),
+            "error": caps_error,
+            "features": features,
+            "endpoints": endpoints,
+            "models": models,
+        },
+        "toolGateway": parse_tool_gateway(&status_text),
+        "supports": {
+            "chatCompletions": feature("chat_completions"),
+            "responses": feature("responses_api"),
+            "runs": feature("run_submission") && feature("run_status"),
+            "runEvents": feature("run_events_sse"),
+            "runStop": feature("run_stop"),
+            "toolProgress": feature("tool_progress_events"),
+            "sessionContinuity": feature("session_continuity_header"),
+            "curator": regex::Regex::new("(?i)curator:\\s*enabled|agent-created skills|least recently used")
+                .map(|re| re.is_match(&curator_text))
+                .unwrap_or(false),
+        },
+    })
+}
+
+#[tauri::command]
+async fn start_hermes_run(input: String, profile: Option<String>, options: Option<Value>) -> Value {
+    let body = serde_json::json!({
+        "input": input,
+        "session_id": options.as_ref().and_then(|value| value.get("sessionId")).and_then(Value::as_str),
+        "instructions": options.as_ref().and_then(|value| value.get("instructions")).and_then(Value::as_str),
+        "previous_response_id": options.as_ref().and_then(|value| value.get("previousResponseId")).and_then(Value::as_str),
+        "conversation_history": options.as_ref().and_then(|value| value.get("conversationHistory")).cloned(),
+    });
+    let (ok, status, data, error) =
+        api_json_value("/v1/runs", profile.as_deref(), "POST", Some(body)).await;
+    if !ok {
+        return serde_json::json!({
+            "success": false,
+            "error": error.unwrap_or_else(|| format!("HTTP {}", status.map(|s| s.to_string()).unwrap_or_else(|| "error".to_string()))),
+            "raw": data,
+        });
+    }
+    serde_json::json!({
+        "success": true,
+        "runId": data.get("run_id").and_then(Value::as_str),
+        "status": data.get("status").and_then(Value::as_str),
+        "sessionId": data.get("session_id").and_then(Value::as_str),
+        "raw": data,
+    })
+}
+
+#[tauri::command]
+async fn get_hermes_run(run_id: String, profile: Option<String>) -> Value {
+    let path = format!(
+        "/v1/runs/{}",
+        url::form_urlencoded::byte_serialize(run_id.as_bytes()).collect::<String>()
+    );
+    let (ok, status, data, error) = api_json_value(&path, profile.as_deref(), "GET", None).await;
+    if !ok {
+        return serde_json::json!({
+            "success": false,
+            "error": error.unwrap_or_else(|| format!("HTTP {}", status.map(|s| s.to_string()).unwrap_or_else(|| "error".to_string()))),
+            "raw": data,
+        });
+    }
+    serde_json::json!({
+        "success": true,
+        "runId": data.get("run_id").and_then(Value::as_str),
+        "status": data.get("status").and_then(Value::as_str),
+        "sessionId": data.get("session_id").and_then(Value::as_str),
+        "output": data.get("output").and_then(Value::as_str),
+        "usage": data.get("usage").cloned(),
+        "raw": data,
+    })
+}
+
+#[tauri::command]
+async fn stop_hermes_run(run_id: String, profile: Option<String>) -> Value {
+    let path = format!(
+        "/v1/runs/{}/stop",
+        url::form_urlencoded::byte_serialize(run_id.as_bytes()).collect::<String>()
+    );
+    let (ok, status, data, error) = api_json_value(
+        &path,
+        profile.as_deref(),
+        "POST",
+        Some(serde_json::json!({})),
+    )
+    .await;
+    if !ok {
+        return serde_json::json!({
+            "success": false,
+            "error": error.unwrap_or_else(|| format!("HTTP {}", status.map(|s| s.to_string()).unwrap_or_else(|| "error".to_string()))),
+            "raw": data,
+        });
+    }
+    serde_json::json!({
+        "success": true,
+        "runId": run_id,
+        "status": data.get("status").and_then(Value::as_str),
+        "raw": data,
+    })
+}
+
+#[tauri::command]
 async fn send_message(
     app: AppHandle,
     message: String,
@@ -3244,7 +4241,15 @@ async fn send_message(
 
 #[tauri::command]
 fn get_hermes_version() -> Option<String> {
-    None
+    hermes_command(&["--version"], "version failed")
+        .ok()
+        .and_then(|output| {
+            output
+                .lines()
+                .map(str::trim)
+                .find(|line| !line.is_empty())
+                .map(ToString::to_string)
+        })
 }
 
 #[tauri::command]
@@ -3270,6 +4275,45 @@ async fn open_external(app: AppHandle, url: String) -> Result<(), String> {
 }
 
 #[tauri::command]
+async fn window_minimize(app: AppHandle) -> Result<(), String> {
+    app.get_webview_window("main")
+        .ok_or_else(|| "Main window not found.".to_string())?
+        .minimize()
+        .map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+async fn window_toggle_maximize(app: AppHandle) -> Result<bool, String> {
+    let window = app
+        .get_webview_window("main")
+        .ok_or_else(|| "Main window not found.".to_string())?;
+    let maximized = window.is_maximized().map_err(|error| error.to_string())?;
+    if maximized {
+        window.unmaximize().map_err(|error| error.to_string())?;
+        Ok(false)
+    } else {
+        window.maximize().map_err(|error| error.to_string())?;
+        Ok(true)
+    }
+}
+
+#[tauri::command]
+async fn window_close(app: AppHandle) -> Result<(), String> {
+    app.get_webview_window("main")
+        .ok_or_else(|| "Main window not found.".to_string())?
+        .close()
+        .map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+async fn window_is_maximized(app: AppHandle) -> Result<bool, String> {
+    app.get_webview_window("main")
+        .ok_or_else(|| "Main window not found.".to_string())?
+        .is_maximized()
+        .map_err(|error| error.to_string())
+}
+
+#[tauri::command]
 async fn open_local_path(app: AppHandle, path: String) -> Result<bool, String> {
     app.opener()
         .open_path(path, None::<&str>)
@@ -3285,6 +4329,119 @@ async fn reveal_local_path(app: AppHandle, path: String) -> Result<bool, String>
         .map_err(|error| error.to_string())
 }
 
+fn audio_extension_from_mime(mime_type: &str) -> &'static str {
+    let lower = mime_type.to_lowercase();
+    if lower.contains("ogg") {
+        ".ogg"
+    } else if lower.contains("wav") {
+        ".wav"
+    } else if lower.contains("mpeg") || lower.contains("mp3") {
+        ".mp3"
+    } else if lower.contains("mp4") || lower.contains("m4a") {
+        ".m4a"
+    } else {
+        ".webm"
+    }
+}
+
+#[tauri::command]
+fn transcribe_audio(audio_data: Vec<u8>, mime_type: Option<String>) -> String {
+    if audio_data.is_empty() {
+        return String::new();
+    }
+    let mime = mime_type.unwrap_or_else(|| "audio/webm".to_string());
+    let extension = audio_extension_from_mime(&mime);
+    let cache_dir = env::temp_dir().join("80m-voice");
+    let _ = fs::create_dir_all(&cache_dir);
+    let audio_path = cache_dir.join(format!(
+        "rec_{}_{}{}",
+        SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_millis(),
+        std::process::id(),
+        extension
+    ));
+    if fs::write(&audio_path, audio_data).is_err() {
+        return String::new();
+    }
+    let script = r#"
+import json
+import sys
+from tools.transcription_tools import transcribe_audio
+
+result = transcribe_audio(sys.argv[1])
+print(json.dumps(result, ensure_ascii=False))
+"#;
+    let result = run_hermes_python_json(script, &[audio_path.to_string_lossy().to_string()]);
+    let _ = fs::remove_file(audio_path);
+    result
+        .get("transcript")
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .unwrap_or("")
+        .to_string()
+}
+
+#[tauri::command]
+fn tts_speak(text: String) -> String {
+    let clean_text = text.trim();
+    if clean_text.is_empty() {
+        return String::new();
+    }
+    let cache_dir = env::temp_dir().join("80m-voice");
+    let _ = fs::create_dir_all(&cache_dir);
+    let output_path = cache_dir.join(format!(
+        "tts_{}_{}.mp3",
+        SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_millis(),
+        std::process::id()
+    ));
+    let script = r#"
+import asyncio
+import json
+import sys
+
+text = sys.argv[1]
+output_path = sys.argv[2]
+
+try:
+    from tools.tts_tool import text_to_speech_tool
+    result = json.loads(text_to_speech_tool(text, output_path))
+    if result.get("success") and result.get("file_path"):
+        print(json.dumps(result, ensure_ascii=False))
+        raise SystemExit(0)
+except Exception as exc:
+    last_error = str(exc)
+else:
+    last_error = "Hermes TTS returned no audio"
+
+try:
+    import edge_tts
+    async def main():
+        communicate = edge_tts.Communicate(text, "en-US-AriaNeural")
+        await communicate.save(output_path)
+    asyncio.run(main())
+    print(json.dumps({"success": True, "file_path": output_path, "provider": "edge-fallback"}, ensure_ascii=False))
+except Exception as exc:
+    print(json.dumps({"success": False, "error": f"{last_error}; edge fallback failed: {exc}"}, ensure_ascii=False))
+"#;
+    let result = run_hermes_python_json(
+        script,
+        &[
+            clean_text.to_string(),
+            output_path.to_string_lossy().to_string(),
+        ],
+    );
+    result
+        .get("file_path")
+        .and_then(Value::as_str)
+        .unwrap_or("")
+        .to_string()
+}
+
 #[tauri::command]
 fn abort_chat() {}
 
@@ -3295,6 +4452,7 @@ pub fn run() {
             abort_chat,
             add_memory_entry,
             add_model,
+            assign_kanban_task,
             check_for_updates,
             check_install,
             check_open_claw,
@@ -3311,8 +4469,10 @@ pub fn run() {
             claw3d_stop_adapter,
             claw3d_stop_all,
             claw3d_stop_dev,
+            comment_kanban_task,
             copy_file_to_workspace,
             create_cron_job,
+            create_kanban_task,
             create_profile,
             delete_profile,
             discover_memory_providers,
@@ -3325,8 +4485,12 @@ pub fn run() {
             get_app_version,
             get_connection_config,
             get_hermes_home,
+            get_hermes_capabilities,
             get_hermes_health,
+            get_hermes_run,
             get_hermes_version,
+            get_kanban_docs,
+            get_kanban_task,
             get_locale,
             get_model_config,
             get_platform_enabled,
@@ -3338,6 +4502,7 @@ pub fn run() {
             install_update,
             list_bundled_skills,
             list_cached_sessions,
+            list_kanban_board,
             list_cron_jobs,
             list_installed_skills,
             list_mcp_servers,
@@ -3346,6 +4511,7 @@ pub fn run() {
             list_profiles,
             list_sessions,
             navigate_browser,
+            nudge_kanban_dispatcher,
             open_external,
             open_local_path,
             pause_cron_job,
@@ -3361,6 +4527,8 @@ pub fn run() {
             resume_cron_job,
             run_claw_migrate,
             run_hermes_backup,
+            run_hermes_update_check,
+            run_safe_hermes_upgrade,
             run_hermes_doctor,
             run_hermes_dump,
             run_hermes_import,
@@ -3377,6 +4545,7 @@ pub fn run() {
             set_platform_enabled,
             set_toolset_enabled,
             start_browser,
+            start_hermes_run,
             start_install,
             update_model,
             update_memory_entry,
@@ -3384,11 +4553,19 @@ pub fn run() {
             start_gateway,
             stop_browser,
             stop_gateway,
+            stop_hermes_run,
             sync_session_cache,
             test_remote_connection,
+            transcribe_audio,
             trigger_cron_job,
+            tts_speak,
             uninstall_skill,
+            update_kanban_task_status,
             update_session_title,
+            window_close,
+            window_is_maximized,
+            window_minimize,
+            window_toggle_maximize,
             write_soul,
             write_user_profile,
         ])

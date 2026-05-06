@@ -201,6 +201,14 @@ const InputBar: React.FC<Props> = ({ onSend, disabled }) => {
     setIsRecording(false);
   }, []);
 
+  const appendTranscriptToDraft = useCallback((transcript: string) => {
+    setText((current) => {
+      const prefix = current.trimEnd();
+      return prefix ? `${prefix} ${transcript}` : transcript;
+    });
+    window.requestAnimationFrame(() => textareaRef.current?.focus());
+  }, []);
+
   const startRecording = useCallback(async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -240,9 +248,12 @@ const InputBar: React.FC<Props> = ({ onSend, disabled }) => {
             blob.type || "audio/webm",
           );
           if (transcript && transcript.trim()) {
-            playClickSound();
-            onSend(transcript.trim());
-            setText("");
+            appendTranscriptToDraft(transcript.trim());
+            showToast(
+              "Transcript ready",
+              "Voice text was added to your draft.",
+              "success",
+            );
           }
         } catch (err) {
           console.error("Transcription failed:", err);
@@ -253,17 +264,10 @@ const InputBar: React.FC<Props> = ({ onSend, disabled }) => {
 
       mediaRecorder.start(100);
       setIsRecording(true);
-
-      // Auto-stop after 30s
-      setTimeout(() => {
-        if (mediaRecorderRef.current?.state === "recording") {
-          mediaRecorderRef.current.stop();
-        }
-      }, 30000);
     } catch (_) {
       // Mic not available
     }
-  }, [onSend, playClickSound]);
+  }, [appendTranscriptToDraft, showToast]);
 
   const handleMicClick = useCallback(() => {
     if (isRecording || isTranscribing) {
@@ -284,6 +288,18 @@ const InputBar: React.FC<Props> = ({ onSend, disabled }) => {
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
   }, [handleMicClick]);
+
+  useEffect(() => {
+    return () => {
+      const recorder = mediaRecorderRef.current;
+      if (!recorder) return;
+      if (recorder.state === "recording") {
+        recorder.stop();
+      } else {
+        recorder.stream.getTracks().forEach((track) => track.stop());
+      }
+    };
+  }, []);
 
   return (
     <div className="input-80m">
@@ -311,11 +327,13 @@ const InputBar: React.FC<Props> = ({ onSend, disabled }) => {
             ref={textareaRef}
             className="input-80m-textarea"
             placeholder={
-              disabled
-                ? "Processing..."
-                : isTranscribing
-                  ? "Transcribing..."
-                  : "Type a message or /command..."
+              isRecording
+                ? "Recording... click the mic to stop"
+                : disabled
+                  ? "Processing..."
+                  : isTranscribing
+                    ? "Transcribing..."
+                    : "Type a message or /command..."
             }
             value={text}
             onChange={handleTextChange}
@@ -336,7 +354,11 @@ const InputBar: React.FC<Props> = ({ onSend, disabled }) => {
         <button
           className={`input-80m-mic${isRecording ? " recording" : ""}${isTranscribing ? " transcribing" : ""}`}
           onClick={handleMicClick}
-          title="Hold to record (Ctrl+Shift+Space)"
+          title={
+            isRecording
+              ? "Stop voice recording"
+              : "Start voice recording (Ctrl+Shift+Space)"
+          }
           type="button"
           disabled={isTranscribing}
         >
@@ -400,7 +422,7 @@ const InputBar: React.FC<Props> = ({ onSend, disabled }) => {
         <button
           className="input-80m-send"
           onClick={handleSubmit}
-          disabled={disabled || !text.trim()}
+          disabled={disabled || isRecording || !text.trim()}
           title="Send"
           type="button"
         >

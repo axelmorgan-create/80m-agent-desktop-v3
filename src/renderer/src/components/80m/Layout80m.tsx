@@ -143,37 +143,46 @@ const Layout80m: React.FC = () => {
         <div className="screen-content-80m">{el}</div>
       </div>
     );
+
+    const chatShell = (
+      <div
+        style={{
+          display: activeView === "chat" ? "flex" : "none",
+          flex: 1,
+          overflow: "hidden",
+          minWidth: 0,
+        }}
+      >
+        <ProjectsSidebar
+          activeProject={activeProject}
+          onProjectChange={handleProjectChange}
+          onFileClick={handleFileClick}
+        />
+        <div
+          style={{
+            flex: 1,
+            display: "flex",
+            overflow: "hidden",
+            minWidth: 0,
+          }}
+        >
+          <ChatArea
+            currentSession={currentSession}
+            onNewSession={handleNewSession}
+            onSessionChange={setCurrentSession}
+            profile={selectedAgent !== "default" ? selectedAgent : undefined}
+            activeProject={activeProject}
+          />
+        </div>
+      </div>
+    );
+
+    let activePanel: ReactNode = null;
     switch (activeView) {
       case "chat":
-        return (
-          <div style={{ display: "flex", flex: 1, overflow: "hidden" }}>
-            <ProjectsSidebar
-              activeProject={activeProject}
-              onProjectChange={handleProjectChange}
-              onFileClick={handleFileClick}
-            />
-            <div
-              style={{
-                flex: 1,
-                display: "flex",
-                overflow: "hidden",
-                minWidth: 0,
-              }}
-            >
-              <ChatArea
-                currentSession={currentSession}
-                onNewSession={handleNewSession}
-                onSessionChange={setCurrentSession}
-                profile={
-                  selectedAgent !== "default" ? selectedAgent : undefined
-                }
-                activeProject={activeProject}
-              />
-            </div>
-          </div>
-        );
+        break;
       case "sessions":
-        return (
+        activePanel = (
           <Sessions
             onResumeSession={(id) => {
               setCurrentSession(id);
@@ -183,63 +192,75 @@ const Layout80m: React.FC = () => {
             currentSessionId={currentSession}
           />
         );
+        break;
       case "memory":
-        return (
+        activePanel = (
           <Memory
             profile={selectedAgent !== "default" ? selectedAgent : undefined}
           />
         );
+        break;
       case "soul":
-        return wrap(
+        activePanel = wrap(
           "SOUL",
           <Soul
             profile={selectedAgent !== "default" ? selectedAgent : undefined}
           />,
         );
+        break;
       case "skills":
-        return wrap(
+        activePanel = wrap(
           "SKILLS",
           <Skills
             profile={selectedAgent !== "default" ? selectedAgent : undefined}
           />,
         );
+        break;
       case "tools":
-        return wrap(
+        activePanel = wrap(
           "TOOLS",
           <Tools
             profile={selectedAgent !== "default" ? selectedAgent : undefined}
           />,
         );
+        break;
       case "gateway":
-        return wrap("GATEWAY", <Gateway />);
+        activePanel = wrap("GATEWAY", <Gateway />);
+        break;
       case "settings":
-        return (
+        activePanel = (
           <Settings
             onBack={handleBackToChat}
             profile={selectedAgent !== "default" ? selectedAgent : undefined}
           />
         );
+        break;
       case "models":
-        return wrap("MODELS", <Models />);
+        activePanel = wrap("MODELS", <Models />);
+        break;
       case "schedules":
-        return wrap(
+        activePanel = wrap(
           "SCHEDULES",
           <Schedules
             profile={selectedAgent !== "default" ? selectedAgent : undefined}
           />,
         );
+        break;
       case "kanban":
-        return wrap("KANBAN", <Kanban />);
+        activePanel = wrap("KANBAN", <Kanban />);
+        break;
       default:
-        return (
-          <ChatArea
-            currentSession={currentSession}
-            onNewSession={handleNewSession}
-            onSessionChange={setCurrentSession}
-            profile={selectedAgent !== "default" ? selectedAgent : undefined}
-          />
-        );
+        break;
     }
+
+    return (
+      <div
+        style={{ display: "flex", flex: 1, overflow: "hidden", minWidth: 0 }}
+      >
+        {chatShell}
+        {activePanel}
+      </div>
+    );
   };
 
   const handleAgentChange = useCallback(

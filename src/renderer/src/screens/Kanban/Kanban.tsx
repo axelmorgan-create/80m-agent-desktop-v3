@@ -52,6 +52,7 @@ interface KanbanBoardData {
   assignees: Array<{
     name: string;
     on_disk: boolean;
+    spawnable?: boolean;
     counts: Record<string, number>;
   }>;
   stats: {
@@ -107,6 +108,12 @@ interface KanbanCommandResult<T = unknown> {
   data?: T;
   output?: string;
   error?: string;
+}
+
+interface KanbanDispatchResult {
+  spawned?: Array<{ task_id: string; assignee: string; workspace?: string }>;
+  skipped_unassigned?: string[];
+  skipped_nonspawnable?: string[];
 }
 
 const COLUMNS: Array<{
@@ -178,6 +185,29 @@ function badgeLabel(task: KanbanTask): string {
   return task.workspace_kind;
 }
 
+function summarizeDispatch(result: KanbanDispatchResult | undefined): {
+  tone: "info" | "warning";
+  message: string;
+} | null {
+  if (!result) return null;
+  const spawned = result.spawned?.length || 0;
+  const skippedNonspawnable = result.skipped_nonspawnable?.length || 0;
+  const skippedUnassigned = result.skipped_unassigned?.length || 0;
+  if (spawned > 0) {
+    return {
+      tone: "info",
+      message: `Dispatcher started ${spawned} task${spawned === 1 ? "" : "s"}.`,
+    };
+  }
+  if (skippedNonspawnable > 0 || skippedUnassigned > 0) {
+    return {
+      tone: "warning",
+      message: `No worker started: ${skippedNonspawnable} invalid profile, ${skippedUnassigned} unassigned.`,
+    };
+  }
+  return { tone: "info", message: "Dispatcher checked the board." };
+}
+
 export default function Kanban(): React.JSX.Element {
   const [boardData, setBoardData] = useState<KanbanBoardData | null>(null);
   const [selected, setSelected] = useState<KanbanTaskDetails | null>(null);
@@ -190,6 +220,10 @@ export default function Kanban(): React.JSX.Element {
   const [loading, setLoading] = useState(true);
   const [action, setAction] = useState<string | null>(null);
   const [error, setError] = useState("");
+  const [notice, setNotice] = useState<{
+    tone: "info" | "warning";
+    message: string;
+  } | null>(null);
   const [showCreate, setShowCreate] = useState(false);
   const [commentText, setCommentText] = useState("");
   const [completionSummary, setCompletionSummary] = useState("");
@@ -255,6 +289,14 @@ export default function Kanban(): React.JSX.Element {
     return Array.from(values).sort();
   }, [boardData]);
 
+  const spawnableAssignees = useMemo(
+    () =>
+      (boardData?.assignees || []).filter(
+        (assignee) => assignee.on_disk && assignee.spawnable !== false,
+      ),
+    [boardData],
+  );
+
   async function refreshSelected(taskId: string): Promise<void> {
     const result = (await window.hermesAPI.getKanbanTask(
       taskId,
@@ -266,6 +308,7 @@ export default function Kanban(): React.JSX.Element {
   }
 
   async function openTask(task: KanbanTask): Promise<void> {
+    setNewTask((current) => ({ ...current, assignee: task.assignee || "" }));
     setSelected({
       task,
       parents: [],
@@ -305,6 +348,7 @@ export default function Kanban(): React.JSX.Element {
     if (!newTask.title.trim()) return;
     setAction("create");
     setError("");
+    setNotice(null);
     const result = (await window.hermesAPI.createKanbanTask({
       title: newTask.title,
       body: newTask.body || undefined,
@@ -320,6 +364,7 @@ export default function Kanban(): React.JSX.Element {
     if (!result.success) {
       setError(result.error || "Failed to create task.");
     } else {
+      const createdTask = result.data;
       setShowCreate(false);
       setNewTask({
         title: "",
@@ -333,19 +378,47 @@ export default function Kanban(): React.JSX.Element {
         triage: false,
       });
       await loadBoard();
-      if (result.data) await openTask(result.data);
+      if (createdTask) await openTask(createdTask);
+      if (createdTask?.assignee && createdTask.status === "ready") {
+        const dispatch = (await window.hermesAPI.nudgeKanbanDispatcher(
+          activeBoard,
+        )) as KanbanCommandResult<KanbanDispatchResult>;
+        if (dispatch.success) {
+          setNotice(summarizeDispatch(dispatch.data));
+          await loadBoard();
+          await refreshSelected(createdTask.id);
+        } else {
+          setError(dispatch.error || "Dispatcher nudge failed.");
+        }
+      }
     }
     setAction(null);
   }
 
   async function assignTask(taskId: string): Promise<void> {
     setAction(`${taskId}:assign`);
+    setError("");
+    setNotice(null);
     const result = (await window.hermesAPI.assignKanbanTask(
       taskId,
       newTask.assignee || null,
       activeBoard,
     )) as KanbanCommandResult;
     if (!result.success) setError(result.error || "Failed to assign task.");
+    if (
+      result.success &&
+      selected?.task.status === "ready" &&
+      newTask.assignee
+    ) {
+      const dispatch = (await window.hermesAPI.nudgeKanbanDispatcher(
+        activeBoard,
+      )) as KanbanCommandResult<KanbanDispatchResult>;
+      if (dispatch.success) {
+        setNotice(summarizeDispatch(dispatch.data));
+      } else {
+        setError(dispatch.error || "Dispatcher nudge failed.");
+      }
+    }
     await loadBoard();
     await refreshSelected(taskId);
     setAction(null);
@@ -370,10 +443,16 @@ export default function Kanban(): React.JSX.Element {
 
   async function nudgeDispatcher(): Promise<void> {
     setAction("dispatch");
+    setError("");
+    setNotice(null);
     const result = (await window.hermesAPI.nudgeKanbanDispatcher(
       activeBoard,
-    )) as KanbanCommandResult;
-    if (!result.success) setError(result.error || "Dispatcher nudge failed.");
+    )) as KanbanCommandResult<KanbanDispatchResult>;
+    if (!result.success) {
+      setError(result.error || "Dispatcher nudge failed.");
+    } else {
+      setNotice(summarizeDispatch(result.data));
+    }
     await loadBoard();
     setAction(null);
   }
@@ -424,14 +503,20 @@ export default function Kanban(): React.JSX.Element {
               <div className="kanban-form-grid">
                 <label>
                   Assignee
-                  <input
+                  <select
                     className="input"
                     value={newTask.assignee}
                     onChange={(e) =>
                       setNewTask((t) => ({ ...t, assignee: e.target.value }))
                     }
-                    placeholder="researcher"
-                  />
+                  >
+                    <option value="">Unassigned</option>
+                    {spawnableAssignees.map((assignee) => (
+                      <option key={assignee.name} value={assignee.name}>
+                        {assignee.name}
+                      </option>
+                    ))}
+                  </select>
                 </label>
                 <label>
                   Tenant
@@ -529,7 +614,7 @@ export default function Kanban(): React.JSX.Element {
           <h2 className="kanban-title">Multi-Agent Board</h2>
           <div className="kanban-stats-row">
             <span>{boardData?.tasks.length || 0} tasks</span>
-            <span>{boardData?.assignees.length || 0} profiles</span>
+            <span>{spawnableAssignees.length} profiles</span>
             <span>
               oldest ready{" "}
               {formatAge(boardData?.stats.oldest_ready_age_seconds)}
@@ -567,6 +652,15 @@ export default function Kanban(): React.JSX.Element {
         <div className="skills-error kanban-error">
           {error}
           <button className="btn-ghost" onClick={() => setError("")}>
+            <X size={14} />
+          </button>
+        </div>
+      )}
+
+      {notice && (
+        <div className={`kanban-notice kanban-notice-${notice.tone}`}>
+          {notice.message}
+          <button className="btn-ghost" onClick={() => setNotice(null)}>
             <X size={14} />
           </button>
         </div>
@@ -865,14 +959,20 @@ export default function Kanban(): React.JSX.Element {
             <label>
               Assign profile
               <div className="kanban-inline-action">
-                <input
+                <select
                   className="input"
                   value={newTask.assignee}
                   onChange={(e) =>
                     setNewTask((t) => ({ ...t, assignee: e.target.value }))
                   }
-                  placeholder="profile-name"
-                />
+                >
+                  <option value="">Unassigned</option>
+                  {spawnableAssignees.map((assignee) => (
+                    <option key={assignee.name} value={assignee.name}>
+                      {assignee.name}
+                    </option>
+                  ))}
+                </select>
                 <button
                   className="btn btn-secondary"
                   onClick={() => assignTask(selected.task.id)}

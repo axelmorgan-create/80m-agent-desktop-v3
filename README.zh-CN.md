@@ -135,4 +135,6 @@ npm run build:linux
 
 ## 许可证
 
-80M Agent Desktop 采用 MIT 许可证。
+80M Agent Desktop 采用 MIT 许可证。本项目基于 MIT 许可的
+[Hermes Desktop](https://github.com/fathah/hermes-desktop) 项目开发；上游归属和
+80M 修改声明见 [NOTICE.md](NOTICE.md)。

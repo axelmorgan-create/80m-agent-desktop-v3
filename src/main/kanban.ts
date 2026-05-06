@@ -11,7 +11,7 @@ import {
   HERMES_SCRIPT,
   getEnhancedPath,
 } from "./installer";
-import { stripAnsi } from "./utils";
+import { isValidProfileName, normalizeProfileName, stripAnsi } from "./utils";
 
 export type KanbanStatus =
   | "triage"
@@ -56,6 +56,7 @@ export interface KanbanAssignee {
   name: string;
   on_disk: boolean;
   counts: Record<string, number>;
+  spawnable?: boolean;
 }
 
 export interface KanbanBoardData {
@@ -149,6 +150,57 @@ const STATUS_ORDER: KanbanStatus[] = [
 
 const DIRECT_STATUSES = new Set<KanbanStatus>(["triage", "todo", "ready"]);
 const BOARD_SLUG_RE = /^[a-z0-9][a-z0-9_-]{0,63}$/;
+
+function isSpawnableProfile(profile?: string | null): boolean {
+  const name = normalizeProfileName(profile);
+  if (!isValidProfileName(name)) return false;
+  if (name === "default") return true;
+  return existsSync(join(HERMES_HOME, "profiles", name));
+}
+
+function normalizeAssigneeInput(
+  assignee?: string | null,
+): { success: true; assignee?: string } | { success: false; error: string } {
+  if (!assignee?.trim()) return { success: true };
+  const profile = normalizeProfileName(assignee);
+  if (!isValidProfileName(profile)) {
+    return {
+      success: false,
+      error:
+        "Assignee must be a valid 80M profile id: lowercase letters, numbers, dashes, or underscores.",
+    };
+  }
+  if (!isSpawnableProfile(profile)) {
+    return {
+      success: false,
+      error: `Profile '${profile}' is not available to the Kanban dispatcher.`,
+    };
+  }
+  return { success: true, assignee: profile };
+}
+
+function normalizeKanbanAssignees(
+  assignees: KanbanAssignee[],
+): KanbanAssignee[] {
+  const merged = new Map<string, KanbanAssignee>();
+  for (const assignee of assignees) {
+    const name = normalizeProfileName(assignee.name);
+    if (!isValidProfileName(name)) continue;
+    const existing = merged.get(name);
+    merged.set(name, {
+      name,
+      on_disk: Boolean(existing?.on_disk || assignee.on_disk),
+      spawnable: isSpawnableProfile(name),
+      counts: {
+        ...(existing?.counts || {}),
+        ...(assignee.counts || {}),
+      },
+    });
+  }
+  return Array.from(merged.values()).sort((a, b) =>
+    a.name.localeCompare(b.name),
+  );
+}
 
 function docsRoot(): string {
   if (app.isPackaged) {
@@ -366,7 +418,7 @@ export async function listKanbanBoard(
       tasks,
       columns: buildColumns(tasks),
       boards: boardsResult.data || [],
-      assignees: assigneesResult.data || [],
+      assignees: normalizeKanbanAssignees(assigneesResult.data || []),
       stats: statsResult.data || {
         by_status: {},
         by_assignee: {},
@@ -390,10 +442,12 @@ export async function createKanbanTask(
 ): Promise<KanbanCommandResult<KanbanTask>> {
   const title = input.title?.trim();
   if (!title) return { success: false, error: "Task title is required." };
+  const assignee = normalizeAssigneeInput(input.assignee);
+  if (!assignee.success) return assignee;
 
   const args = ["create", title, "--json"];
   if (input.body?.trim()) args.push("--body", input.body.trim());
-  if (input.assignee?.trim()) args.push("--assignee", input.assignee.trim());
+  if (assignee.assignee) args.push("--assignee", assignee.assignee);
   if (input.tenant?.trim()) args.push("--tenant", input.tenant.trim());
   if (input.priority != null) args.push("--priority", String(input.priority));
   if (input.workspace?.trim()) args.push("--workspace", input.workspace.trim());
@@ -415,7 +469,9 @@ export async function assignKanbanTask(
   assignee: string | null,
   board?: string,
 ): Promise<KanbanCommandResult> {
-  const profile = assignee?.trim() || "none";
+  const normalized = normalizeAssigneeInput(assignee);
+  if (!normalized.success) return normalized;
+  const profile = normalized.assignee || "none";
   return runKanbanCommand(["assign", taskId, profile], { board });
 }
 

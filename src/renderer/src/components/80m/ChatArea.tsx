@@ -18,6 +18,29 @@ interface ActiveRequest {
   response: string;
 }
 
+type ChatToolProgressPayload =
+  | string
+  | {
+      tool?: string;
+      name?: string;
+      label?: string;
+      preview?: string;
+      status?: string;
+      toolCallId?: string;
+      duration?: number;
+      error?: boolean;
+    };
+
+interface NormalizedToolProgress {
+  idPart: string;
+  tool: string;
+  label: string;
+  status: "running" | "completed" | "error" | "reasoning";
+  preview?: string;
+  duration?: number;
+  error?: boolean;
+}
+
 function localFileUrl(filePath: string): string {
   return `file://${filePath.split("/").map(encodeURIComponent).join("/")}`;
 }
@@ -30,6 +53,123 @@ function plainSpeechText(text: string): string {
     .replace(/[*#_~>]/g, "")
     .replace(/\s+/g, " ")
     .trim();
+}
+
+function messageSignature(msg: Message): string {
+  return [
+    msg.role,
+    msg.content,
+    msg.tool_name || "",
+    msg.tool_calls || "",
+  ].join("\u001f");
+}
+
+function mergeMessages(base: Message[], overlay: Message[]): Message[] {
+  const seen = new Set(base.map(messageSignature));
+  const merged = [...base];
+  for (const msg of overlay) {
+    const byId = merged.findIndex((item) => item.id === msg.id);
+    if (byId >= 0) {
+      merged[byId] = { ...merged[byId], ...msg };
+      seen.add(messageSignature(merged[byId]));
+      continue;
+    }
+    const signature = messageSignature(msg);
+    if (seen.has(signature)) continue;
+    seen.add(signature);
+    merged.push(msg);
+  }
+  return merged;
+}
+
+function upsertMessage(messages: Message[], msg: Message): Message[] {
+  const index = messages.findIndex((item) => item.id === msg.id);
+  if (index < 0) return [...messages, msg];
+  return [
+    ...messages.slice(0, index),
+    { ...messages[index], ...msg },
+    ...messages.slice(index + 1),
+  ];
+}
+
+function normalizeToolProgress(
+  payload: ChatToolProgressPayload,
+): NormalizedToolProgress {
+  if (typeof payload === "string") {
+    const label = payload.trim() || "Tool activity";
+    const completed = /\bcomplete(?:d)?\b/i.test(label);
+    const tool = label.replace(/\s+complete(?:d)?$/i, "").trim() || label;
+    return {
+      idPart: `${tool}-${completed ? "completed" : "running"}`,
+      tool,
+      label,
+      status: completed ? "completed" : "running",
+    };
+  }
+
+  const tool = (payload.tool || payload.name || "").trim();
+  const label = (
+    payload.label ||
+    payload.preview ||
+    tool ||
+    "Tool activity"
+  ).trim();
+  const rawStatus = (payload.status || "").toLowerCase();
+  const status =
+    payload.error || rawStatus === "error"
+      ? "error"
+      : rawStatus === "completed" || rawStatus === "complete"
+        ? "completed"
+        : rawStatus === "reasoning"
+          ? "reasoning"
+          : "running";
+
+  return {
+    idPart: payload.toolCallId || `${tool || label}-${status}`,
+    tool: tool || label,
+    label,
+    status,
+    preview: payload.preview,
+    duration: payload.duration,
+    error: payload.error,
+  };
+}
+
+function makeAssistantMessage(req: ActiveRequest): Message | null {
+  if (!req.response) return null;
+  return {
+    id: `assistant-${req.id}`,
+    role: "assistant",
+    content: req.response,
+  };
+}
+
+function makeToolProgressMessage(
+  req: ActiveRequest,
+  payload: ChatToolProgressPayload,
+): Message {
+  const progress = normalizeToolProgress(payload);
+  const content = {
+    status: progress.status,
+    tool: progress.tool,
+    label: progress.label,
+    preview: progress.preview,
+    duration: progress.duration,
+    error: progress.error,
+  };
+
+  return {
+    id: `tool-progress-${req.id}-${progress.idPart}`,
+    role: "tool",
+    content: JSON.stringify(content),
+    tool_name: progress.tool,
+    tool_calls: JSON.stringify({
+      status: progress.status,
+      preview: progress.label,
+      duration: progress.duration,
+      error: progress.error,
+    }),
+  };
 }
 
 const ChatArea: React.FC<ChatAreaProps> = ({
@@ -170,37 +310,55 @@ const ChatArea: React.FC<ChatAreaProps> = ({
     [findRequestForSession],
   );
 
-  const loadSession = useCallback(async (id: string) => {
-    if (!window.hermesAPI) return;
-    try {
-      const msgs = await window.hermesAPI.getSessionMessages(id);
-      const loaded = (msgs || []).map((m, i) => ({
-        id: `${id}-${m.id || i}`,
-        role: m.role as "user" | "assistant" | "system" | "tool",
-        content: m.content,
-        tool_calls: m.tool_calls,
-        tool_name: m.tool_name,
-      }));
-
-      const pending = Object.values(activeRequestsRef.current)
-        .filter((req) => req.sessionId === id)
-        .flatMap((req) => [
-          ...(pendingMessagesRef.current[req.localKey] || []),
-          ...(req.response
-            ? [
-                {
-                  id: `assistant-${req.id}`,
-                  role: "assistant" as const,
-                  content: req.response,
-                },
-              ]
-            : []),
-        ]);
-      setMessages([...loaded, ...pending]);
-    } catch (_) {
-      // Session load failures leave the current view unchanged.
-    }
+  const cacheOverlayMessage = useCallback((key: string, msg: Message) => {
+    pendingMessagesRef.current[key] = upsertMessage(
+      pendingMessagesRef.current[key] || [],
+      msg,
+    );
   }, []);
+
+  const buildOverlayMessages = useCallback((targetSession: string | null) => {
+    const direct =
+      targetSession !== null
+        ? pendingMessagesRef.current[targetSession] || []
+        : [];
+    const active = Object.values(activeRequestsRef.current)
+      .filter((req) =>
+        targetSession
+          ? req.sessionId === targetSession
+          : req.sessionId === null,
+      )
+      .flatMap((req) => {
+        const pending =
+          req.localKey === targetSession
+            ? []
+            : pendingMessagesRef.current[req.localKey] || [];
+        const assistant = makeAssistantMessage(req);
+        return assistant ? [...pending, assistant] : pending;
+      });
+    return mergeMessages(direct, active);
+  }, []);
+
+  const loadSession = useCallback(
+    async (id: string) => {
+      if (!window.hermesAPI) return;
+      try {
+        const msgs = await window.hermesAPI.getSessionMessages(id);
+        const loaded = (msgs || []).map((m, i) => ({
+          id: `${id}-${m.id || i}`,
+          role: m.role as "user" | "assistant" | "system" | "tool",
+          content: m.content,
+          tool_calls: m.tool_calls,
+          tool_name: m.tool_name,
+        }));
+
+        setMessages(mergeMessages(loaded, buildOverlayMessages(id)));
+      } catch (_) {
+        // Session load failures leave the current view unchanged.
+      }
+    },
+    [buildOverlayMessages],
+  );
 
   useEffect(() => {
     const req = findRequestForSession(currentSession);
@@ -210,24 +368,14 @@ const ChatArea: React.FC<ChatAreaProps> = ({
     if (currentSession) {
       loadSession(currentSession);
     } else {
-      setMessages(
-        req
-          ? [
-              ...(pendingMessagesRef.current[req.localKey] || []),
-              ...(req.response
-                ? [
-                    {
-                      id: `assistant-${req.id}`,
-                      role: "assistant" as const,
-                      content: req.response,
-                    },
-                  ]
-                : []),
-            ]
-          : [],
-      );
+      setMessages(req ? buildOverlayMessages(null) : []);
     }
-  }, [currentSession, findRequestForSession, loadSession]);
+  }, [
+    buildOverlayMessages,
+    currentSession,
+    findRequestForSession,
+    loadSession,
+  ]);
 
   useEffect(() => {
     const container = document.querySelector(".messages-80m");
@@ -248,19 +396,21 @@ const ChatArea: React.FC<ChatAreaProps> = ({
 
         playTypingSound();
         setMessages((prev) => {
-          const last = prev[prev.length - 1];
-          if (last?.role === "assistant") {
-            return [...prev.slice(0, -1), { ...last, content: req.response }];
-          }
-          return [
-            ...prev,
-            {
-              id: `assistant-${Date.now()}`,
-              role: "assistant" as const,
-              content: chunk,
-            },
-          ];
+          const assistant = makeAssistantMessage(req);
+          return assistant ? upsertMessage(prev, assistant) : prev;
         });
+      },
+    );
+
+    const cleanupToolProgress = window.hermesAPI.onChatToolProgress(
+      (tool: ChatToolProgressPayload, requestId?: string) => {
+        const req = resolveRequest(requestId);
+        if (!req) return;
+
+        const toolMsg = makeToolProgressMessage(req, tool);
+        cacheOverlayMessage(req.localKey, toolMsg);
+        if (visibleRequestIdRef.current !== req.id) return;
+        setMessages((prev) => upsertMessage(prev, toolMsg));
       },
     );
 
@@ -271,7 +421,20 @@ const ChatArea: React.FC<ChatAreaProps> = ({
 
         const isVisible = visibleRequestIdRef.current === req.id;
         const resolvedSessionId = newSessionId || req.sessionId || null;
-        delete pendingMessagesRef.current[req.localKey];
+        const finalAssistant = makeAssistantMessage(req);
+        if (resolvedSessionId) {
+          const finalMessages = [
+            ...(pendingMessagesRef.current[req.localKey] || []),
+            ...(finalAssistant ? [finalAssistant] : []),
+          ];
+          pendingMessagesRef.current[resolvedSessionId] = mergeMessages(
+            pendingMessagesRef.current[resolvedSessionId] || [],
+            finalMessages,
+          );
+        }
+        if (resolvedSessionId !== req.localKey) {
+          delete pendingMessagesRef.current[req.localKey];
+        }
         delete activeRequestsRef.current[req.id];
         syncVisibleLoading();
         window.dispatchEvent(new CustomEvent("sessions-updated"));
@@ -298,8 +461,17 @@ const ChatArea: React.FC<ChatAreaProps> = ({
         const req = resolveRequest(requestId);
         if (!req) return;
         const isVisible = visibleRequestIdRef.current === req.id;
+        const errorMsg: Message = {
+          id: `error-${req.id}`,
+          role: "assistant" as const,
+          content: `**Error:** ${error}`,
+        };
+        const errorOverlayKey = req.sessionId || req.localKey;
+        cacheOverlayMessage(errorOverlayKey, errorMsg);
 
-        delete pendingMessagesRef.current[req.localKey];
+        if (errorOverlayKey !== req.localKey) {
+          delete pendingMessagesRef.current[req.localKey];
+        }
         delete activeRequestsRef.current[req.id];
         syncVisibleLoading();
         window.dispatchEvent(
@@ -309,23 +481,18 @@ const ChatArea: React.FC<ChatAreaProps> = ({
         );
 
         if (!isVisible) return;
-        setMessages((prev) => [
-          ...prev,
-          {
-            id: `error-${Date.now()}`,
-            role: "assistant" as const,
-            content: `**Error:** ${error}`,
-          },
-        ]);
+        setMessages((prev) => upsertMessage(prev, errorMsg));
       },
     );
 
     return () => {
       cleanupChunk();
+      cleanupToolProgress();
       cleanupDone();
       cleanupError();
     };
   }, [
+    cacheOverlayMessage,
     loadSession,
     onSessionChange,
     playDoneSound,

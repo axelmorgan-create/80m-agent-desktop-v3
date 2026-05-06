@@ -14,15 +14,27 @@ export function stripAnsi(str: string): string {
   return str.replace(ANSI_RE, "");
 }
 
+const PROFILE_ID_RE = /^[a-z0-9][a-z0-9_-]{0,63}$/;
+
+export function normalizeProfileName(profile?: string | null): string {
+  const name = String(profile || "default").trim();
+  if (!name || name.toLowerCase() === "default") return "default";
+  return name.toLowerCase();
+}
+
+export function isValidProfileName(profile?: string | null): boolean {
+  const name = normalizeProfileName(profile);
+  return name === "default" || PROFILE_ID_RE.test(name);
+}
+
 /**
  * Resolve the home directory for a given profile.
  * 'default' or undefined maps to ~/.hermes; named profiles
  * live under ~/.hermes/profiles/<name>.
  */
 export function profileHome(profile?: string): string {
-  return profile && profile !== "default"
-    ? join(HERMES_HOME, "profiles", profile)
-    : HERMES_HOME;
+  const name = normalizeProfileName(profile);
+  return name !== "default" ? join(HERMES_HOME, "profiles", name) : HERMES_HOME;
 }
 
 /**

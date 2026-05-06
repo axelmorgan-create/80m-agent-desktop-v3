@@ -220,7 +220,21 @@ const hermesAPI = {
   },
 
   onChatToolProgress: (
-    callback: (tool: string, requestId?: string) => void,
+    callback: (
+      tool:
+        | string
+        | {
+            tool?: string;
+            name?: string;
+            label?: string;
+            preview?: string;
+            status?: string;
+            toolCallId?: string;
+            duration?: number;
+            error?: boolean;
+          },
+      requestId?: string,
+    ) => void,
   ): (() => void) => {
     const handler = (
       _event: Electron.IpcRendererEvent,

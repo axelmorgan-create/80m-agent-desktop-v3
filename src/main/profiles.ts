@@ -9,6 +9,7 @@ import {
   HERMES_SCRIPT,
   getEnhancedPath,
 } from "./installer";
+import { isValidProfileName, normalizeProfileName } from "./utils";
 
 const PROFILES_DIR = join(HERMES_HOME, "profiles");
 
@@ -88,7 +89,7 @@ async function getActiveProfileName(): Promise<string> {
   const activeFile = join(HERMES_HOME, "active_profile");
   try {
     const name = await fs.readFile(activeFile, "utf-8");
-    return name.trim() || "default";
+    return normalizeProfileName(name);
   } catch {
     return "default";
   }
@@ -140,6 +141,10 @@ export async function listProfiles(): Promise<ProfileInfo[]> {
     try {
       const dirs = await fs.readdir(PROFILES_DIR);
       const profilePromises = dirs.map(async (name) => {
+        const profileName = normalizeProfileName(name);
+        if (name !== profileName || !isValidProfileName(profileName)) {
+          return null;
+        }
         const profilePath = join(PROFILES_DIR, name);
         const stat = await fs.stat(profilePath);
         if (!stat.isDirectory()) return null;
@@ -156,10 +161,10 @@ export async function listProfiles(): Promise<ProfileInfo[]> {
         ]);
 
         return {
-          name,
+          name: profileName,
           path: profilePath,
           isDefault: false,
-          isActive: activeName === name,
+          isActive: activeName === profileName,
           model: config.model,
           provider: config.provider,
           hasEnv: hasEnvFile,
@@ -184,11 +189,19 @@ export async function listProfiles(): Promise<ProfileInfo[]> {
 export function createProfile(
   name: string,
   clone: boolean,
-): { success: boolean; error?: string } {
+): { success: boolean; name?: string; error?: string } {
   try {
+    const profileName = normalizeProfileName(name);
+    if (!isValidProfileName(profileName)) {
+      return {
+        success: false,
+        error:
+          "Profile names must use lowercase letters, numbers, dashes, or underscores.",
+      };
+    }
     const args = clone
-      ? ["profile", "create", name, "--clone"]
-      : ["profile", "create", name];
+      ? ["profile", "create", profileName, "--clone"]
+      : ["profile", "create", profileName];
     execFileSync(HERMES_PYTHON, [HERMES_SCRIPT, ...args], {
       cwd: join(HERMES_HOME, "hermes-agent"),
       env: {
@@ -200,7 +213,7 @@ export function createProfile(
       stdio: "pipe",
       timeout: 15000,
     });
-    return { success: true };
+    return { success: true, name: profileName };
   } catch (err) {
     const msg =
       (err as { stderr?: Buffer }).stderr?.toString() || (err as Error).message;
@@ -212,12 +225,20 @@ export function deleteProfile(name: string): {
   success: boolean;
   error?: string;
 } {
-  if (name === "default")
+  const profileName = normalizeProfileName(name);
+  if (profileName === "default")
     return { success: false, error: "Cannot delete the default profile" };
+  if (!isValidProfileName(profileName)) {
+    return {
+      success: false,
+      error:
+        "Profile names must use lowercase letters, numbers, dashes, or underscores.",
+    };
+  }
   try {
     execFileSync(
       HERMES_PYTHON,
-      [HERMES_SCRIPT, "profile", "delete", name, "--yes"],
+      [HERMES_SCRIPT, "profile", "delete", profileName, "--yes"],
       {
         cwd: join(HERMES_HOME, "hermes-agent"),
         env: {
@@ -240,17 +261,23 @@ export function deleteProfile(name: string): {
 
 export function setActiveProfile(name: string): void {
   try {
-    execFileSync(HERMES_PYTHON, [HERMES_SCRIPT, "profile", "use", name], {
-      cwd: join(HERMES_HOME, "hermes-agent"),
-      env: {
-        ...process.env,
-        PATH: getEnhancedPath(),
-        HOME: homedir(),
-        HERMES_HOME,
+    const profileName = normalizeProfileName(name);
+    if (!isValidProfileName(profileName)) return;
+    execFileSync(
+      HERMES_PYTHON,
+      [HERMES_SCRIPT, "profile", "use", profileName],
+      {
+        cwd: join(HERMES_HOME, "hermes-agent"),
+        env: {
+          ...process.env,
+          PATH: getEnhancedPath(),
+          HOME: homedir(),
+          HERMES_HOME,
+        },
+        stdio: "pipe",
+        timeout: 10000,
       },
-      stdio: "pipe",
-      timeout: 10000,
-    });
+    );
   } catch {
     // ignore
   }

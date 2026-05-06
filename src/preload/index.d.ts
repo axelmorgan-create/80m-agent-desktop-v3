@@ -139,6 +139,19 @@ interface AppNotificationPayload {
   createdAt?: number;
 }
 
+type ChatToolProgress =
+  | string
+  | {
+      tool?: string;
+      name?: string;
+      label?: string;
+      preview?: string;
+      status?: string;
+      toolCallId?: string;
+      duration?: number;
+      error?: boolean;
+    };
+
 type KanbanStatus =
   | "triage"
   | "todo"
@@ -181,6 +194,7 @@ interface KanbanBoard {
 interface KanbanAssignee {
   name: string;
   on_disk: boolean;
+  spawnable?: boolean;
   counts: Record<string, number>;
 }
 
@@ -380,7 +394,7 @@ interface HermesAPI {
     callback: (sessionId?: string, requestId?: string) => void,
   ) => () => void;
   onChatToolProgress: (
-    callback: (tool: string, requestId?: string) => void,
+    callback: (tool: ChatToolProgress, requestId?: string) => void,
   ) => () => void;
   onChatUsage: (
     callback: (usage: {
@@ -454,7 +468,7 @@ interface HermesAPI {
   createProfile: (
     name: string,
     clone: boolean,
-  ) => Promise<{ success: boolean; error?: string }>;
+  ) => Promise<{ success: boolean; name?: string; error?: string }>;
   deleteProfile: (
     name: string,
   ) => Promise<{ success: boolean; error?: string }>;

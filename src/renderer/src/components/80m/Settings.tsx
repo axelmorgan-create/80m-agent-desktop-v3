@@ -675,17 +675,20 @@ const Settings80m: React.FC<Props> = ({ onBack, profile }) => {
     if (!profileName.trim()) return;
     setCreatingProfile(true);
     try {
+      const normalizedName = profileName.trim().toLowerCase();
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const result: any = await window.hermesAPI.createProfile(
-        profileName.trim(),
+        normalizedName,
         false,
       );
-      const id = result?.id || result?.profileId || String(Math.random());
+      if (!result?.success) return;
+      const id =
+        result?.name || result?.id || result?.profileId || normalizedName;
       setProfiles((prev) => [
         ...prev,
         {
           id,
-          name: profileName.trim(),
+          name: id,
           isActive: false,
           createdAt: Date.now(),
         },
@@ -1505,7 +1508,13 @@ const Settings80m: React.FC<Props> = ({ onBack, profile }) => {
                   <input
                     type="text"
                     value={profileName}
-                    onChange={(e) => setProfileName(e.target.value)}
+                    onChange={(e) =>
+                      setProfileName(
+                        e.target.value
+                          .toLowerCase()
+                          .replace(/[^a-z0-9_-]/g, ""),
+                      )
+                    }
                     placeholder="Profile name"
                     className="settings-80m-input"
                     style={{ flex: 1 }}

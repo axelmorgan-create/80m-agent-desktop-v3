@@ -207,4 +207,6 @@ Contributions are welcome! Check out the [Contributing Guide](CONTRIBUTING.md) t
 
 ## Legal
 
-**80M Agent Desktop** is licensed MIT.
+**80M Agent Desktop** is licensed MIT. It is derived from the MIT-licensed
+[Hermes Desktop](https://github.com/fathah/hermes-desktop) project; upstream
+attribution and 80M modification notices are documented in [NOTICE.md](NOTICE.md).

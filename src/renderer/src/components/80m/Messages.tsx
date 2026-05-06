@@ -1,7 +1,13 @@
 import React, { useEffect, useState } from "react";
 import ReactMarkdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { Check, Copy, ExternalLink, PanelRightOpen } from "lucide-react";
+import {
+  Check,
+  Copy,
+  ExternalLink,
+  PanelRightOpen,
+  Wrench,
+} from "lucide-react";
 import Animated80MLogo from "../Animated80MLogo";
 
 export interface Message {
@@ -57,6 +63,22 @@ interface DocumentPreviewData {
   error?: string;
 }
 
+interface ParsedToolCall {
+  id?: string;
+  name: string;
+  argumentsText: string;
+  rawText: string;
+}
+
+interface ToolActivityData {
+  status?: string;
+  tool?: string;
+  label?: string;
+  preview?: string;
+  duration?: number;
+  error?: boolean;
+}
+
 function parseJsonRecord(value?: string): JsonRecord | null {
   if (!value) return null;
   try {
@@ -72,6 +94,16 @@ function parseJsonRecord(value?: string): JsonRecord | null {
 function prettyJson(value: string): string {
   const parsed = parseJsonRecord(value);
   return parsed ? JSON.stringify(parsed, null, 2) : value;
+}
+
+function stringifyToolValue(value: unknown): string {
+  if (typeof value === "string") return prettyJson(value);
+  if (value == null) return "";
+  try {
+    return JSON.stringify(value, null, 2);
+  } catch {
+    return String(value);
+  }
 }
 
 function stringValue(record: JsonRecord, keys: string[]): string | undefined {
@@ -110,6 +142,43 @@ function numberValue(record: JsonRecord, keys: string[]): number | undefined {
     if (typeof value === "number") return value;
   }
   return undefined;
+}
+
+function parseToolCalls(value?: string): ParsedToolCall[] {
+  if (!value) return [];
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(value);
+  } catch {
+    return [];
+  }
+
+  const calls = Array.isArray(parsed) ? parsed : [parsed];
+  return calls
+    .filter((call): call is JsonRecord =>
+      Boolean(call && typeof call === "object"),
+    )
+    .map((call, index) => {
+      const fn =
+        call.function && typeof call.function === "object"
+          ? (call.function as JsonRecord)
+          : null;
+      const name =
+        stringValue(call, ["name", "tool", "tool_name"]) ||
+        (fn ? stringValue(fn, ["name"]) : undefined) ||
+        `tool_${index + 1}`;
+      const args =
+        call.arguments ??
+        call.args ??
+        call.input ??
+        (fn ? fn.arguments : undefined);
+      return {
+        id: stringValue(call, ["id", "call_id", "tool_call_id"]),
+        name,
+        argumentsText: stringifyToolValue(args),
+        rawText: stringifyToolValue(call),
+      };
+    });
 }
 
 function extensionFor(filePath?: string): string {
@@ -214,6 +283,70 @@ function extractFileArtifact(msg: Message): FileArtifactData | null {
     return { path, sourcePath, action: "moved", bytes, output };
   }
   return { path, sourcePath, action: "file", bytes, output };
+}
+
+function extractToolActivity(msg: Message): ToolActivityData | null {
+  const content = parseJsonRecord(msg.content);
+  const calls = parseJsonRecord(msg.tool_calls);
+  if (!content && !calls) return null;
+
+  const status =
+    (content ? stringValue(content, ["status"]) : undefined) ||
+    (calls ? stringValue(calls, ["status"]) : undefined);
+  const label =
+    (content ? stringValue(content, ["label", "message"]) : undefined) ||
+    (calls ? stringValue(calls, ["preview", "label"]) : undefined);
+  const preview =
+    (content ? stringValue(content, ["preview"]) : undefined) ||
+    (calls ? stringValue(calls, ["preview"]) : undefined);
+  const duration =
+    (content ? numberValue(content, ["duration"]) : undefined) ||
+    (calls ? numberValue(calls, ["duration"]) : undefined);
+  const error =
+    (content ? booleanValue(content, ["error"]) : undefined) ||
+    (calls ? booleanValue(calls, ["error"]) : undefined);
+  const tool =
+    (content ? stringValue(content, ["tool", "name"]) : undefined) ||
+    msg.tool_name ||
+    undefined;
+
+  if (!status && !label && !preview) return null;
+  return { status, tool, label, preview, duration, error };
+}
+
+function ToolCallsBlock({
+  value,
+}: {
+  value?: string;
+}): React.JSX.Element | null {
+  const calls = parseToolCalls(value);
+  if (calls.length === 0) return null;
+
+  return (
+    <div className="assistant-tool-calls">
+      <div className="assistant-tool-calls-title">
+        <Wrench size={13} />
+        <span>Tool calls</span>
+      </div>
+      {calls.map((call, index) => (
+        <details
+          className="assistant-tool-call"
+          key={call.id || `${call.name}-${index}`}
+          open
+        >
+          <summary>
+            <span className="assistant-tool-call-name">{call.name}</span>
+            {call.id && (
+              <span className="assistant-tool-call-id">{call.id}</span>
+            )}
+          </summary>
+          <pre>
+            <code>{call.argumentsText || call.rawText}</code>
+          </pre>
+        </details>
+      ))}
+    </div>
+  );
 }
 
 function stripHermesLineNumbers(content: string): string[] {
@@ -459,9 +592,15 @@ function ToolFileArtifact({
 function ToolMessage({ msg }: { msg: Message }): React.JSX.Element {
   const filePreview = extractFilePreview(msg);
   const fileArtifact = filePreview ? null : extractFileArtifact(msg);
+  const activity =
+    filePreview || fileArtifact ? null : extractToolActivity(msg);
   const toolCalls = parseJsonRecord(msg.tool_calls);
-  const title =
-    msg.tool_name === "terminal"
+  const activityStatus = activity?.error
+    ? "error"
+    : activity?.status?.toLowerCase();
+  const title = activity
+    ? `${activityStatus === "completed" ? "Tool complete" : activityStatus === "error" ? "Tool error" : activityStatus === "reasoning" ? "Reasoning update" : "Tool running"}${activity.tool ? `: ${activity.tool}` : ""}`
+    : msg.tool_name === "terminal"
       ? "Ran terminal command"
       : filePreview
         ? "Read file"
@@ -477,7 +616,7 @@ function ToolMessage({ msg }: { msg: Message }): React.JSX.Element {
                   : "File result"
           : `Tool result${msg.tool_name ? `: ${msg.tool_name}` : ""}`;
 
-  if (msg.tool_name === "terminal") {
+  if (msg.tool_name === "terminal" && !activity) {
     return (
       <details className="tool-activity-card" open>
         <summary>{title}</summary>
@@ -510,6 +649,28 @@ function ToolMessage({ msg }: { msg: Message }): React.JSX.Element {
           <ToolFilePreview file={filePreview} />
         ) : fileArtifact ? (
           <ToolFileArtifact file={fileArtifact} />
+        ) : activity ? (
+          <div className="tool-progress-detail">
+            <div
+              className={`tool-progress-status ${activityStatus || "running"}`}
+            >
+              {activityStatus === "completed"
+                ? "Completed"
+                : activityStatus === "error"
+                  ? "Error"
+                  : activityStatus === "reasoning"
+                    ? "Reasoning"
+                    : "Running"}
+            </div>
+            <div className="tool-progress-label">
+              {activity.label || activity.preview || activity.tool}
+            </div>
+            {typeof activity.duration === "number" && (
+              <div className="tool-progress-meta">
+                {activity.duration.toFixed(1)}s
+              </div>
+            )}
+          </div>
         ) : (
           <pre>
             <code>{prettyJson(msg.content)}</code>
@@ -670,13 +831,19 @@ const Messages: React.FC<Props> = ({ messages, isLoading }) => {
               </div>
             )}
             {msg.role === "assistant" ? (
-              <ReactMarkdown
-                remarkPlugins={[remarkGfm]}
-                components={markdownComponents}
-              >
-                {msg.content +
-                  (isLoading && index === messages.length - 1 ? " █" : "")}
-              </ReactMarkdown>
+              <div className="msg-80m-assistant-content">
+                <ToolCallsBlock value={msg.tool_calls} />
+                {(msg.content.trim() ||
+                  (isLoading && index === messages.length - 1)) && (
+                  <ReactMarkdown
+                    remarkPlugins={[remarkGfm]}
+                    components={markdownComponents}
+                  >
+                    {msg.content +
+                      (isLoading && index === messages.length - 1 ? " █" : "")}
+                  </ReactMarkdown>
+                )}
+              </div>
             ) : msg.role === "tool" ? (
               <div className="msg-80m-tool-block">
                 <ToolMessage msg={msg} />

@@ -153,15 +153,28 @@ interface HermesRunEvent {
   runId?: string;
   delta?: string;
   output?: string;
-  error?: string;
+  error?: string | boolean;
   tool?: string;
+  toolCallId?: string;
   preview?: string;
   text?: string;
+  duration?: number;
   usage?: {
     input_tokens?: number;
     output_tokens?: number;
     total_tokens?: number;
   };
+}
+
+export interface ChatToolProgress {
+  tool?: string;
+  name?: string;
+  label?: string;
+  preview?: string;
+  status?: "running" | "completed" | "error" | "reasoning";
+  toolCallId?: string;
+  duration?: number;
+  error?: boolean;
 }
 
 interface HermesRunStatusPayload {
@@ -796,7 +809,7 @@ export interface ChatCallbacks {
   onChunk: (text: string) => void;
   onDone: (sessionId?: string) => void;
   onError: (error: string) => void;
-  onToolProgress?: (tool: string) => void;
+  onToolProgress?: (tool: string | ChatToolProgress) => void;
   onUsage?: (usage: {
     promptTokens: number;
     completionTokens: number;
@@ -920,13 +933,25 @@ function sendMessageViaRunsApi(
       return;
     }
     if (event.event === "tool.started" && cb.onToolProgress) {
-      cb.onToolProgress(event.preview || event.tool || "Tool started");
+      cb.onToolProgress({
+        status: "running",
+        tool: event.tool,
+        label: event.preview || event.tool || "Tool started",
+        preview: event.preview,
+        toolCallId: event.toolCallId,
+      });
       return;
     }
     if (event.event === "tool.completed" && cb.onToolProgress) {
-      cb.onToolProgress(
-        event.tool ? `${event.tool} complete` : "Tool complete",
-      );
+      const isError = event.error === true || event.error === "true";
+      cb.onToolProgress({
+        status: isError ? "error" : "completed",
+        tool: event.tool,
+        label: event.tool ? `${event.tool} complete` : "Tool complete",
+        toolCallId: event.toolCallId,
+        duration: event.duration,
+        error: isError,
+      });
       return;
     }
     if (
@@ -934,7 +959,12 @@ function sendMessageViaRunsApi(
       event.text &&
       cb.onToolProgress
     ) {
-      cb.onToolProgress("Reasoning update");
+      cb.onToolProgress({
+        status: "reasoning",
+        tool: "reasoning",
+        label: "Reasoning update",
+        preview: event.text,
+      });
       return;
     }
     if (event.event === "run.completed") {
@@ -950,7 +980,11 @@ function sendMessageViaRunsApi(
       return;
     }
     if (event.event === "run.failed" || event.event === "run.cancelled") {
-      finish(event.error || event.event.replace(".", " "));
+      finish(
+        typeof event.error === "string"
+          ? event.error
+          : event.event.replace(".", " "),
+      );
     }
   }
 
@@ -1173,10 +1207,32 @@ function sendMessageViaApi(
   function processCustomEvent(eventType: string, data: string): void {
     if (eventType === "hermes.tool.progress" && cb.onToolProgress) {
       try {
-        const payload = JSON.parse(data);
-        const label = payload.label || payload.tool || "";
-        const emoji = payload.emoji || "";
-        cb.onToolProgress(emoji ? `${emoji} ${label}` : label);
+        const payload = JSON.parse(data) as Record<string, unknown>;
+        const tool =
+          typeof payload.tool === "string" ? payload.tool : undefined;
+        const label =
+          typeof payload.label === "string"
+            ? payload.label
+            : tool || "Tool activity";
+        const emoji =
+          typeof payload.emoji === "string" ? payload.emoji : undefined;
+        const status =
+          payload.status === "completed"
+            ? "completed"
+            : payload.status === "error"
+              ? "error"
+              : "running";
+        cb.onToolProgress({
+          status,
+          tool,
+          label: emoji ? `${emoji} ${label}` : label,
+          preview: label,
+          toolCallId:
+            typeof payload.toolCallId === "string"
+              ? payload.toolCallId
+              : undefined,
+          error: payload.error === true,
+        });
       } catch {
         /* malformed — skip */
       }

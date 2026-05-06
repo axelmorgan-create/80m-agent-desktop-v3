@@ -1,6 +1,6 @@
 # Hermes v0.12 Desktop Feature Plan
 
-Date checked: 2026-05-04
+Date checked: 2026-05-06
 
 ## Current Baseline
 
@@ -24,7 +24,15 @@ Date checked: 2026-05-04
 - Done: Tools screen Tool Gateway eligibility banner.
 - Done: primary desktop chat uses Runs events when `/v1/capabilities` reports Runs/event support, with Chat Completions/SSE kept as fallback.
 - Done: renderer bundle no longer imports the heavy syntax-highlighter language registry.
-- Remaining: native Tauri command implementations for the new APIs. The Tauri renderer bridge currently returns safe fallbacks for these new calls.
+- Done: Kanban task creation and assignment now normalize profile ids to Hermes'
+  lowercase spawnable profile format. The desktop filters non-spawnable
+  assignees out of task controls, auto-nudges the dispatcher after creating or
+  assigning ready tasks, and surfaces dispatcher skip counts instead of silently
+  doing nothing.
+- Done: native Tauri commands now cover the v0.12 capability/update APIs, Runs
+  start/status/stop, Kanban board/task/dispatcher actions, voice STT/TTS, and
+  custom window controls. Remaining Tauri fallbacks are lower-level desktop
+  conveniences such as Tailscale mobile setup and workspace file watching.
 
 ## Verification Baseline
 
@@ -40,6 +48,21 @@ npm run smoke:hermes
 ```
 
 `npm run lint` is configured as a warning-first cleanup gate so active UI work is visible without blocking builds.
+
+Kanban-specific checks:
+
+```bash
+hermes profile list
+hermes kanban assignees --json
+hermes kanban dispatch --json
+hermes kanban show <task-id> --json
+hermes kanban log <task-id>
+```
+
+If `dispatch --json` reports `skipped_nonspawnable`, the assignee is not a real
+Hermes profile. Profile directories must be canonical lowercase ids such as
+`prawnius`; title-cased folders such as `Prawnius` are ignored by Hermes v0.12's
+worker spawner.
 
 ## Hermes v0.12 Features To Surface
 
@@ -70,7 +93,7 @@ npm run smoke:hermes
 1. Done: Keep current SSE chat path working.
 2. Done: Add a Runs API client for long-running tasks: start run, stream `/events`, stop run, resume by run/session id.
 3. Done: Route primary desktop chat to Runs events when Hermes supports it, with Chat Completions/SSE fallback.
-4. Remaining: Render richer structured tool progress events instead of short status labels.
+4. Done: Render structured tool progress events and persisted assistant tool-call blocks instead of hiding tool activity behind short status labels.
 5. Done: Persist request ids and session ids so switching sessions never cross-wires streaming output.
 
 ### Phase 3 - Curator And Skills Control
@@ -103,7 +126,7 @@ npm run smoke:hermes
 
 1. Done: Reduce renderer bundle cost by removing the heavy syntax-highlighting registry from chat markdown rendering.
 2. Keep Tauri and Electron bridge coverage tests strict.
-3. Move remaining Tauri fallback/stub commands to native implementations before making Tauri the default build.
+3. Continue shrinking the remaining Tauri fallback/stub commands before making Tauri the default build.
 4. Rebuild packaged artifacts only after source, build, smoke, and packaged launch checks pass.
 
 ## Key Risks
