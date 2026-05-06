@@ -7,7 +7,10 @@ const hermesAPI = {
     installed: boolean;
     configured: boolean;
     hasApiKey: boolean;
+    verified: boolean;
   }> => ipcRenderer.invoke("check-install"),
+
+  verifyInstall: (): Promise<boolean> => ipcRenderer.invoke("verify-install"),
 
   startInstall: (): Promise<{ success: boolean; error?: string }> =>
     ipcRenderer.invoke("start-install"),

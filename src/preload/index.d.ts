@@ -280,6 +280,7 @@ interface CreateKanbanTaskInput {
 interface HermesAPI {
   // Installation
   checkInstall: () => Promise<InstallStatus>;
+  verifyInstall: () => Promise<boolean>;
   startInstall: () => Promise<{ success: boolean; error?: string }>;
   onInstallProgress: (
     callback: (progress: InstallProgress) => void,

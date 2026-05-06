@@ -97,6 +97,7 @@ export const installTauriBridge = (): void => {
           verified: false,
         },
       ),
+    verifyInstall: () => call("verify_install", {}, false),
     startInstall: () =>
       call(
         "start_install",

@@ -22,8 +22,11 @@ function App(): React.JSX.Element {
   const [splashDone, setSplashDone] = useState(false);
 
   const runInstallCheck = useCallback(async () => {
+    let plannedScreen: Screen = "welcome";
+    let isRemote = false;
     try {
       const conn = await window.hermesAPI.getConnectionConfig();
+      isRemote = conn.mode === "remote";
 
       // Remote mode: verify the remote server is reachable
       if (conn.mode === "remote" && conn.remoteUrl) {
@@ -32,30 +35,42 @@ function App(): React.JSX.Element {
           conn.apiKey,
         );
         if (ok) {
-          setNextScreen("main");
+          plannedScreen = "main";
         } else {
           setInstallError(
             `Cannot reach remote 80M at ${conn.remoteUrl}. Check the URL or switch to local mode.`,
           );
-          setNextScreen("welcome");
+          plannedScreen = "welcome";
         }
+        setNextScreen(plannedScreen);
         return;
       }
 
       // Local mode: normal install check
       const status = await window.hermesAPI.checkInstall();
       if (!status.installed) {
-        setNextScreen("welcome");
-      } else if (!status.verified) {
-        setInstallError(t("errors.installBroken"));
-        setNextScreen("welcome");
+        plannedScreen = "welcome";
       } else if (!status.hasApiKey) {
-        setNextScreen("setup");
+        plannedScreen = "setup";
       } else {
-        setNextScreen("main");
+        plannedScreen = "main";
       }
+      setNextScreen(plannedScreen);
     } catch {
       setNextScreen("welcome");
+      return;
+    }
+
+    // Deep Python verification can be slow on cold startup, so keep it off the
+    // critical route and surface the broken-install warning after the UI opens.
+    if ((plannedScreen === "main" || plannedScreen === "setup") && !isRemote) {
+      window.hermesAPI.verifyInstall().then((ok) => {
+        if (!ok) {
+          setInstallError(t("errors.installBroken"));
+          setNextScreen("welcome");
+          setScreen("welcome");
+        }
+      });
     }
   }, [t]);
 

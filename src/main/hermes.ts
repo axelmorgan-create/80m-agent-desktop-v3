@@ -2,7 +2,6 @@ import { ChildProcess, execFile, spawn } from "child_process";
 import {
   existsSync,
   readFileSync,
-  appendFileSync,
   unlinkSync,
   mkdirSync,
   writeFileSync,
@@ -781,21 +780,8 @@ function isApiServerReady(profile?: string): Promise<boolean> {
 
 function ensureApiServerConfig(): void {
   try {
-    const configPath = join(HERMES_HOME, "config.yaml");
-    if (!existsSync(configPath)) return;
-    const content = readFileSync(configPath, "utf-8");
-    // If api_server is already configured, skip
-    if (/api_server/i.test(content)) return;
-    const addition = `
-# Desktop app API server (auto-configured)
-platforms:
-  api_server:
-    enabled: true
-    extra:
-      port: 8642
-      host: "127.0.0.1"
-`;
-    appendFileSync(configPath, addition, "utf-8");
+    setEnvValue("API_SERVER_ENABLED", "true");
+    ensureApiServerKey();
   } catch {
     /* non-fatal */
   }

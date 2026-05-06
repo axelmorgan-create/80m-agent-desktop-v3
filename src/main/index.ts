@@ -133,6 +133,7 @@ import {
 import {
   checkInstallStatus,
   runInstall,
+  verifyInstall,
   getHermesVersion,
   clearVersionCache,
   runHermesDoctor,
@@ -1133,11 +1134,13 @@ function setupIPC(): void {
     return checkInstallStatus();
   });
 
+  ipcMain.handle("verify-install", () => verifyInstall());
+
   ipcMain.handle("start-install", async (event) => {
     try {
       await runInstall((progress: InstallProgress) => {
         event.sender.send("install-progress", progress);
-      });
+      }, mainWindow);
       return { success: true };
     } catch (err) {
       return { success: false, error: (err as Error).message };

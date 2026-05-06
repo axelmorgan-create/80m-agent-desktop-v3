@@ -11,7 +11,10 @@ use std::io::{BufRead, BufReader};
 use std::net::TcpStream;
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
-use std::sync::Mutex;
+use std::sync::{
+    atomic::{AtomicBool, Ordering},
+    Arc, Mutex,
+};
 use std::thread;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use tauri::{AppHandle, Emitter, Manager};
@@ -25,6 +28,7 @@ static CLAW3D_DEV_LOGS: Lazy<Mutex<String>> = Lazy::new(|| Mutex::new(String::ne
 static CLAW3D_ADAPTER_LOGS: Lazy<Mutex<String>> = Lazy::new(|| Mutex::new(String::new()));
 static CLAW3D_DEV_ERROR: Lazy<Mutex<String>> = Lazy::new(|| Mutex::new(String::new()));
 static CLAW3D_ADAPTER_ERROR: Lazy<Mutex<String>> = Lazy::new(|| Mutex::new(String::new()));
+static WORKSPACE_WATCH: Lazy<Mutex<Option<WorkspaceWatchState>>> = Lazy::new(|| Mutex::new(None));
 const HERMES_OFFICE_REPO: &str = "https://github.com/fathah/hermes-office";
 const DEFAULT_CLAW3D_PORT: i64 = 3000;
 const DEFAULT_CLAW3D_WS_URL: &str = "ws://localhost:18789";
@@ -155,6 +159,17 @@ struct DirectoryEntry {
     path: String,
 }
 
+#[derive(Clone)]
+struct WorkspaceWatchState {
+    stop: Arc<AtomicBool>,
+}
+
+#[derive(Clone)]
+struct WorkspaceFileSnapshot {
+    size: u64,
+    modified_at: f64,
+}
+
 #[derive(Serialize)]
 struct LogContent {
     content: String,
@@ -279,6 +294,264 @@ fn read_desktop_config() -> Map<String, Value> {
 fn write_desktop_config(data: Map<String, Value>) -> Result<(), String> {
     let content = serde_json::to_string_pretty(&data).map_err(|error| error.to_string())?;
     safe_write(desktop_config_path(), content)
+}
+
+fn normalize_local_path(input: &str) -> String {
+    let mut target = input.trim().trim_matches(&['"', '\'', '`'][..]).to_string();
+    if target.starts_with("file://") {
+        if let Ok(url) = url::Url::parse(&target) {
+            if let Ok(path) = url.to_file_path() {
+                target = path.to_string_lossy().to_string();
+            }
+        }
+    }
+    if target == "~" {
+        if let Some(home) = home_dir() {
+            target = home.to_string_lossy().to_string();
+        }
+    } else if target.starts_with("~/") {
+        if let Some(home) = home_dir() {
+            target = home.join(&target[2..]).to_string_lossy().to_string();
+        }
+    }
+    target
+}
+
+fn strip_line_number_suffix(path: &str) -> String {
+    let Ok(re) = regex::Regex::new(r":\d+(?::\d+)?$") else {
+        return path.to_string();
+    };
+    re.replace(path, "").to_string()
+}
+
+fn local_path_candidates(input: &str) -> Vec<PathBuf> {
+    let normalized = normalize_local_path(input);
+    let without_line = strip_line_number_suffix(&normalized);
+    let raw_candidates = [normalized, without_line];
+    let bases = [
+        PathBuf::new(),
+        hermes_repo(),
+        hermes_home(),
+        hermes_home().join("cache"),
+        home_dir().unwrap_or_else(|| PathBuf::from(".")),
+    ];
+    let mut candidates = Vec::new();
+
+    for raw in raw_candidates {
+        if raw.is_empty() {
+            continue;
+        }
+        let path = PathBuf::from(&raw);
+        if path.is_absolute() {
+            candidates.push(path);
+            continue;
+        }
+        for base in &bases {
+            candidates.push(base.join(&raw));
+        }
+    }
+    candidates
+}
+
+fn resolve_existing_local_path(input: &str) -> Option<PathBuf> {
+    local_path_candidates(input)
+        .into_iter()
+        .find(|candidate| candidate.exists())
+}
+
+fn path_file_url(path: &Path) -> Option<String> {
+    url::Url::from_file_path(path)
+        .ok()
+        .map(|url| url.to_string())
+}
+
+fn metadata_modified_ms(metadata: &fs::Metadata) -> f64 {
+    metadata
+        .modified()
+        .ok()
+        .and_then(|modified| modified.duration_since(UNIX_EPOCH).ok())
+        .map(|duration| duration.as_millis() as f64)
+        .unwrap_or(0.0)
+}
+
+fn is_text_preview_extension(extension: &str) -> bool {
+    matches!(
+        extension,
+        "txt"
+            | "md"
+            | "markdown"
+            | "csv"
+            | "tsv"
+            | "json"
+            | "jsonl"
+            | "yaml"
+            | "yml"
+            | "xml"
+            | "html"
+            | "css"
+            | "scss"
+            | "js"
+            | "jsx"
+            | "ts"
+            | "tsx"
+            | "py"
+            | "rb"
+            | "go"
+            | "rs"
+            | "java"
+            | "c"
+            | "cpp"
+            | "h"
+            | "hpp"
+            | "sh"
+            | "zsh"
+            | "bash"
+            | "log"
+    )
+}
+
+fn is_editable_document_extension(extension: &str) -> bool {
+    matches!(
+        extension,
+        "txt" | "md" | "markdown" | "json" | "jsonl" | "yaml" | "yml"
+    )
+}
+
+fn is_image_extension(extension: &str) -> bool {
+    matches!(
+        extension,
+        "png" | "jpg" | "jpeg" | "gif" | "webp" | "bmp" | "svg"
+    )
+}
+
+fn document_kind_for_extension(extension: &str) -> &'static str {
+    if extension == "md" || extension == "markdown" {
+        "markdown"
+    } else {
+        "text"
+    }
+}
+
+fn should_ignore_watch_path(path: &Path) -> bool {
+    const IGNORED: &[&str] = &[
+        ".git",
+        ".hg",
+        ".svn",
+        "node_modules",
+        "dist",
+        "build",
+        "out",
+        ".next",
+        ".turbo",
+        ".cache",
+        "target",
+        "release",
+        "vendor",
+    ];
+    path.components().any(|part| {
+        let text = part.as_os_str().to_string_lossy();
+        IGNORED.contains(&text.as_ref()) || text.ends_with(".asar") || text.ends_with(".tmp")
+    })
+}
+
+fn resolve_workspace_root(input: &str) -> Option<PathBuf> {
+    let path = resolve_existing_local_path(input)?;
+    let metadata = fs::metadata(&path).ok()?;
+    if metadata.is_dir() {
+        Some(path)
+    } else {
+        path.parent().map(Path::to_path_buf)
+    }
+}
+
+fn scan_workspace(root: &Path) -> HashMap<String, WorkspaceFileSnapshot> {
+    const MAX_DIRS: usize = 500;
+    const MAX_FILES: usize = 5000;
+    let mut snapshots = HashMap::new();
+    let mut dirs_seen = 0usize;
+    let mut stack = vec![root.to_path_buf()];
+
+    while let Some(dir) = stack.pop() {
+        if dirs_seen >= MAX_DIRS || should_ignore_watch_path(&dir) {
+            continue;
+        }
+        dirs_seen += 1;
+        let Ok(entries) = fs::read_dir(&dir) else {
+            continue;
+        };
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if should_ignore_watch_path(&path) {
+                continue;
+            }
+            let Ok(metadata) = entry.metadata() else {
+                continue;
+            };
+            if metadata.is_dir() {
+                stack.push(path);
+                continue;
+            }
+            if !metadata.is_file() {
+                continue;
+            }
+            snapshots.insert(
+                path.to_string_lossy().to_string(),
+                WorkspaceFileSnapshot {
+                    size: metadata.len(),
+                    modified_at: metadata_modified_ms(&metadata),
+                },
+            );
+            if snapshots.len() >= MAX_FILES {
+                return snapshots;
+            }
+        }
+    }
+    snapshots
+}
+
+fn stop_workspace_watch_internal() {
+    let Some(state) = WORKSPACE_WATCH
+        .lock()
+        .ok()
+        .and_then(|mut guard| guard.take())
+    else {
+        return;
+    };
+    state.stop.store(true, Ordering::SeqCst);
+}
+
+fn count_vault_files(root: &Path) -> (usize, usize) {
+    let mut note_count = 0usize;
+    let mut total_files = 0usize;
+    let mut stack = vec![root.to_path_buf()];
+
+    while let Some(dir) = stack.pop() {
+        let Ok(entries) = fs::read_dir(&dir) else {
+            continue;
+        };
+        for entry in entries.flatten() {
+            let name = entry.file_name().to_string_lossy().to_string();
+            if name.starts_with('.') && name != ".obsidian" {
+                continue;
+            }
+            let path = entry.path();
+            let Ok(metadata) = entry.metadata() else {
+                continue;
+            };
+            if metadata.is_dir() {
+                stack.push(path);
+            } else {
+                total_files += 1;
+                if name.to_lowercase().ends_with(".md") {
+                    note_count += 1;
+                }
+            }
+            if total_files > 5000 {
+                return (note_count, total_files);
+            }
+        }
+    }
+    (note_count, total_files)
 }
 
 fn env_has_any(keys: &[&str]) -> bool {
@@ -1658,6 +1931,31 @@ fn check_install() -> InstallStatus {
 }
 
 #[tauri::command]
+fn verify_install() -> bool {
+    if !hermes_python().exists() || !hermes_script().exists() {
+        return false;
+    }
+    Command::new(hermes_python())
+        .arg(hermes_script())
+        .arg("--version")
+        .current_dir(hermes_repo())
+        .env("PATH", enhanced_path())
+        .env(
+            "HOME",
+            home_dir()
+                .unwrap_or_else(|| PathBuf::from("."))
+                .to_string_lossy()
+                .to_string(),
+        )
+        .env("HERMES_HOME", hermes_home())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .status()
+        .map(|status| status.success())
+        .unwrap_or(false)
+}
+
+#[tauri::command]
 fn get_env(profile: Option<String>) -> Result<Map<String, Value>, String> {
     let env_file = profile_home(profile.as_deref()).join(".env");
     let Ok(content) = fs::read_to_string(env_file) else {
@@ -2859,12 +3157,17 @@ fn reset_soul(profile: Option<String>) -> Result<String, String> {
 
 #[tauri::command]
 fn read_directory(dir_path: String) -> Result<Vec<DirectoryEntry>, String> {
+    let dir = resolve_existing_local_path(&dir_path).unwrap_or_else(|| PathBuf::from(dir_path));
     let mut entries = Vec::new();
-    for entry in fs::read_dir(dir_path).map_err(|error| error.to_string())? {
+    for entry in fs::read_dir(dir).map_err(|error| error.to_string())? {
         let entry = entry.map_err(|error| error.to_string())?;
+        let name = entry.file_name().to_string_lossy().to_string();
+        if name == "node_modules" || name == ".git" {
+            continue;
+        }
         let metadata = entry.metadata().map_err(|error| error.to_string())?;
         entries.push(DirectoryEntry {
-            name: entry.file_name().to_string_lossy().to_string(),
+            name,
             is_directory: metadata.is_dir(),
             path: entry.path().to_string_lossy().to_string(),
         });
@@ -2875,6 +3178,594 @@ fn read_directory(dir_path: String) -> Result<Vec<DirectoryEntry>, String> {
             .then(a.name.to_lowercase().cmp(&b.name.to_lowercase()))
     });
     Ok(entries)
+}
+
+#[tauri::command]
+fn read_document_preview(path: String) -> Value {
+    let normalized = normalize_local_path(&path);
+    let fallback_name = PathBuf::from(&normalized)
+        .file_name()
+        .map(|name| name.to_string_lossy().to_string())
+        .filter(|name| !name.is_empty())
+        .unwrap_or_else(|| "document".to_string());
+    let Some(resolved) = resolve_existing_local_path(&path) else {
+        return serde_json::json!({
+            "path": normalized,
+            "name": fallback_name,
+            "exists": false,
+            "kind": "missing",
+            "size": 0,
+            "error": "File not found",
+        });
+    };
+
+    let Ok(metadata) = fs::metadata(&resolved) else {
+        return serde_json::json!({
+            "path": resolved.to_string_lossy(),
+            "name": fallback_name,
+            "exists": false,
+            "kind": "missing",
+            "size": 0,
+            "error": "File not found",
+        });
+    };
+    let name = resolved
+        .file_name()
+        .map(|name| name.to_string_lossy().to_string())
+        .unwrap_or_else(|| fallback_name.clone());
+    let file_url = path_file_url(&resolved);
+
+    if metadata.is_dir() {
+        return serde_json::json!({
+            "path": resolved.to_string_lossy(),
+            "name": name,
+            "exists": true,
+            "kind": "directory",
+            "size": metadata.len(),
+            "fileUrl": file_url,
+        });
+    }
+
+    let extension = resolved
+        .extension()
+        .map(|ext| ext.to_string_lossy().to_lowercase())
+        .unwrap_or_default();
+    let base = serde_json::json!({
+        "path": resolved.to_string_lossy(),
+        "name": name,
+        "exists": true,
+        "size": metadata.len(),
+        "fileUrl": file_url,
+    });
+
+    if is_image_extension(&extension) {
+        let mut object = base.as_object().cloned().unwrap_or_default();
+        object.insert("kind".to_string(), Value::String("image".to_string()));
+        return Value::Object(object);
+    }
+    if extension == "pdf" {
+        let mut object = base.as_object().cloned().unwrap_or_default();
+        object.insert("kind".to_string(), Value::String("pdf".to_string()));
+        return Value::Object(object);
+    }
+    if matches!(extension.as_str(), "docx" | "pptx" | "xlsx") {
+        let mut object = base.as_object().cloned().unwrap_or_default();
+        object.insert("kind".to_string(), Value::String("office".to_string()));
+        object.insert("content".to_string(), Value::String(String::new()));
+        object.insert(
+            "error".to_string(),
+            Value::String(
+                "Office text extraction is only available in the Electron shell.".to_string(),
+            ),
+        );
+        return Value::Object(object);
+    }
+
+    if is_text_preview_extension(&extension) || metadata.len() <= 512 * 1024 {
+        let max_bytes = 120 * 1024usize;
+        let Ok(bytes) = fs::read(&resolved) else {
+            let mut object = base.as_object().cloned().unwrap_or_default();
+            object.insert("kind".to_string(), Value::String("binary".to_string()));
+            return Value::Object(object);
+        };
+        if bytes.iter().take(4096).any(|byte| *byte == 0) {
+            let mut object = base.as_object().cloned().unwrap_or_default();
+            object.insert("kind".to_string(), Value::String("binary".to_string()));
+            return Value::Object(object);
+        }
+        let end = bytes.len().min(max_bytes);
+        let content = String::from_utf8_lossy(&bytes[..end]).to_string();
+        let mut object = base.as_object().cloned().unwrap_or_default();
+        object.insert(
+            "kind".to_string(),
+            Value::String(document_kind_for_extension(&extension).to_string()),
+        );
+        object.insert("content".to_string(), Value::String(content));
+        object.insert(
+            "truncated".to_string(),
+            Value::Bool(bytes.len() > max_bytes),
+        );
+        return Value::Object(object);
+    }
+
+    let mut object = base.as_object().cloned().unwrap_or_default();
+    object.insert("kind".to_string(), Value::String("binary".to_string()));
+    Value::Object(object)
+}
+
+#[tauri::command]
+fn write_document_content(path: String, content: String) -> Value {
+    let Some(resolved) = resolve_existing_local_path(&path) else {
+        return serde_json::json!({ "success": false, "error": "File not found." });
+    };
+    let Ok(metadata) = fs::metadata(&resolved) else {
+        return serde_json::json!({ "success": false, "error": "File not found." });
+    };
+    if metadata.is_dir() {
+        return serde_json::json!({ "success": false, "error": "Cannot edit a directory." });
+    }
+    let extension = resolved
+        .extension()
+        .map(|ext| ext.to_string_lossy().to_lowercase())
+        .unwrap_or_default();
+    if !is_editable_document_extension(&extension) {
+        return serde_json::json!({ "success": false, "error": "This file type is read-only here." });
+    }
+    if content.len() > 1024 * 1024 * 2 {
+        return serde_json::json!({ "success": false, "error": "File is too large to save safely." });
+    }
+    if extension == "json" && serde_json::from_str::<Value>(&content).is_err() {
+        return serde_json::json!({ "success": false, "error": "Invalid JSON." });
+    }
+    match fs::write(&resolved, content) {
+        Ok(_) => serde_json::json!({ "success": true, "path": resolved.to_string_lossy() }),
+        Err(error) => serde_json::json!({ "success": false, "error": error.to_string() }),
+    }
+}
+
+#[tauri::command]
+fn watch_workspace(app: AppHandle, path: String) -> bool {
+    stop_workspace_watch_internal();
+    let Some(root) = resolve_workspace_root(&path) else {
+        return false;
+    };
+    if should_ignore_watch_path(&root) {
+        return false;
+    }
+
+    let root_string = root.to_string_lossy().to_string();
+    let stop = Arc::new(AtomicBool::new(false));
+    let state = WorkspaceWatchState { stop: stop.clone() };
+    if let Ok(mut guard) = WORKSPACE_WATCH.lock() {
+        *guard = Some(state);
+    }
+
+    thread::spawn(move || {
+        let mut previous = scan_workspace(&root);
+        while !stop.load(Ordering::SeqCst) {
+            thread::sleep(Duration::from_millis(1000));
+            if stop.load(Ordering::SeqCst) {
+                break;
+            }
+            let current = scan_workspace(&root);
+            for (path, snapshot) in &current {
+                let changed = previous
+                    .get(path)
+                    .map(|old| old.size != snapshot.size || old.modified_at != snapshot.modified_at)
+                    .unwrap_or(true);
+                if !changed {
+                    continue;
+                }
+                let path_buf = PathBuf::from(path);
+                let name = path_buf
+                    .file_name()
+                    .map(|value| value.to_string_lossy().to_string())
+                    .unwrap_or_else(|| path.clone());
+                let relative = path_buf
+                    .strip_prefix(&root)
+                    .ok()
+                    .map(|value| value.to_string_lossy().to_string())
+                    .filter(|value| !value.is_empty())
+                    .unwrap_or_else(|| name.clone());
+                let _ = app.emit(
+                    "workspace-file-changed",
+                    serde_json::json!({
+                        "root": root_string.clone(),
+                        "path": path,
+                        "name": name,
+                        "relativePath": relative,
+                        "event": "change",
+                        "size": snapshot.size,
+                        "modifiedAt": snapshot.modified_at,
+                    }),
+                );
+            }
+            previous = current;
+        }
+    });
+    true
+}
+
+#[tauri::command]
+fn unwatch_workspace() -> bool {
+    stop_workspace_watch_internal();
+    true
+}
+
+fn obsidian_vault_info() -> Value {
+    let desktop = read_desktop_config();
+    let configured = desktop
+        .get("obsidianVaultPath")
+        .and_then(Value::as_str)
+        .unwrap_or("");
+    let mut candidates = vec![
+        configured.to_string(),
+        env::var("OBSIDIAN_VAULT_PATH").unwrap_or_default(),
+    ];
+    if let Some(home) = home_dir() {
+        candidates.push(home.join("obsidian-vault").to_string_lossy().to_string());
+        candidates.push(
+            home.join("Documents")
+                .join("Obsidian Vault")
+                .to_string_lossy()
+                .to_string(),
+        );
+    }
+    candidates.push(
+        hermes_home()
+            .join("obsidian-vault")
+            .to_string_lossy()
+            .to_string(),
+    );
+
+    for candidate in candidates.into_iter().filter(|value| !value.is_empty()) {
+        let Some(path) = resolve_existing_local_path(&candidate) else {
+            continue;
+        };
+        let Ok(metadata) = fs::metadata(&path) else {
+            continue;
+        };
+        if !metadata.is_dir() {
+            continue;
+        }
+        let (note_count, total_files) = count_vault_files(&path);
+        return serde_json::json!({
+            "path": path.to_string_lossy(),
+            "name": path.file_name().map(|name| name.to_string_lossy().to_string()).unwrap_or_else(|| "Obsidian Vault".to_string()),
+            "exists": true,
+            "noteCount": note_count,
+            "totalFiles": total_files,
+        });
+    }
+
+    serde_json::json!({
+        "path": Value::Null,
+        "name": "Obsidian Vault",
+        "exists": false,
+        "noteCount": 0,
+        "totalFiles": 0,
+    })
+}
+
+#[tauri::command]
+fn get_obsidian_vault() -> Value {
+    obsidian_vault_info()
+}
+
+#[tauri::command]
+fn set_obsidian_vault(path: String) -> Value {
+    let Some(resolved) = resolve_existing_local_path(&path) else {
+        return obsidian_vault_info();
+    };
+    let Ok(metadata) = fs::metadata(&resolved) else {
+        return obsidian_vault_info();
+    };
+    if !metadata.is_dir() {
+        return obsidian_vault_info();
+    }
+    let mut desktop = read_desktop_config();
+    desktop.insert(
+        "obsidianVaultPath".to_string(),
+        Value::String(resolved.to_string_lossy().to_string()),
+    );
+    let _ = write_desktop_config(desktop);
+    obsidian_vault_info()
+}
+
+fn read_pinned_skills(profile: Option<&str>) -> Vec<String> {
+    let usage_path = profile_home(profile).join("skills").join(".usage.json");
+    let Ok(content) = fs::read_to_string(usage_path) else {
+        return Vec::new();
+    };
+    let Ok(Value::Object(entries)) = serde_json::from_str::<Value>(&content) else {
+        return Vec::new();
+    };
+    let mut pinned = entries
+        .into_iter()
+        .filter_map(|(name, value)| {
+            value
+                .get("pinned")
+                .and_then(Value::as_bool)
+                .filter(|pinned| *pinned)
+                .map(|_| name)
+        })
+        .collect::<Vec<_>>();
+    pinned.sort();
+    pinned
+}
+
+fn newest_curator_report_dir(profile: Option<&str>) -> Option<PathBuf> {
+    let root = profile_home(profile).join("logs").join("curator");
+    if !root.exists() {
+        return None;
+    }
+    let mut candidates = vec![root.clone()];
+    if let Ok(entries) = fs::read_dir(&root) {
+        for entry in entries.flatten() {
+            if entry
+                .metadata()
+                .map(|metadata| metadata.is_dir())
+                .unwrap_or(false)
+            {
+                candidates.push(entry.path());
+            }
+        }
+    }
+    candidates
+        .into_iter()
+        .filter(|candidate| candidate.join("REPORT.md").exists())
+        .max_by_key(|candidate| {
+            candidate
+                .join("REPORT.md")
+                .metadata()
+                .and_then(|metadata| metadata.modified())
+                .ok()
+                .and_then(|modified| modified.duration_since(UNIX_EPOCH).ok())
+                .map(|duration| duration.as_millis())
+                .unwrap_or(0)
+        })
+        .or(Some(root))
+}
+
+fn read_curator_report_value(profile: Option<&str>) -> Value {
+    let dir = newest_curator_report_dir(profile);
+    let report_path = dir.as_ref().map(|path| path.join("REPORT.md"));
+    let run_json_path = dir.as_ref().map(|path| path.join("run.json"));
+    let report = report_path
+        .as_ref()
+        .and_then(|path| fs::read_to_string(path).ok())
+        .unwrap_or_default();
+    let run_json = run_json_path
+        .as_ref()
+        .and_then(|path| fs::read_to_string(path).ok())
+        .and_then(|content| serde_json::from_str::<Value>(&content).ok())
+        .unwrap_or(Value::Null);
+
+    serde_json::json!({
+        "reportPath": report_path
+            .filter(|path| path.exists())
+            .map(|path| Value::String(path.to_string_lossy().to_string()))
+            .unwrap_or(Value::Null),
+        "report": report,
+        "runJsonPath": run_json_path
+            .filter(|path| path.exists())
+            .map(|path| Value::String(path.to_string_lossy().to_string()))
+            .unwrap_or(Value::Null),
+        "runJson": run_json,
+    })
+}
+
+fn curator_supported_text(output: &str, error: &str) -> bool {
+    let text = format!("{output}\n{error}");
+    regex::Regex::new("(?i)no such command|unknown command|invalid choice|usage:.*hermes")
+        .map(|re| !re.is_match(&text))
+        .unwrap_or(true)
+}
+
+#[tauri::command]
+fn read_curator_report(profile: Option<String>) -> Value {
+    read_curator_report_value(profile.as_deref())
+}
+
+#[tauri::command]
+fn run_hermes_curator(action: String, skill: Option<String>, profile: Option<String>) -> Value {
+    let args = match action.as_str() {
+        "status" => vec!["curator".to_string(), "status".to_string()],
+        "dry-run" => vec![
+            "curator".to_string(),
+            "run".to_string(),
+            "--dry-run".to_string(),
+        ],
+        "run" => vec!["curator".to_string(), "run".to_string()],
+        "run-sync" => vec![
+            "curator".to_string(),
+            "run".to_string(),
+            "--sync".to_string(),
+        ],
+        "backup" => vec!["curator".to_string(), "backup".to_string()],
+        "rollback" => vec![
+            "curator".to_string(),
+            "rollback".to_string(),
+            "-y".to_string(),
+        ],
+        "pause" => vec!["curator".to_string(), "pause".to_string()],
+        "resume" => vec!["curator".to_string(), "resume".to_string()],
+        "pin" | "unpin" | "restore" => {
+            let name = skill.unwrap_or_default().trim().to_string();
+            if name.is_empty() {
+                return serde_json::json!({
+                    "success": false,
+                    "supported": true,
+                    "output": "",
+                    "error": "A skill name is required.",
+                    "pinned": read_pinned_skills(profile.as_deref()),
+                    "report": read_curator_report_value(profile.as_deref()),
+                });
+            }
+            vec!["curator".to_string(), action.clone(), name]
+        }
+        _ => {
+            return serde_json::json!({
+                "success": false,
+                "supported": true,
+                "output": "",
+                "error": format!("Unknown curator action: {action}"),
+                "pinned": read_pinned_skills(profile.as_deref()),
+                "report": read_curator_report_value(profile.as_deref()),
+            });
+        }
+    };
+
+    match hermes_command_owned(&args, profile.as_deref(), "curator command failed") {
+        Ok(output) => serde_json::json!({
+            "success": true,
+            "output": output,
+            "supported": curator_supported_text(&output, ""),
+            "pinned": read_pinned_skills(profile.as_deref()),
+            "report": read_curator_report_value(profile.as_deref()),
+        }),
+        Err(error) => serde_json::json!({
+            "success": false,
+            "output": "",
+            "error": error,
+            "supported": curator_supported_text("", &error),
+            "pinned": read_pinned_skills(profile.as_deref()),
+            "report": read_curator_report_value(profile.as_deref()),
+        }),
+    }
+}
+
+fn mobile_config_pairing_token() -> String {
+    read_desktop_config()
+        .get("mobilePairingToken")
+        .and_then(Value::as_str)
+        .unwrap_or("")
+        .to_string()
+}
+
+fn mobile_config_port() -> i64 {
+    read_desktop_config()
+        .get("mobileAccessPort")
+        .and_then(Value::as_i64)
+        .filter(|port| (1024..=65535).contains(port))
+        .unwrap_or(8780)
+}
+
+fn tailscale_mobile_status(error: &str) -> Value {
+    let version = Command::new("tailscale")
+        .arg("version")
+        .env("PATH", enhanced_path())
+        .output()
+        .ok();
+    let version_text = version
+        .as_ref()
+        .map(|output| {
+            String::from_utf8_lossy(&output.stdout)
+                .lines()
+                .next()
+                .unwrap_or("")
+                .to_string()
+        })
+        .unwrap_or_default();
+    let installed = version
+        .as_ref()
+        .map(|output| output.status.success())
+        .unwrap_or(false);
+    let status = Command::new("tailscale")
+        .args(["status", "--json"])
+        .env("PATH", enhanced_path())
+        .output()
+        .ok();
+    let status_json = status
+        .as_ref()
+        .filter(|output| output.status.success())
+        .and_then(|output| serde_json::from_slice::<Value>(&output.stdout).ok());
+    let dns_name = status_json
+        .as_ref()
+        .and_then(|value| value.get("Self"))
+        .and_then(|self_value| self_value.get("DNSName"))
+        .and_then(Value::as_str)
+        .unwrap_or("")
+        .trim_end_matches('.')
+        .to_string();
+    let backend_state = status_json
+        .as_ref()
+        .and_then(|value| value.get("BackendState"))
+        .and_then(Value::as_str)
+        .unwrap_or("unknown")
+        .to_string();
+    let online = status_json
+        .as_ref()
+        .and_then(|value| value.get("Self"))
+        .and_then(|self_value| self_value.get("Online"))
+        .and_then(Value::as_bool)
+        .unwrap_or(false)
+        || backend_state == "Running";
+    let tailscale_ips = status_json
+        .as_ref()
+        .and_then(|value| value.get("Self"))
+        .and_then(|self_value| self_value.get("TailscaleIPs"))
+        .cloned()
+        .unwrap_or_else(|| serde_json::json!([]));
+    let tailnet_url = if dns_name.is_empty() {
+        String::new()
+    } else {
+        format!("https://{dns_name}")
+    };
+    let pairing_token = mobile_config_pairing_token();
+    let pair_url = if tailnet_url.is_empty() || pairing_token.is_empty() {
+        String::new()
+    } else {
+        format!("{tailnet_url}/?pair={pairing_token}")
+    };
+
+    serde_json::json!({
+        "installed": installed,
+        "daemonRunning": status_json.is_some(),
+        "backendState": backend_state,
+        "online": online,
+        "dnsName": dns_name,
+        "tailnetUrl": tailnet_url,
+        "pairUrl": pair_url,
+        "tailscaleIps": tailscale_ips,
+        "serveEnabled": false,
+        "serveTarget": "",
+        "mobileServerRunning": false,
+        "mobileServerPort": mobile_config_port(),
+        "pairingToken": pairing_token,
+        "version": version_text,
+        "error": error,
+        "serveStatus": "",
+        "noFunnel": true,
+    })
+}
+
+#[tauri::command]
+fn get_tailscale_mobile_status() -> Value {
+    tailscale_mobile_status("Tauri mobile companion server is not ported yet.")
+}
+
+#[tauri::command]
+fn enable_tailscale_mobile_access() -> Value {
+    tailscale_mobile_status("Use the Electron build for mobile companion serving until this Tauri shell owns that server.")
+}
+
+#[tauri::command]
+fn disable_tailscale_mobile_access() -> Value {
+    tailscale_mobile_status("Tauri mobile companion server is not running.")
+}
+
+#[tauri::command]
+fn rotate_tailscale_pairing_token() -> Value {
+    let millis = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|duration| duration.as_millis())
+        .unwrap_or(0);
+    let token = format!("80m-{millis:x}");
+    let mut desktop = read_desktop_config();
+    desktop.insert("mobilePairingToken".to_string(), Value::String(token));
+    let _ = write_desktop_config(desktop);
+    tailscale_mobile_status("Tauri mobile companion server is not ported yet.")
 }
 
 #[tauri::command]
@@ -4476,7 +5367,9 @@ pub fn run() {
             create_profile,
             delete_profile,
             discover_memory_providers,
+            disable_tailscale_mobile_access,
             download_update,
+            enable_tailscale_mobile_access,
             gateway_status,
             get_browser_state,
             get_config,
@@ -4493,9 +5386,11 @@ pub fn run() {
             get_kanban_task,
             get_locale,
             get_model_config,
+            get_obsidian_vault,
             get_platform_enabled,
             get_skill_content,
             get_session_messages,
+            get_tailscale_mobile_status,
             get_toolsets,
             is_remote_mode,
             install_skill,
@@ -4515,7 +5410,9 @@ pub fn run() {
             open_external,
             open_local_path,
             pause_cron_job,
+            read_curator_report,
             read_directory,
+            read_document_preview,
             read_logs,
             read_memory,
             read_soul,
@@ -4525,8 +5422,10 @@ pub fn run() {
             remove_cron_job,
             reset_soul,
             resume_cron_job,
+            rotate_tailscale_pairing_token,
             run_claw_migrate,
             run_hermes_backup,
+            run_hermes_curator,
             run_hermes_update_check,
             run_safe_hermes_upgrade,
             run_hermes_doctor,
@@ -4542,6 +5441,7 @@ pub fn run() {
             set_env,
             set_locale,
             set_model_config,
+            set_obsidian_vault,
             set_platform_enabled,
             set_toolset_enabled,
             start_browser,
@@ -4560,12 +5460,16 @@ pub fn run() {
             trigger_cron_job,
             tts_speak,
             uninstall_skill,
+            unwatch_workspace,
             update_kanban_task_status,
             update_session_title,
+            verify_install,
+            watch_workspace,
             window_close,
             window_is_maximized,
             window_minimize,
             window_toggle_maximize,
+            write_document_content,
             write_soul,
             write_user_profile,
         ])
