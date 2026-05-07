@@ -855,6 +855,7 @@ interface HermesAPI {
   ) => Promise<{ content: string; path: string }>;
 
   // Playwright browser control
+  getPathForFile: (file: File) => string;
   copyFileToWorkspace: (sourcePath: string) => Promise<string | null>;
   startBrowser: () => Promise<void>;
   stopBrowser: () => Promise<void>;

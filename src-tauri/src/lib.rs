@@ -3770,18 +3770,57 @@ fn rotate_tailscale_pairing_token() -> Value {
 
 #[tauri::command]
 fn copy_file_to_workspace(source_path: String) -> Result<Option<String>, String> {
-    let src = PathBuf::from(&source_path);
-    if !src.is_file() {
+    let Some(src) = resolve_existing_local_path(&source_path) else {
+        return Ok(None);
+    };
+    let metadata = fs::metadata(&src).map_err(|error| error.to_string())?;
+    if !metadata.is_file() && !metadata.is_dir() {
         return Ok(None);
     }
+
     let workspace = hermes_home().join("workspace");
     fs::create_dir_all(&workspace).map_err(|error| error.to_string())?;
     let Some(name) = src.file_name() else {
         return Ok(None);
     };
-    let dest = workspace.join(name);
-    fs::copy(src, &dest).map_err(|error| error.to_string())?;
+    let name = name.to_string_lossy();
+    let extension = src
+        .extension()
+        .map(|value| format!(".{}", value.to_string_lossy()))
+        .unwrap_or_default();
+    let stem = src
+        .file_stem()
+        .map(|value| value.to_string_lossy().to_string())
+        .unwrap_or_else(|| name.to_string());
+    let mut dest = workspace.join(name.as_ref());
+    let mut index = 1;
+    while dest.exists() {
+        dest = workspace.join(format!("{stem}-{index}{extension}"));
+        index += 1;
+    }
+
+    if metadata.is_dir() {
+        fs::create_dir_all(&dest).map_err(|error| error.to_string())?;
+        copy_dir_all(&src, &dest)?;
+    } else {
+        fs::copy(src, &dest).map_err(|error| error.to_string())?;
+    }
     Ok(Some(dest.to_string_lossy().to_string()))
+}
+
+fn copy_dir_all(src: &Path, dest: &Path) -> Result<(), String> {
+    for entry in fs::read_dir(src).map_err(|error| error.to_string())? {
+        let entry = entry.map_err(|error| error.to_string())?;
+        let file_type = entry.file_type().map_err(|error| error.to_string())?;
+        let target = dest.join(entry.file_name());
+        if file_type.is_dir() {
+            fs::create_dir_all(&target).map_err(|error| error.to_string())?;
+            copy_dir_all(&entry.path(), &target)?;
+        } else if file_type.is_file() {
+            fs::copy(entry.path(), target).map_err(|error| error.to_string())?;
+        }
+    }
+    Ok(())
 }
 
 #[tauri::command]

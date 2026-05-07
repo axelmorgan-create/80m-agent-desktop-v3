@@ -1519,13 +1519,30 @@ function setupIPC(): void {
     "copy-file-to-workspace",
     async (_event, sourcePath: string) => {
       try {
+        const resolvedSource = resolveExistingLocalPath(sourcePath);
+        if (!resolvedSource) return null;
         const cacheDir = join(HERMES_HOME, "cache");
         if (!fs.existsSync(cacheDir)) {
           fs.mkdirSync(cacheDir, { recursive: true });
         }
-        const filename = require("path").basename(sourcePath);
-        const destPath = join(cacheDir, filename);
-        await fs.promises.copyFile(sourcePath, destPath);
+        const filename = basename(resolvedSource);
+        const extension = extname(filename);
+        const stem = extension
+          ? filename.slice(0, -extension.length)
+          : filename;
+        let destPath = join(cacheDir, filename);
+        let index = 1;
+        while (fs.existsSync(destPath)) {
+          destPath = join(cacheDir, `${stem}-${index}${extension}`);
+          index += 1;
+        }
+
+        const stat = await fs.promises.stat(resolvedSource);
+        if (stat.isDirectory()) {
+          await fs.promises.cp(resolvedSource, destPath, { recursive: true });
+        } else {
+          await fs.promises.copyFile(resolvedSource, destPath);
+        }
         return destPath;
       } catch (err) {
         console.error("Failed to copy file to workspace:", err);

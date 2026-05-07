@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
+import { FileUp } from "lucide-react";
 import Messages from "./Messages";
 import InputBar from "./InputBar";
 import type { Message } from "./Messages";
@@ -16,6 +17,11 @@ interface ActiveRequest {
   sessionId: string | null;
   localKey: string;
   response: string;
+}
+
+interface DroppedAttachment {
+  name: string;
+  path: string;
 }
 
 type ChatToolProgressPayload =
@@ -43,6 +49,32 @@ interface NormalizedToolProgress {
 
 function localFileUrl(filePath: string): string {
   return `file://${filePath.split("/").map(encodeURIComponent).join("/")}`;
+}
+
+function hasDraggedFiles(dataTransfer: DataTransfer): boolean {
+  return Array.from(dataTransfer.types || []).includes("Files");
+}
+
+function fileUriToPath(uri: string): string {
+  try {
+    const parsed = new URL(uri);
+    if (parsed.protocol !== "file:") return "";
+    return decodeURIComponent(parsed.pathname);
+  } catch {
+    return "";
+  }
+}
+
+function pathBasename(filePath: string): string {
+  return filePath.split(/[\\/]/).filter(Boolean).pop() || filePath;
+}
+
+function buildAttachmentDraft(attachments: DroppedAttachment[]): string {
+  const label = attachments.length === 1 ? "Attached file" : "Attached files";
+  const files = attachments
+    .map((attachment) => `- ${attachment.name}: ${attachment.path}`)
+    .join("\n");
+  return `[${label}]\n${files}\n\nUse the file paths above when you need to inspect the dropped content.`;
 }
 
 function plainSpeechText(text: string): string {
@@ -181,12 +213,18 @@ const ChatArea: React.FC<ChatAreaProps> = ({
 }) => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [loadingRequestId, setLoadingRequestId] = useState<string | null>(null);
+  const [isDraggingFiles, setIsDraggingFiles] = useState(false);
+  const [draftInsert, setDraftInsert] = useState<{
+    id: string;
+    text: string;
+  } | null>(null);
 
   const messagesRef = useRef<Message[]>([]);
   const currentSessionRef = useRef<string | null>(currentSession);
   const activeRequestsRef = useRef<Record<string, ActiveRequest>>({});
   const visibleRequestIdRef = useRef<string | null>(null);
   const pendingMessagesRef = useRef<Record<string, Message[]>>({});
+  const dragDepthRef = useRef(0);
 
   useEffect(() => {
     messagesRef.current = messages;
@@ -214,6 +252,21 @@ const ChatArea: React.FC<ChatAreaProps> = ({
       // Audio not available.
     }
   }, []);
+
+  const showToast = useCallback(
+    (
+      title: string,
+      body: string,
+      tone: "info" | "success" | "warning" | "error" = "info",
+    ) => {
+      window.dispatchEvent(
+        new CustomEvent("desktop-toast", {
+          detail: { title, body, tone },
+        }),
+      );
+    },
+    [],
+  );
 
   const playBrowserTTS = useCallback((text: string) => {
     try {
@@ -583,33 +636,135 @@ const ChatArea: React.FC<ChatAreaProps> = ({
     [activeProject, onNewSession, profile, syncVisibleLoading],
   );
 
+  const resolveDroppedFilePaths = useCallback(
+    (dataTransfer: DataTransfer): string[] => {
+      const paths = Array.from(dataTransfer.files || [])
+        .map((file) => {
+          return (
+            window.hermesAPI?.getPathForFile?.(file) ||
+            (file as File & { path?: string }).path ||
+            ""
+          );
+        })
+        .filter(Boolean);
+
+      const uriPaths = dataTransfer
+        .getData("text/uri-list")
+        .split(/\r?\n/)
+        .map((line) => line.trim())
+        .filter((line) => line && !line.startsWith("#"))
+        .map(fileUriToPath)
+        .filter(Boolean);
+
+      return [...new Set([...paths, ...uriPaths])];
+    },
+    [],
+  );
+
   const handleDrop = async (e: React.DragEvent) => {
     e.preventDefault();
-    if (!window.hermesAPI || !e.dataTransfer.files.length) return;
-
-    const file = e.dataTransfer.files[0];
-    const filePath = (file as { path?: string }).path;
-    if (!filePath) return;
+    e.stopPropagation();
+    dragDepthRef.current = 0;
+    setIsDraggingFiles(false);
+    if (!window.hermesAPI || !hasDraggedFiles(e.dataTransfer)) return;
+    if (loadingRequestId) {
+      showToast(
+        "Drop paused",
+        "Wait for the current response to finish, then drop the file again.",
+        "warning",
+      );
+      return;
+    }
 
     try {
-      const destPath = await window.hermesAPI.copyFileToWorkspace(filePath);
-      if (destPath) {
-        const promptInjection = `[User uploaded a file at ${destPath}. Use your tools to read it if asked.]\n`;
-        handleSend(promptInjection + "I've uploaded a file.");
+      const paths = resolveDroppedFilePaths(e.dataTransfer);
+      if (!paths.length) {
+        showToast(
+          "Drop failed",
+          "Electron did not expose a local file path for this drop.",
+          "error",
+        );
+        return;
       }
+
+      const attachments: DroppedAttachment[] = [];
+      for (const filePath of paths) {
+        const destPath = await window.hermesAPI.copyFileToWorkspace(filePath);
+        if (destPath) {
+          attachments.push({
+            name: pathBasename(destPath),
+            path: destPath,
+          });
+        }
+      }
+
+      if (!attachments.length) {
+        showToast(
+          "Drop failed",
+          "No files could be copied into Hermes.",
+          "error",
+        );
+        return;
+      }
+
+      setDraftInsert({
+        id: `drop-${Date.now()}-${attachments.length}`,
+        text: buildAttachmentDraft(attachments),
+      });
+      showToast(
+        attachments.length === 1 ? "File attached" : "Files attached",
+        "Dropped file paths were added to your draft.",
+        "success",
+      );
     } catch (err) {
       console.error("Failed to copy dropped file:", err);
+      showToast("Drop failed", "The file could not be attached.", "error");
     }
   };
 
   const handleDragOver = (e: React.DragEvent) => {
+    if (!hasDraggedFiles(e.dataTransfer)) return;
     e.preventDefault();
+    e.dataTransfer.dropEffect = loadingRequestId ? "none" : "copy";
+  };
+
+  const handleDragEnter = (e: React.DragEvent) => {
+    if (!hasDraggedFiles(e.dataTransfer)) return;
+    e.preventDefault();
+    dragDepthRef.current += 1;
+    setIsDraggingFiles(true);
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    if (!hasDraggedFiles(e.dataTransfer)) return;
+    e.preventDefault();
+    dragDepthRef.current = Math.max(0, dragDepthRef.current - 1);
+    if (dragDepthRef.current === 0) setIsDraggingFiles(false);
   };
 
   return (
-    <div className="main-80m" onDrop={handleDrop} onDragOver={handleDragOver}>
+    <div
+      className={`main-80m ${isDraggingFiles ? "file-drop-active" : ""}`}
+      onDrop={handleDrop}
+      onDragEnter={handleDragEnter}
+      onDragLeave={handleDragLeave}
+      onDragOver={handleDragOver}
+    >
+      {isDraggingFiles ? (
+        <div className="file-drop-overlay" aria-hidden="true">
+          <div className="file-drop-target">
+            <FileUp size={28} />
+            <span>Attach files</span>
+          </div>
+        </div>
+      ) : null}
       <Messages messages={messages} isLoading={Boolean(loadingRequestId)} />
-      <InputBar onSend={handleSend} disabled={Boolean(loadingRequestId)} />
+      <InputBar
+        onSend={handleSend}
+        disabled={Boolean(loadingRequestId)}
+        draftInsert={draftInsert}
+        onDraftInsertConsumed={() => setDraftInsert(null)}
+      />
     </div>
   );
 };

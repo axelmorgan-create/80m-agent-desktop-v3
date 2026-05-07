@@ -8084,6 +8084,53 @@ body {
   z-index: 1;
 }
 
+.main-80m.file-drop-active::after {
+  content: "";
+  position: absolute;
+  inset: 10px;
+  border: 1px dashed rgba(74, 222, 128, 0.68);
+  border-radius: 8px;
+  background: rgba(16, 185, 129, 0.06);
+  pointer-events: none;
+  z-index: 7;
+}
+
+.file-drop-overlay {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background: rgba(18, 22, 24, 0.56);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  pointer-events: none;
+  z-index: 8;
+}
+
+.file-drop-target {
+  min-width: 190px;
+  min-height: 92px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  border-radius: 8px;
+  border: 1px solid rgba(74, 222, 128, 0.5);
+  background: rgba(31, 38, 42, 0.94);
+  color: #d8ffe5;
+  font-family: "Fira Code", monospace;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.38);
+}
+
+.file-drop-target svg {
+  color: #4ade80;
+}
+
 .screen-header-80m {
   display: flex;
   align-items: center;

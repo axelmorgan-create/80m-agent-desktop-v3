@@ -795,6 +795,7 @@ export const installTauriBridge = (): void => {
     listMcpServers: (profile) => call("list_mcp_servers", { profile }, []),
     readLogs: (logFile, lines) =>
       call("read_logs", { logFile, lines }, { content: "", path: "" }),
+    getPathForFile: () => "",
     copyFileToWorkspace: (sourcePath) =>
       call("copy_file_to_workspace", { sourcePath }, null),
     startBrowser: () => call("start_browser", {}, undefined),

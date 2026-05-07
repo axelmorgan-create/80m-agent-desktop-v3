@@ -1,4 +1,4 @@
-import { contextBridge, ipcRenderer } from "electron";
+import { contextBridge, ipcRenderer, webUtils } from "electron";
 import { electronAPI } from "@electron-toolkit/preload";
 
 const hermesAPI = {
@@ -871,6 +871,7 @@ const hermesAPI = {
     ipcRenderer.invoke("read-logs", logFile, lines),
 
   // File Sandbox
+  getPathForFile: (file: File): string => webUtils.getPathForFile(file),
   copyFileToWorkspace: (sourcePath: string): Promise<string | null> =>
     ipcRenderer.invoke("copy-file-to-workspace", sourcePath),
 

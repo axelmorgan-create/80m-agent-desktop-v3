@@ -4,9 +4,16 @@ import { ClipboardPaste, Send } from "lucide-react";
 interface Props {
   onSend: (text: string) => void;
   disabled?: boolean;
+  draftInsert?: { id: string; text: string } | null;
+  onDraftInsertConsumed?: () => void;
 }
 
-const InputBar: React.FC<Props> = ({ onSend, disabled }) => {
+const InputBar: React.FC<Props> = ({
+  onSend,
+  disabled,
+  draftInsert,
+  onDraftInsertConsumed,
+}) => {
   const [text, setText] = useState("");
   const [isRecording, setIsRecording] = useState(false);
   const [isTranscribing, setIsTranscribing] = useState(false);
@@ -14,6 +21,7 @@ const InputBar: React.FC<Props> = ({ onSend, disabled }) => {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const recordingStartRef = useRef<number>(0);
+  const lastDraftInsertRef = useRef<string | null>(null);
 
   // Slash commands
   const [showCommands, setShowCommands] = useState(false);
@@ -53,6 +61,18 @@ const InputBar: React.FC<Props> = ({ onSend, disabled }) => {
       ta.style.height = Math.min(ta.scrollHeight, 120) + "px";
     }
   }, [text]);
+
+  useEffect(() => {
+    if (!draftInsert || lastDraftInsertRef.current === draftInsert.id) return;
+    lastDraftInsertRef.current = draftInsert.id;
+    setText((current) => {
+      const prefix = current.trimEnd();
+      return prefix ? `${prefix}\n\n${draftInsert.text}` : draftInsert.text;
+    });
+    setShowCommands(false);
+    window.requestAnimationFrame(() => textareaRef.current?.focus());
+    onDraftInsertConsumed?.();
+  }, [draftInsert, onDraftInsertConsumed]);
 
   const playClickSound = useCallback(() => {
     try {
