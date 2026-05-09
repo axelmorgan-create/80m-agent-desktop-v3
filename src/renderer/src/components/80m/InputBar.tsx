@@ -343,6 +343,16 @@ const InputBar: React.FC<Props> = ({
     };
   }, []);
 
+  const formStateClass = [
+    "input-80m-form",
+    isBusy ? "thinking" : "",
+    text.trim() ? "has-text" : "",
+    isRecording ? "recording" : "",
+    isTranscribing ? "transcribing" : "",
+  ]
+    .filter(Boolean)
+    .join(" ");
+
   return (
     <div className="input-80m">
       {isBusy && (
@@ -386,7 +396,7 @@ const InputBar: React.FC<Props> = ({
           </button>
         </div>
       )}
-      <div className={`input-80m-form ${isBusy ? "thinking" : ""}`}>
+      <div className={formStateClass}>
         <div className="input-80m-wrapper">
           {showCommands && filteredCommands.length > 0 && (
             <div className="slash-commands-popup">

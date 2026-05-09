@@ -25,9 +25,13 @@ const AppTitleBar: React.FC = () => {
   const [isMaximized, setIsMaximized] = useState(false);
   const [tickerMessages, setTickerMessages] = useState<TickerMessage[]>([]);
   const [tickerIndex, setTickerIndex] = useState(0);
-  const platform = (window.electron?.process?.platform || "desktop")
-    .toLowerCase()
-    .replace(/\s+/g, "-");
+
+  useEffect(() => {
+    document.documentElement.classList.toggle("window-maximized", isMaximized);
+    return () => {
+      document.documentElement.classList.remove("window-maximized");
+    };
+  }, [isMaximized]);
 
   useEffect(() => {
     let cancelled = false;
@@ -108,8 +112,9 @@ const AppTitleBar: React.FC = () => {
   }, []);
 
   return (
-    <div className={`app-titlebar app-titlebar-${platform}`}>
-      <div className="app-titlebar-ticker" onDoubleClick={toggleMaximize}>
+    <div className="app-titlebar" onDoubleClick={toggleMaximize}>
+      {/* Ticker notification area */}
+      <div className="app-titlebar-ticker">
         {activeTicker && (
           <div
             key={activeTicker.id}
@@ -125,7 +130,8 @@ const AppTitleBar: React.FC = () => {
           </div>
         )}
       </div>
-      <div className="app-titlebar-drag" onDoubleClick={toggleMaximize} />
+
+      {/* Window controls — individual floating buttons */}
       <div className="app-titlebar-controls">
         <button
           type="button"
@@ -134,7 +140,7 @@ const AppTitleBar: React.FC = () => {
           aria-label="Minimize"
           onClick={minimize}
         >
-          <Minus size={14} />
+          <Minus size={13} />
         </button>
         <button
           type="button"
@@ -143,7 +149,7 @@ const AppTitleBar: React.FC = () => {
           aria-label={isMaximized ? "Restore" : "Maximize"}
           onClick={toggleMaximize}
         >
-          <Square size={12} />
+          <Square size={11} />
         </button>
         <button
           type="button"
@@ -152,7 +158,7 @@ const AppTitleBar: React.FC = () => {
           aria-label="Close"
           onClick={close}
         >
-          <X size={14} />
+          <X size={13} />
         </button>
       </div>
     </div>

@@ -1,5 +1,4 @@
 import React, { useEffect, useRef } from "react";
-import FilmGrainCanvas from "./FilmGrainCanvas";
 
 const BackgroundLayers: React.FC = () => {
   return (
@@ -9,9 +8,7 @@ const BackgroundLayers: React.FC = () => {
         <div className="background-layer-wash-primary" />
         <div className="background-layer-wash-secondary" />
       </div>
-      <div className="background-layer-texture" />
       <ParticleField />
-      <FilmGrainCanvas />
     </div>
   );
 };

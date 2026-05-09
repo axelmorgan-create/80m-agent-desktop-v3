@@ -1,13 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import type { ReactNode } from "react";
 import {
   Archive,
   Ban,
-  BookOpen,
   CheckCircle2,
-  ExternalLink,
-  FileText,
-  FolderOpen,
   GitBranch,
   MessageSquare,
   Plus,
@@ -474,8 +469,6 @@ export default function Kanban(): React.JSX.Element {
     setAction(null);
   }
 
-  const docs = boardData?.docs;
-
   return (
     <div className="kanban-container">
       {showCreate && (
@@ -816,70 +809,6 @@ export default function Kanban(): React.JSX.Element {
           )}
         </div>
 
-        <aside className="kanban-research-panel">
-          <div className="kanban-panel-section">
-            <h3>Research Notes</h3>
-            <DocButton
-              icon={<BookOpen size={14} />}
-              label="Overview"
-              onClick={() =>
-                docs && window.hermesAPI.openLocalPath(docs.overviewPath)
-              }
-            />
-            <DocButton
-              icon={<FileText size={14} />}
-              label="Tutorial"
-              onClick={() =>
-                docs && window.hermesAPI.openLocalPath(docs.tutorialPath)
-              }
-            />
-            <DocButton
-              icon={<FileText size={14} />}
-              label="Release Notes"
-              onClick={() =>
-                docs && window.hermesAPI.openLocalPath(docs.releaseNotesPath)
-              }
-            />
-            <DocButton
-              icon={<FileText size={14} />}
-              label="Spec PDF"
-              onClick={() =>
-                docs && window.hermesAPI.openLocalPath(docs.specPath)
-              }
-            />
-            <DocButton
-              icon={<BookOpen size={14} />}
-              label="Medium Page"
-              onClick={() =>
-                docs && window.hermesAPI.openLocalPath(docs.mediumPagePath)
-              }
-            />
-          </div>
-          <div className="kanban-panel-section">
-            <h3>Sources</h3>
-            <DocButton
-              icon={<ExternalLink size={14} />}
-              label="Official Docs"
-              onClick={() =>
-                docs && window.hermesAPI.openExternal(docs.officialDocsUrl)
-              }
-            />
-            <DocButton
-              icon={<ExternalLink size={14} />}
-              label="Tutorial Online"
-              onClick={() =>
-                docs && window.hermesAPI.openExternal(docs.officialTutorialUrl)
-              }
-            />
-            <DocButton
-              icon={<FolderOpen size={14} />}
-              label="Plugin Folder"
-              onClick={() =>
-                docs && window.hermesAPI.openLocalPath(docs.pluginPath)
-              }
-            />
-          </div>
-        </aside>
       </div>
 
       {selected && (
@@ -1092,23 +1021,6 @@ function TaskCard({
           ))}
         </div>
       )}
-    </button>
-  );
-}
-
-function DocButton({
-  icon,
-  label,
-  onClick,
-}: {
-  icon: ReactNode;
-  label: string;
-  onClick: () => void;
-}): React.JSX.Element {
-  return (
-    <button className="kanban-doc-button" onClick={onClick}>
-      {icon}
-      <span>{label}</span>
     </button>
   );
 }

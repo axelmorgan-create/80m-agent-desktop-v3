@@ -8,6 +8,7 @@ import React, {
 import Sidebar from "./Sidebar";
 import ChatArea from "./ChatArea";
 import Settings from "./Settings";
+import AtmMascot from "./AtmMascot";
 import Sessions from "../../screens/Sessions/Sessions";
 import Memory from "../../screens/Memory/Memory";
 import Soul from "../../screens/Soul/Soul";
@@ -45,6 +46,11 @@ type View =
   | "kanban";
 
 type ConversationViewMode = "tabs" | "split";
+type AvatarIntroPhase = "landing" | "waiting" | "flying" | "done";
+
+interface Layout80mProps {
+  playSplashLanding?: boolean;
+}
 
 const DEFAULT_PREVIEW_WIDTH = 520;
 const MIN_PREVIEW_WIDTH = 420;
@@ -90,16 +96,25 @@ function labelForConversation(tab: ConversationTab): string {
   return tab.sessionId ? tab.title : "New chat";
 }
 
-const Layout80m: React.FC = () => {
+const Layout80m: React.FC<Layout80mProps> = ({ playSplashLanding = false }) => {
   const [activeView, setActiveView] = useState<View>("chat");
   const [showCommandPalette, setShowCommandPalette] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
+  const [avatarIntroPhase, setAvatarIntroPhase] = useState<AvatarIntroPhase>(
+    () => (playSplashLanding ? "landing" : "done"),
+  );
+  const [brainPortalActive, setBrainPortalActive] = useState(false);
   const [previewWidth, setPreviewWidth] = useState(() => {
     const saved = Number(localStorage.getItem("80m-agent-preview-width"));
     return Number.isFinite(saved)
       ? clampPreviewWidth(saved)
       : DEFAULT_PREVIEW_WIDTH;
   });
+  const avatarIntroMascotRef = useRef<HTMLDivElement | null>(null);
+  const avatarIntroTimersRef = useRef<number[]>([]);
+  const avatarIntroPhaseRef = useRef<AvatarIntroPhase>(avatarIntroPhase);
+  const brainPortalTimersRef = useRef<number[]>([]);
+  const brainPortalActiveRef = useRef(false);
   const previewResizeCleanupRef = useRef<(() => void) | null>(null);
   const [activeChatRuns, setActiveChatRuns] = useState(0);
   const [runningConversationIds, setRunningConversationIds] = useState<
@@ -153,6 +168,109 @@ const Layout80m: React.FC = () => {
     });
     window.dispatchEvent(ev);
   }, []);
+
+  useEffect(() => {
+    avatarIntroPhaseRef.current = avatarIntroPhase;
+  }, [avatarIntroPhase]);
+
+  const clearAvatarIntroTimers = useCallback(() => {
+    avatarIntroTimersRef.current.forEach((timer) => window.clearTimeout(timer));
+    avatarIntroTimersRef.current = [];
+  }, []);
+
+  const clearBrainPortalTimers = useCallback(() => {
+    brainPortalTimersRef.current.forEach((timer) => window.clearTimeout(timer));
+    brainPortalTimersRef.current = [];
+  }, []);
+
+  const finishAvatarIntro = useCallback(() => {
+    clearAvatarIntroTimers();
+    setAvatarIntroPhase("done");
+  }, [clearAvatarIntroTimers]);
+
+  const triggerAvatarFlyHome = useCallback(() => {
+    if (avatarIntroPhaseRef.current === "flying") return;
+    if (avatarIntroPhaseRef.current === "done") return;
+
+    const mascot = avatarIntroMascotRef.current;
+    const target = document.querySelector(".sidebar-80m-mascot-picker");
+
+    if (mascot && target instanceof HTMLElement) {
+      const mascotRect = mascot.getBoundingClientRect();
+      const targetRect = target.getBoundingClientRect();
+      const flyX =
+        targetRect.left +
+        targetRect.width / 2 -
+        (mascotRect.left + mascotRect.width / 2);
+      const flyY =
+        targetRect.top +
+        targetRect.height / 2 -
+        (mascotRect.top + mascotRect.height / 2);
+
+      mascot.style.setProperty("--avatar-fly-x", `${flyX}px`);
+      mascot.style.setProperty("--avatar-fly-y", `${flyY}px`);
+    }
+
+    clearAvatarIntroTimers();
+    setAvatarIntroPhase("flying");
+    avatarIntroTimersRef.current = [window.setTimeout(finishAvatarIntro, 940)];
+  }, [clearAvatarIntroTimers, finishAvatarIntro]);
+
+  useEffect(() => {
+    if (avatarIntroPhase !== "landing") return;
+
+    const settleTimer = window.setTimeout(() => {
+      setAvatarIntroPhase("waiting");
+    }, 1040);
+
+    avatarIntroTimersRef.current = [
+      ...avatarIntroTimersRef.current,
+      settleTimer,
+    ];
+    return () => window.clearTimeout(settleTimer);
+  }, [avatarIntroPhase]);
+
+  useEffect(() => {
+    if (avatarIntroPhase !== "waiting") return;
+
+    const handlePointerDown = () => triggerAvatarFlyHome();
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Enter" || event.key === " ") {
+        triggerAvatarFlyHome();
+      }
+    };
+
+    window.addEventListener("pointerdown", handlePointerDown, true);
+    window.addEventListener("keydown", handleKeyDown, true);
+    return () => {
+      window.removeEventListener("pointerdown", handlePointerDown, true);
+      window.removeEventListener("keydown", handleKeyDown, true);
+    };
+  }, [avatarIntroPhase, triggerAvatarFlyHome]);
+
+  const openSecondBrain = useCallback(() => {
+    if (brainPortalActiveRef.current) return;
+
+    clearBrainPortalTimers();
+    brainPortalActiveRef.current = true;
+    setBrainPortalActive(true);
+    setActiveView("memory");
+
+    brainPortalTimersRef.current = [
+      window.setTimeout(() => {
+        brainPortalActiveRef.current = false;
+        setBrainPortalActive(false);
+      }, 800),
+    ];
+  }, [clearBrainPortalTimers]);
+
+  useEffect(
+    () => () => {
+      clearAvatarIntroTimers();
+      clearBrainPortalTimers();
+    },
+    [clearAvatarIntroTimers, clearBrainPortalTimers],
+  );
 
   const openConversation = useCallback(
     (sessionId: string | null = null, profile = selectedAgent) => {
@@ -238,9 +356,23 @@ const Layout80m: React.FC = () => {
     setActiveView("chat");
   }, []);
 
-  const handleViewChange = useCallback((v: string) => {
-    setActiveView(v as View);
-  }, []);
+  const handleViewChange = useCallback(
+    (v: string) => {
+      if (v === "memory") {
+        openSecondBrain();
+        return;
+      }
+
+      if (brainPortalActiveRef.current) {
+        clearBrainPortalTimers();
+        brainPortalActiveRef.current = false;
+        setBrainPortalActive(false);
+      }
+
+      setActiveView(v as View);
+    },
+    [clearBrainPortalTimers, openSecondBrain],
+  );
 
   // Ctrl+K / Cmd+K to open command palette
   useEffect(() => {
@@ -403,7 +535,7 @@ const Layout80m: React.FC = () => {
           <div className="conversation-toolbar">
             <button
               className={`conversation-icon-btn conversation-brain-btn${activeView === "memory" ? " active" : ""}`}
-              onClick={() => setActiveView("memory")}
+              onClick={openSecondBrain}
               title="Second Brain"
               type="button"
             >
@@ -684,9 +816,17 @@ const Layout80m: React.FC = () => {
     selectedAgent && selectedAgent !== "default"
       ? `theme-${selectedAgent.toLowerCase().replace(/\s+/g, "-")}`
       : "";
+  const layoutClasses = [
+    "layout-80m",
+    agentThemeClass,
+    avatarIntroPhase !== "done" ? `avatar-intro-${avatarIntroPhase}` : "",
+    brainPortalActive ? "brain-portal-active" : "",
+  ]
+    .filter(Boolean)
+    .join(" ");
 
   return (
-    <div className={`layout-80m ${agentThemeClass}`}>
+    <div className={layoutClasses}>
       <Sidebar
         activeView={activeView}
         onViewChange={handleViewChange}
@@ -720,11 +860,29 @@ const Layout80m: React.FC = () => {
         )}
       </div>
 
+      {avatarIntroPhase !== "done" && (
+        <div
+          className={`avatar-landing-overlay ${avatarIntroPhase}`}
+          aria-hidden="true"
+        >
+          <div className="avatar-landing-track">
+            <div ref={avatarIntroMascotRef} className="avatar-landing-mascot">
+              <AtmMascot
+                state={avatarIntroPhase === "flying" ? "processing" : "jackpot"}
+              />
+              <span className="avatar-landing-shadow" />
+            </div>
+          </div>
+        </div>
+      )}
+
+
+
       <CommandPalette
         isOpen={showCommandPalette}
         onClose={() => setShowCommandPalette(false)}
         onNavigate={(view) => {
-          setActiveView(view as View);
+          handleViewChange(view as View);
           setShowCommandPalette(false);
         }}
         onNewChat={() => {
@@ -739,9 +897,6 @@ const Layout80m: React.FC = () => {
         style={{ display: "none" }}
         onClick={() => setShowCommandPalette((p) => !p)}
       />
-
-      {/* Global CRT Scanlines Overlay */}
-      <div className="crt-overlay pointer-events-none" />
     </div>
   );
 };

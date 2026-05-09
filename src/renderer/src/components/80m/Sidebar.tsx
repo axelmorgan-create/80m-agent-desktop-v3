@@ -465,7 +465,7 @@ const Sidebar: React.FC<SidebarProps> = ({
         {navItems.map((item) => (
           <button
             key={item.id}
-            className={`sidebar-80m-nav-item${activeView === item.id ? " active" : ""}`}
+            className={`sidebar-80m-nav-item sidebar-80m-nav-item--${item.id}${activeView === item.id ? " active" : ""}`}
             onClick={() => onViewChange(item.id)}
           >
             <span className="nav-indicator" />

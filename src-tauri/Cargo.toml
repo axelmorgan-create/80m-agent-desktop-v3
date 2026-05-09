@@ -1,6 +1,6 @@
 [package]
 name = "eighty-m-agent-desktop"
-version = "0.11.4"
+version = "0.11.5"
 description = "80m Agent Desktop Tauri shell"
 authors = ["80M"]
 license = "MIT"

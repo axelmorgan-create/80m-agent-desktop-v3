@@ -23,6 +23,21 @@ export default function SplashScreen({ onFinished }: Props): React.JSX.Element {
 
   return (
     <div className="splash-screen">
+      <div className="splash-launch-bay" aria-hidden="true">
+        <div className="splash-launch-grid" />
+        <div className="splash-launch-radar" />
+        <div className="splash-launch-circuits">
+          <span />
+          <span />
+          <span />
+          <span />
+        </div>
+        <div className="splash-launch-beams">
+          <span />
+          <span />
+          <span />
+        </div>
+      </div>
       <div className="mascot-intro-container">
         <div className="mascot-intro-wrapper">
           <AtmMascot isIntro={true} />
