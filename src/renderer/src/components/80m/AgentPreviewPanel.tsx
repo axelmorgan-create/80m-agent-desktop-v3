@@ -1,12 +1,13 @@
 /* eslint-disable react/no-unknown-property */
 import React, { useEffect, useMemo, useState } from "react";
 import {
+  ArrowLeft,
+  ArrowRight,
   ExternalLink,
   Eye,
   FileText,
   FolderOpen,
   Globe2,
-  Play,
   X,
 } from "lucide-react";
 
@@ -140,7 +141,7 @@ const AgentPreviewPanel: React.FC<Props> = ({
   activeProject,
   isAgentWorking = false,
 }) => {
-  const [mode, setMode] = useState<PreviewMode>("files");
+  const [mode, setMode] = useState<PreviewMode>("browser");
   const [url, setUrl] = useState<string | null>(null);
   const [inputUrl, setInputUrl] = useState<string>("");
   const [isBrowserActive, setIsBrowserActive] = useState<boolean>(false);
@@ -256,6 +257,7 @@ const AgentPreviewPanel: React.FC<Props> = ({
   const handleStartPlaywright = async (): Promise<void> => {
     await window.hermesAPI.startBrowser();
     setIsBrowserActive(true);
+    setUrl((current) => current || "about:blank");
   };
 
   const handleNavigate = async (e: React.FormEvent): Promise<void> => {
@@ -265,6 +267,8 @@ const AgentPreviewPanel: React.FC<Props> = ({
     if (!isBrowserActive) {
       await handleStartPlaywright();
     }
+    setUrl(target);
+    setInputUrl(target);
     await window.hermesAPI.navigateBrowser(target);
   };
 
@@ -300,95 +304,117 @@ const AgentPreviewPanel: React.FC<Props> = ({
 
   if (!isOpen) return null;
 
-  return (
-    <div className="agent-preview-panel">
-      <div className="agent-preview-header">
-        <div className="agent-preview-title">
-          <Eye size={16} />
-          Live Preview
-        </div>
-        <div className="agent-preview-tabs" role="tablist">
-          <button
-            className={`agent-preview-tab ${mode === "files" ? "active" : ""}`}
-            onClick={() => setMode("files")}
-            title="Files"
-            type="button"
-          >
-            <FileText size={14} />
-            <span>Files</span>
-          </button>
-          <button
-            className={`agent-preview-tab ${mode === "browser" ? "active" : ""}`}
-            onClick={() => setMode("browser")}
-            title="Browser"
-            type="button"
-          >
-            <Globe2 size={14} />
-            <span>Browser</span>
-          </button>
-        </div>
-        <button
-          className="agent-preview-close"
-          onClick={onClose}
-          title="Close Preview"
-          type="button"
-        >
-          <X size={16} />
-        </button>
-      </div>
+  const browserSrc = url || "about:blank";
 
+  return (
+    <div
+      className={`agent-preview-panel agent-preview-panel--${mode}`}
+      data-browser-active={isBrowserActive}
+    >
       {mode === "browser" ? (
-        <>
-          <div className="agent-preview-toolbar">
-            <form onSubmit={handleNavigate} className="agent-preview-url-form">
+        <div className="agent-browser-frame">
+          <div className="agent-browser-chrome">
+            <div className="agent-browser-dots" aria-hidden="true">
+              <span />
+              <span />
+              <span />
+            </div>
+            <div className="agent-browser-tab-cap" aria-hidden="true" />
+            <button
+              type="button"
+              className="agent-browser-chrome-btn"
+              title="Back"
+              disabled
+            >
+              <ArrowLeft size={17} />
+            </button>
+            <button
+              type="button"
+              className="agent-browser-chrome-btn"
+              title="Forward"
+              disabled
+            >
+              <ArrowRight size={17} />
+            </button>
+            <form onSubmit={handleNavigate} className="agent-browser-url-form">
+              <Globe2 size={14} />
               <input
                 type="text"
-                className="input agent-preview-url-input"
-                placeholder="Agent target URL"
+                className="agent-browser-url-input"
+                placeholder=""
                 value={inputUrl}
                 onChange={(e) => setInputUrl(e.target.value)}
               />
               <button
                 type="submit"
-                className="btn btn-primary btn-sm agent-preview-go-btn"
+                className="agent-browser-chrome-btn"
                 title="Go"
               >
-                Go
+                <ExternalLink size={14} />
               </button>
             </form>
+            <button
+              type="button"
+              className="agent-browser-chrome-btn"
+              onClick={() => setMode("files")}
+              title="Files"
+            >
+              <FileText size={15} />
+            </button>
+            <button
+              className="agent-browser-chrome-btn"
+              onClick={onClose}
+              title="Close Preview"
+              type="button"
+            >
+              <X size={16} />
+            </button>
           </div>
 
-          <div className="agent-preview-content">
-            {!isBrowserActive || !url ? (
-              <div className="agent-preview-placeholder">
-                <div className="agent-preview-spinner"></div>
-                <p>Waiting for browser activity...</p>
-                <span className="agent-preview-hint">
-                  Playwright session inactive
-                </span>
-                {!isBrowserActive && (
-                  <button
-                    className="btn btn-secondary btn-sm agent-preview-start-btn"
-                    onClick={handleStartPlaywright}
-                    title="Start Browser"
-                    type="button"
-                  >
-                    <Play size={13} />
-                    Start
-                  </button>
-                )}
-              </div>
-            ) : (
-              <webview
-                src={url}
-                className="agent-preview-webview"
-                allowpopups={true}
-              />
-            )}
+          <div className="agent-preview-content agent-browser-content">
+            <webview
+              src={browserSrc}
+              className="agent-preview-webview"
+              allowpopups={true}
+            />
           </div>
-        </>
+        </div>
       ) : (
         <div className="agent-file-preview">
+          <div className="agent-preview-header">
+            <div className="agent-preview-title">
+              <Eye size={16} />
+              Live Preview
+            </div>
+            <div className="agent-preview-tabs" role="tablist">
+              <button
+                className={`agent-preview-tab ${mode === "files" ? "active" : ""}`}
+                onClick={() => setMode("files")}
+                title="Files"
+                type="button"
+              >
+                <FileText size={14} />
+                <span>Files</span>
+              </button>
+              <button
+                className="agent-preview-tab"
+                onClick={() => setMode("browser")}
+                title="Browser"
+                type="button"
+              >
+                <Globe2 size={14} />
+                <span>Browser</span>
+              </button>
+            </div>
+            <button
+              className="agent-preview-close"
+              onClick={onClose}
+              title="Close Preview"
+              type="button"
+            >
+              <X size={16} />
+            </button>
+          </div>
           <div className="agent-file-preview-header">
             <div className="agent-file-preview-title">
               <span className="agent-file-project">

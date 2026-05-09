@@ -3,21 +3,32 @@ import { Plus, Trash, Refresh } from "../../assets/icons";
 import { useI18n } from "../../components/useI18n";
 import {
   BookOpen,
+  Brain,
   Braces,
+  Calendar,
   Check,
+  CheckCircle2,
   ChevronDown,
   ChevronRight,
+  CircleEllipsis,
+  DollarSign,
   Edit3,
   Eye,
   ExternalLink,
   FileCode2,
   FileJson,
   FileText,
+  Folder,
   FolderOpen,
+  MessageSquare,
+  Radio,
   Save,
+  User,
+  Users,
   X,
 } from "lucide-react";
 import AgentMarkdown from "../../components/AgentMarkdown";
+import NeuralMap3D from "../../components/80m/NeuralMap3D";
 
 interface MemoryEntry {
   index: number;
@@ -47,6 +58,36 @@ interface FileNode {
   name: string;
   isDirectory: boolean;
   path: string;
+}
+
+interface VaultIndexEntry {
+  name: string;
+  path: string;
+  relativePath: string;
+  isDirectory: boolean;
+  depth: number;
+}
+
+interface GraphNote {
+  id: string; // relativePath without .md
+  path: string;
+  name: string;
+  relativePath: string;
+  linkCount: number;
+}
+
+interface GraphEdge {
+  source: string; // GraphNote id
+  target: string; // GraphNote id
+}
+
+interface NeuralVaultIndex {
+  folders: VaultIndexEntry[];
+  notes: VaultIndexEntry[];
+  scannedEntries: number;
+  truncated: boolean;
+  graphNotes: GraphNote[];
+  graphEdges: GraphEdge[];
 }
 
 interface ObsidianVaultInfo {
@@ -86,35 +127,13 @@ function timeAgo(ts: number | null): string {
   return `${Math.floor(diff / 86400)}d ago`;
 }
 
-function CapacityBar({
-  used,
-  limit,
-  label,
-}: {
-  used: number;
-  limit: number;
-  label: string;
-}): React.JSX.Element {
-  const pct = Math.min(100, Math.round((used / limit) * 100));
-  const color =
-    pct > 90 ? "var(--error)" : pct > 70 ? "var(--warning)" : "var(--success)";
-  return (
-    <div className="memory-capacity">
-      <div className="memory-capacity-header">
-        <span className="memory-capacity-label">{label}</span>
-        <span className="memory-capacity-value">
-          {used.toLocaleString()} / {limit.toLocaleString()} chars ({pct}%)
-        </span>
-      </div>
-      <div className="memory-capacity-track">
-        <div
-          className="memory-capacity-fill"
-          style={{ width: `${pct}%`, background: color }}
-        />
-      </div>
-    </div>
-  );
+function formatCompact(value: number): string {
+  if (value >= 1000000) return `${(value / 1000000).toFixed(1)}M`;
+  if (value >= 10000) return `${Math.round(value / 1000)}K`;
+  return value.toLocaleString();
 }
+
+
 
 interface MemoryProviderInfo {
   name: string;
@@ -122,6 +141,37 @@ interface MemoryProviderInfo {
   installed: boolean;
   active: boolean;
   envVars: string[];
+}
+
+type NeuralClusterId =
+  | "streams"
+  | "sync"
+  | "habits"
+  | "projects"
+  | "contacts"
+  | "calendar"
+  | "cortex"
+  | "more"
+  | "finance"
+  | "daily"
+  | "chat"
+  | "agents"
+  | "notes";
+
+interface NeuralClusterDefinition {
+  id: NeuralClusterId;
+  label: string;
+  description: string;
+  keywords: string[];
+  icon: React.JSX.Element;
+  x: number;
+  y: number;
+}
+
+interface NeuralCluster extends NeuralClusterDefinition {
+  value: number;
+  notes: VaultIndexEntry[];
+  folders: VaultIndexEntry[];
 }
 
 const PROVIDER_URLS: Record<string, string> = {
@@ -132,6 +182,47 @@ const PROVIDER_URLS: Record<string, string> = {
   supermemory: "https://supermemory.ai",
   byterover: "https://app.byterover.dev",
 };
+
+const VAULT_SCAN_MAX_ENTRIES = 1600;
+const VAULT_SCAN_MAX_NOTES = 700;
+const VAULT_SCAN_MAX_DEPTH = 5;
+
+const EMPTY_VAULT_INDEX: NeuralVaultIndex = {
+  folders: [],
+  notes: [],
+  scannedEntries: 0,
+  truncated: false,
+  graphNotes: [],
+  graphEdges: [],
+};
+
+const WIKILINK_RE = /\[\[([^\]|#]+)[^\]]*\]\]/g;
+const LINK_SCAN_LIMIT = 4096; // only read first 4KB for links
+
+function noteIdFromRelPath(relPath: string): string {
+  return relPath.replace(/\.(md|markdown)$/i, "").toLowerCase();
+}
+
+function noteIdFromWikilink(link: string): string {
+  // strip any path prefix, keep just the note name
+  const parts = link.trim().split("/");
+  return parts[parts.length - 1].toLowerCase();
+}
+
+async function extractWikilinks(notePath: string): Promise<string[]> {
+  try {
+    const preview = await window.hermesAPI.readDocumentPreview(notePath) as DocumentPreviewData;
+    const content = (preview.content || "").slice(0, LINK_SCAN_LIMIT);
+    const links: string[] = [];
+    let match: RegExpExecArray | null;
+    while ((match = WIKILINK_RE.exec(content)) !== null) {
+      links.push(noteIdFromWikilink(match[1]));
+    }
+    return links;
+  } catch {
+    return [];
+  }
+}
 
 function documentExtension(note: DocumentPreviewData | null): string {
   if (!note) return "";
@@ -156,6 +247,180 @@ function displayLocalPath(value: string): string {
       part === "/" || part === "\\" ? part : displayFileName(part),
     )
     .join("");
+}
+
+function normalizeVaultPath(value: string): string {
+  return value.replace(/\\/g, "/").replace(/\/+/g, "/");
+}
+
+function vaultRelativePath(rootPath: string, entryPath: string): string {
+  const root = normalizeVaultPath(rootPath).replace(/\/$/, "");
+  const entry = normalizeVaultPath(entryPath);
+  if (entry === root) return "";
+  return entry.startsWith(`${root}/`) ? entry.slice(root.length + 1) : entry;
+}
+
+function vaultMatchText(entry: VaultIndexEntry): string {
+  return displayFileName(`${entry.relativePath} ${entry.name}`)
+    .toLowerCase()
+    .replace(/[_-]+/g, " ");
+}
+
+function isMarkdownVaultFile(node: FileNode): boolean {
+  return /\.(md|markdown)$/i.test(node.name);
+}
+
+function shouldSkipVaultNode(node: FileNode): boolean {
+  const name = node.name.toLowerCase();
+  if (name.startsWith(".")) return true;
+  return [
+    "node_modules",
+    "dist",
+    "out",
+    "build",
+    "release",
+    "releases",
+    "vendor",
+    "__pycache__",
+  ].includes(name);
+}
+
+function entryMatchesCluster(
+  entry: VaultIndexEntry,
+  cluster: NeuralClusterDefinition,
+): boolean {
+  if (cluster.id === "notes" || cluster.id === "sync") return true;
+  const text = vaultMatchText(entry);
+  return cluster.keywords.some((keyword) =>
+    text.includes(keyword.toLowerCase()),
+  );
+}
+
+async function buildNeuralVaultIndex(
+  vaultPath: string,
+): Promise<NeuralVaultIndex> {
+  const queue: Array<{ path: string; depth: number }> = [
+    { path: vaultPath, depth: 0 },
+  ];
+  const folders: VaultIndexEntry[] = [];
+  const notes: VaultIndexEntry[] = [];
+  let scannedEntries = 0;
+  let truncated = false;
+
+  while (queue.length > 0) {
+    const current = queue.shift()!;
+    let entries: FileNode[] = [];
+    try {
+      entries = await window.hermesAPI.readDirectory(current.path);
+    } catch {
+      truncated = true;
+      continue;
+    }
+
+    for (const node of entries) {
+      if (shouldSkipVaultNode(node)) continue;
+      scannedEntries += 1;
+      if (scannedEntries > VAULT_SCAN_MAX_ENTRIES) {
+        truncated = true;
+        break;
+      }
+
+      const entry: VaultIndexEntry = {
+        name: node.name,
+        path: node.path,
+        relativePath: vaultRelativePath(vaultPath, node.path),
+        isDirectory: node.isDirectory,
+        depth: current.depth,
+      };
+
+      if (node.isDirectory) {
+        folders.push(entry);
+        if (current.depth < VAULT_SCAN_MAX_DEPTH) {
+          queue.push({ path: node.path, depth: current.depth + 1 });
+        } else {
+          truncated = true;
+        }
+        continue;
+      }
+
+      if (isMarkdownVaultFile(node)) {
+        notes.push(entry);
+        if (notes.length >= VAULT_SCAN_MAX_NOTES) {
+          truncated = true;
+          break;
+        }
+      }
+    }
+  }
+
+  // ── Build backlink graph ──
+  // Build id → note lookup
+  const idToNote = new Map<string, VaultIndexEntry>();
+  for (const note of notes) {
+    idToNote.set(noteIdFromRelPath(note.relativePath), note);
+  }
+
+  // Parse wikilinks from each note (batched, max 8 concurrent)
+  const linkMap = new Map<string, string[]>();
+  const batchSize = 8;
+  for (let i = 0; i < notes.length; i += batchSize) {
+    const batch = notes.slice(i, i + batchSize);
+    const results = await Promise.all(
+      batch.map(async (note) => {
+        const links = await extractWikilinks(note.path);
+        return { id: noteIdFromRelPath(note.relativePath), links };
+      }),
+    );
+    for (const { id, links } of results) {
+      linkMap.set(id, links);
+    }
+  }
+
+  // Build edges (deduplicated, bidirectional)
+  const edgeSet = new Set<string>();
+  const graphEdges: GraphEdge[] = [];
+  const connectionCount = new Map<string, number>();
+
+  for (const [sourceId, links] of linkMap) {
+    for (const targetName of links) {
+      // find target in vault
+      let targetId: string | null = null;
+      if (idToNote.has(targetName)) {
+        targetId = targetName;
+      } else {
+        // fuzzy: check if any note ends with this name
+        for (const [id] of idToNote) {
+          if (id.endsWith("/" + targetName) || id === targetName) {
+            targetId = id;
+            break;
+          }
+        }
+      }
+      if (!targetId || targetId === sourceId) continue;
+
+      const edgeKey = [sourceId, targetId].sort().join("<>");
+      if (edgeSet.has(edgeKey)) continue;
+      edgeSet.add(edgeKey);
+      graphEdges.push({ source: sourceId, target: targetId });
+      connectionCount.set(sourceId, (connectionCount.get(sourceId) || 0) + 1);
+      connectionCount.set(targetId, (connectionCount.get(targetId) || 0) + 1);
+    }
+  }
+
+  // Build graph notes sorted by connection count (most connected first)
+  const graphNotes: GraphNote[] = notes.map((note) => {
+    const id = noteIdFromRelPath(note.relativePath);
+    return {
+      id,
+      path: note.path,
+      name: note.name,
+      relativePath: note.relativePath,
+      linkCount: connectionCount.get(id) || 0,
+    };
+  });
+  graphNotes.sort((a, b) => b.linkCount - a.linkCount);
+
+  return { folders, notes, scannedEntries, truncated, graphNotes, graphEdges };
 }
 
 function isMarkdownDocument(note: DocumentPreviewData | null): boolean {
@@ -289,9 +554,9 @@ function Memory({ profile }: { profile?: string }): React.JSX.Element {
   const { t } = useI18n();
   const [data, setData] = useState<MemoryData | null>(null);
   const [loading, setLoading] = useState(true);
-  const [tab, setTab] = useState<"vault" | "entries" | "profile" | "providers">(
-    "vault",
-  );
+  const [tab, setTab] = useState<
+    "map" | "vault" | "entries" | "profile" | "providers"
+  >("map");
   const [error, setError] = useState("");
   const [memoryProvider, setMemoryProvider] = useState<string | null>(null);
   const [providers, setProviders] = useState<MemoryProviderInfo[]>([]);
@@ -301,6 +566,14 @@ function Memory({ profile }: { profile?: string }): React.JSX.Element {
   const [vault, setVault] = useState<ObsidianVaultInfo | null>(null);
   const [vaultRoot, setVaultRoot] = useState<FileNode[]>([]);
   const [vaultLoading, setVaultLoading] = useState(false);
+  const [vaultIndex, setVaultIndex] =
+    useState<NeuralVaultIndex>(EMPTY_VAULT_INDEX);
+  const [vaultIndexLoading, setVaultIndexLoading] = useState(false);
+  const [activeNeuralId, setActiveNeuralId] =
+    useState<NeuralClusterId>("notes");
+  const [graphMode, setGraphMode] = useState<"cluster" | "graph">("cluster");
+  const [graphSearch, setGraphSearch] = useState("");
+  const [neuralLayout, setNeuralLayout] = useState<"stacked" | "side">("stacked");
   const [selectedNote, setSelectedNote] = useState<DocumentPreviewData | null>(
     null,
   );
@@ -338,6 +611,26 @@ function Memory({ profile }: { profile?: string }): React.JSX.Element {
     }
   }, []);
 
+  const loadVaultIndex = useCallback(async (vaultPath: string | null) => {
+    if (!vaultPath) {
+      setVaultIndex(EMPTY_VAULT_INDEX);
+      return;
+    }
+    setVaultIndexLoading(true);
+    try {
+      const index = await buildNeuralVaultIndex(vaultPath);
+      setVaultIndex(index);
+    } catch (err) {
+      setVaultIndex(EMPTY_VAULT_INDEX);
+      setVaultIndex(EMPTY_VAULT_INDEX);
+      console.error(
+        err instanceof Error ? err.message : "Unable to index this vault.",
+      );
+    } finally {
+      setVaultIndexLoading(false);
+    }
+  }, []);
+
   const loadData = useCallback(async () => {
     const [d, provider, provs, env, vaultInfo] = await Promise.all([
       window.hermesAPI.readMemory(profile),
@@ -360,6 +653,69 @@ function Memory({ profile }: { profile?: string }): React.JSX.Element {
     setLoading(true);
     loadData();
   }, [loadData]);
+
+  useEffect(() => {
+    if (!vault?.exists || !vault.path) {
+      setVaultIndex(EMPTY_VAULT_INDEX);
+      return;
+    }
+    void loadVaultIndex(vault.path);
+  }, [loadVaultIndex, vault?.exists, vault?.path]);
+
+  // ── Auto-sync: watch vault for file changes ──
+  useEffect(() => {
+    if (!vault?.exists || !vault.path) return;
+    const vaultPath = vault.path;
+    let debounceTimer: ReturnType<typeof setTimeout> | null = null;
+
+    void window.hermesAPI.watchWorkspace(vaultPath);
+
+    const unsub = window.hermesAPI.onWorkspaceFileChanged((change) => {
+      // only re-index on markdown file changes
+      if (!/\.(md|markdown)$/i.test(change.name)) return;
+      if (debounceTimer) clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(() => {
+        void loadVaultIndex(vaultPath);
+      }, 2000);
+    });
+
+    return () => {
+      unsub();
+      if (debounceTimer) clearTimeout(debounceTimer);
+      void window.hermesAPI.unwatchWorkspace();
+    };
+  }, [vault?.exists, vault?.path, loadVaultIndex]);
+
+  useEffect(() => {
+    if (
+      tab !== "map" ||
+      activeNeuralId !== "notes" ||
+      selectedNote ||
+      vaultIndexLoading ||
+      vaultIndex.notes.length === 0
+    ) {
+      return;
+    }
+
+    let cancelled = false;
+    const firstNote = vaultIndex.notes[0];
+    async function loadInitialPreview(): Promise<void> {
+      const preview = await window.hermesAPI.readDocumentPreview(
+        firstNote.path,
+      );
+      if (cancelled) return;
+      setSelectedNote(preview);
+      setNoteEditMode(false);
+      setNoteEditContent(preview.content || "");
+      setNoteOriginalContent(preview.content || "");
+      setNoteSaveStatus("idle");
+      setNoteError("");
+    }
+    void loadInitialPreview();
+    return () => {
+      cancelled = true;
+    };
+  }, [activeNeuralId, selectedNote, tab, vaultIndex.notes, vaultIndexLoading]);
 
   async function handleAddEntry(): Promise<void> {
     if (!newEntry.trim()) return;
@@ -464,6 +820,11 @@ function Memory({ profile }: { profile?: string }): React.JSX.Element {
     if (vault?.path) await window.hermesAPI.revealLocalPath(vault.path);
   }
 
+  async function handleRefreshVaultIndex(): Promise<void> {
+    if (!vault?.path) return;
+    await Promise.all([loadVaultRoot(vault.path), loadVaultIndex(vault.path)]);
+  }
+
   if (loading || !data) {
     return (
       <div className="settings-container">
@@ -478,74 +839,356 @@ function Memory({ profile }: { profile?: string }): React.JSX.Element {
   const selectedNoteEditable = isEditableDocument(selectedNote);
   const selectedNoteDirty =
     selectedNoteEditable && noteEditContent !== noteOriginalContent;
+  const neuralClusterDefinitions: NeuralClusterDefinition[] = [
+    {
+      id: "streams",
+      label: "Inbox",
+      description: "Captures, sparks, voice notes, and unprocessed inputs.",
+      keywords: [
+        "inbox",
+        "capture",
+        "captures",
+        "spark",
+        "sparks",
+        "voice",
+        "stream",
+        "input",
+      ],
+      icon: <Radio size={18} />,
+      x: 18,
+      y: 34,
+    },
+    {
+      id: "sync",
+      label: "Vault Sync",
+      description:
+        "Every indexed markdown note in the configured Obsidian vault.",
+      keywords: [],
+      icon: <Refresh size={18} />,
+      x: 38,
+      y: 22,
+    },
+    {
+      id: "habits",
+      label: "Tasks",
+      description: "Tasks, habits, todos, active work, and Kanban material.",
+      keywords: [
+        "task",
+        "tasks",
+        "todo",
+        "todos",
+        "habit",
+        "habits",
+        "kanban",
+        "active task",
+      ],
+      icon: <CheckCircle2 size={18} />,
+      x: 53,
+      y: 17,
+    },
+    {
+      id: "projects",
+      label: "Projects",
+      description: "Client work, project folders, roadmaps, and deliverables.",
+      keywords: [
+        "project",
+        "projects",
+        "client",
+        "clients",
+        "roadmap",
+        "deliverable",
+        "launch",
+        "work",
+      ],
+      icon: <Folder size={18} />,
+      x: 67,
+      y: 25,
+    },
+    {
+      id: "contacts",
+      label: "People",
+      description:
+        "Contacts, client profiles, teams, vendors, and people notes.",
+      keywords: [
+        "people",
+        "person",
+        "contact",
+        "contacts",
+        "client",
+        "clients",
+        "team",
+        "vendor",
+        "crm",
+      ],
+      icon: <Users size={18} />,
+      x: 83,
+      y: 36,
+    },
+    {
+      id: "calendar",
+      label: "Calendar",
+      description:
+        "Dates, daily logs, weekly reviews, meetings, and schedules.",
+      keywords: [
+        "calendar",
+        "schedule",
+        "meeting",
+        "meetings",
+        "event",
+        "events",
+        "weekly",
+        "monthly",
+        "review",
+      ],
+      icon: <Calendar size={18} />,
+      x: 82,
+      y: 50,
+    },
+    {
+      id: "cortex",
+      label: "Knowledge",
+      description:
+        "Research, indexes, MOCs, reference notes, and second-brain material.",
+      keywords: [
+        "cortex",
+        "knowledge",
+        "research",
+        "reference",
+        "index",
+        "moc",
+        "wiki",
+        "second brain",
+        "memory",
+      ],
+      icon: <Brain size={18} />,
+      x: 78,
+      y: 62,
+    },
+    {
+      id: "more",
+      label: "Unsorted",
+      description: "Vault notes that did not match a focused brain area yet.",
+      keywords: [],
+      icon: <CircleEllipsis size={18} />,
+      x: 86,
+      y: 78,
+    },
+    {
+      id: "finance",
+      label: "Finance",
+      description:
+        "Money, transactions, invoices, billing, budgets, and tax notes.",
+      keywords: [
+        "finance",
+        "money",
+        "transaction",
+        "transactions",
+        "invoice",
+        "invoices",
+        "billing",
+        "budget",
+        "tax",
+        "stripe",
+        "sales",
+      ],
+      icon: <DollarSign size={18} />,
+      x: 63,
+      y: 80,
+    },
+    {
+      id: "daily",
+      label: "Daily",
+      description:
+        "Daily notes, journals, logs, and personal operating rhythm.",
+      keywords: [
+        "daily",
+        "journal",
+        "journals",
+        "log",
+        "logs",
+        "today",
+        "morning",
+        "evening",
+      ],
+      icon: <Calendar size={18} />,
+      x: 45,
+      y: 86,
+    },
+    {
+      id: "chat",
+      label: "Chat",
+      description:
+        "Chat sessions, transcripts, messages, and agent conversations.",
+      keywords: [
+        "chat",
+        "chats",
+        "conversation",
+        "conversations",
+        "message",
+        "messages",
+        "session",
+        "sessions",
+        "transcript",
+      ],
+      icon: <MessageSquare size={18} />,
+      x: 28,
+      y: 73,
+    },
+    {
+      id: "agents",
+      label: "Agents",
+      description:
+        "Agent rosters, assistant profiles, Hermes notes, and automations.",
+      keywords: [
+        "agent",
+        "agents",
+        "assistant",
+        "assistants",
+        "hermes",
+        "profile",
+        "profiles",
+        "round table",
+        "automation",
+      ],
+      icon: <User size={18} />,
+      x: 18,
+      y: 61,
+    },
+    {
+      id: "notes",
+      label: "Notes",
+      description: "All indexed markdown notes from the selected vault.",
+      keywords: [],
+      icon: <FileText size={18} />,
+      x: 17,
+      y: 47,
+    },
+  ];
+  const specificVaultClusters = neuralClusterDefinitions.filter(
+    (cluster) => !["sync", "more", "notes"].includes(cluster.id),
+  );
+  const unassignedNotes = vaultIndex.notes.filter(
+    (note) =>
+      !specificVaultClusters.some((cluster) =>
+        entryMatchesCluster(note, cluster),
+      ),
+  );
+  const unassignedFolders = vaultIndex.folders.filter(
+    (folder) =>
+      !specificVaultClusters.some((cluster) =>
+        entryMatchesCluster(folder, cluster),
+      ),
+  );
+  const neuralNodes: NeuralCluster[] = neuralClusterDefinitions.map(
+    (cluster) => {
+      const notes =
+        cluster.id === "more"
+          ? unassignedNotes
+          : vaultIndex.notes.filter((note) =>
+              entryMatchesCluster(note, cluster),
+            );
+      const folders =
+        cluster.id === "more"
+          ? unassignedFolders
+          : vaultIndex.folders.filter((folder) =>
+              entryMatchesCluster(folder, cluster),
+            );
+      const value =
+        cluster.id === "sync" || cluster.id === "notes"
+          ? vaultIndex.notes.length || vault?.noteCount || 0
+          : notes.length || folders.length;
+      return { ...cluster, value, notes, folders };
+    },
+  );
+  const activeCluster =
+    neuralNodes.find((node) => node.id === activeNeuralId) ||
+    neuralNodes[neuralNodes.length - 1];
+  const selectedNoteInActiveCluster =
+    !!selectedNote &&
+    activeCluster.notes.some((note) => note.path === selectedNote.path);
+  const neuralPreviewNote =
+    graphMode === "graph"
+      ? selectedNote
+      : selectedNoteInActiveCluster
+        ? selectedNote
+        : null;
+
+  async function handleNeuralClusterSelect(
+    cluster: NeuralCluster,
+  ): Promise<void> {
+    setActiveNeuralId(cluster.id);
+    setTab("map");
+    if (cluster.notes.length > 0) {
+      await handleVaultFileClick(cluster.notes[0].path);
+      return;
+    }
+    setSelectedNote(null);
+    setNoteEditMode(false);
+    setNoteEditContent("");
+    setNoteOriginalContent("");
+    setNoteSaveStatus("idle");
+    setNoteError("");
+  }
 
   return (
-    <div className="main-80m">
-      <div className="screen-header-80m">
-        <span className="screen-header-80m-title">SECOND BRAIN</span>
-      </div>
-      <div className="screen-content-80m">
-        <div className="memory-header">
+    <div className="main-80m memory-main">
+      <div className="screen-header-80m memory-screen-header">
+        <div className="memory-screen-title-lockup">
+          <span className="memory-brain-glyph">
+            <Brain size={18} />
+          </span>
           <div>
-            <h1 className="settings-header" style={{ marginBottom: 4 }}>
-              Second Brain
-            </h1>
+            <span className="screen-header-80m-title">
+              SECOND BRAIN {vault?.exists ? `// ${vault.name}` : ""}
+            </span>
             <p className="memory-subtitle">
-              Obsidian vault, agent memory, and long-term profile context.
+              {vault?.path || "Obsidian vault, agent memory, and long-term profile context."}
             </p>
           </div>
-          <button className="btn btn-secondary btn-sm" onClick={loadData}>
-            <Refresh size={13} />
+        </div>
+        <div className="memory-vault-actions" style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+          {vault?.path && (
+            <button
+              className="btn btn-secondary btn-sm"
+              onClick={() => void handleRevealVault()}
+            >
+              Reveal
+            </button>
+          )}
+          {vault?.path && (
+            <button
+              className="btn btn-secondary btn-sm"
+              onClick={() => {
+                void loadData();
+                void handleRefreshVaultIndex();
+              }}
+              disabled={vaultIndexLoading}
+            >
+              <Refresh size={13} />
+              Reindex Vault
+            </button>
+          )}
+          <button
+            className="btn btn-primary btn-sm"
+            onClick={() => void handleChooseVault()}
+          >
+            {vault?.exists ? "Change Vault" : "Choose Vault"}
           </button>
         </div>
-
-        {/* Stats */}
-        <div className="memory-stats">
-          <div className="memory-stat">
-            <span className="memory-stat-value">
-              {data.stats.totalSessions}
-            </span>
-            <span className="memory-stat-label">{t("memory.sessions")}</span>
-          </div>
-          <div className="memory-stat">
-            <span className="memory-stat-value">
-              {data.stats.totalMessages}
-            </span>
-            <span className="memory-stat-label">{t("memory.messages")}</span>
-          </div>
-          <div className="memory-stat">
-            <span className="memory-stat-value">
-              {data.memory.entries.length}
-            </span>
-            <span className="memory-stat-label">{t("memory.memories")}</span>
-          </div>
-          <div className="memory-stat">
-            <span className="memory-stat-value">{vault?.noteCount ?? 0}</span>
-            <span className="memory-stat-label">Vault Notes</span>
-          </div>
-        </div>
-
-        {/* Capacity */}
-        <div className="memory-capacities">
-          <CapacityBar
-            used={data.memory.charCount}
-            limit={data.memory.charLimit}
-            label={t("memory.agentMemory")}
-          />
-          <CapacityBar
-            used={data.user.charCount}
-            limit={data.user.charLimit}
-            label={t("memory.userProfile")}
-          />
-        </div>
-
-        {/* Tabs */}
-        <div className="memory-tabs">
+      </div>
+      <div className="screen-content-80m memory-screen-content">
+        <div className="memory-tabs memory-tabs-neural">
+          <button
+            className={`memory-tab ${tab === "map" ? "active" : ""}`}
+            onClick={() => setTab("map")}
+          >
+            Neural Map
+          </button>
           <button
             className={`memory-tab ${tab === "vault" ? "active" : ""}`}
             onClick={() => setTab("vault")}
           >
-            Obsidian Vault
+            Vault Index
             {vault?.exists && (
               <span className="memory-tab-time">{vault.name}</span>
             )}
@@ -584,6 +1227,167 @@ function Memory({ profile }: { profile?: string }): React.JSX.Element {
         </div>
 
         {error && <div className="memory-error">{error}</div>}
+
+        {tab === "map" && (
+          <div className={`memory-neural-dashboard memory-neural-layout-${neuralLayout}`}>
+            <div className="memory-neural-pane-map">
+              <div
+                className={`memory-neural-stage ${
+                  vaultIndexLoading ? "memory-neural-stage-scanning" : ""
+                }`}
+              >
+                <NeuralMap3D
+                  nodes={neuralNodes.map((n) => ({
+                    id: n.id,
+                    label: n.label,
+                    value: n.value,
+                  }))}
+                  activeId={activeNeuralId}
+                  onSelect={(id) => {
+                    const cluster = neuralNodes.find((n) => n.id === id);
+                    if (cluster) void handleNeuralClusterSelect(cluster);
+                  }}
+                  scanning={vaultIndexLoading}
+                  vaultConnected={!!vault?.exists}
+                  totalNotes={vaultIndex.notes.length || vault?.noteCount || 0}
+                  mode={graphMode}
+                  graphNotes={vaultIndex.graphNotes}
+                  graphEdges={vaultIndex.graphEdges}
+                  graphSearch={graphSearch}
+                  onNoteSelect={(path) => void handleVaultFileClick(path)}
+                />
+
+                <div className="memory-neural-stage-status">
+                  <span>
+                    {vault?.exists
+                      ? `${formatCompact(
+                          vaultIndex.notes.length || vault.noteCount,
+                        )} notes · ${formatCompact(vaultIndex.graphEdges.length)} links`
+                      : "No vault connected"}
+                  </span>
+                  <span>
+                    {vaultIndexLoading
+                      ? "Scanning"
+                      : vaultIndex.truncated
+                        ? "Partial index"
+                        : "Live sync"}
+                  </span>
+                </div>
+
+                <div className="memory-neural-stage-controls">
+                  <button
+                    type="button"
+                    className={`neural-mode-btn ${graphMode === "graph" ? "active" : ""}`}
+                    onClick={() => setGraphMode("graph")}
+                    title="Graph view — individual notes with backlink webs"
+                  >
+                    Graph
+                  </button>
+                  <button
+                    type="button"
+                    className={`neural-mode-btn ${graphMode === "cluster" ? "active" : ""}`}
+                    onClick={() => setGraphMode("cluster")}
+                    title="Cluster view — brain area categories"
+                  >
+                    Cluster
+                  </button>
+                  <button
+                    type="button"
+                    className={`neural-mode-btn ${neuralLayout === "side" ? "active" : ""}`}
+                    onClick={() => setNeuralLayout(neuralLayout === "stacked" ? "side" : "stacked")}
+                    title={neuralLayout === "stacked" ? "Switch to side-by-side layout" : "Switch to stacked layout"}
+                  >
+                    {neuralLayout === "stacked" ? "⇔" : "⇕"}
+                  </button>
+                  {graphMode === "graph" && (
+                    <input
+                      type="text"
+                      className="neural-search-input"
+                      placeholder="Search notes..."
+                      value={graphSearch}
+                      onChange={(e) => setGraphSearch(e.target.value)}
+                    />
+                  )}
+                </div>
+              </div>
+            </div>
+
+            <div className="memory-neural-pane-preview">
+              <section className="memory-neural-card memory-neural-preview-card">
+                <div className="memory-vault-index-header">
+                  <span>Live Note Preview</span>
+                  {neuralPreviewNote && (
+                    <span>{documentKindLabel(neuralPreviewNote)}</span>
+                  )}
+                </div>
+                {neuralPreviewNote ? (
+                  <div className="memory-neural-preview">
+                    <div className="memory-neural-preview-heading">
+                      <DocumentKindIcon note={neuralPreviewNote} />
+                      <div>
+                        <strong>
+                          {displayFileName(neuralPreviewNote.name)}
+                        </strong>
+                        <span>{displayLocalPath(neuralPreviewNote.path)}</span>
+                      </div>
+                    </div>
+                    {neuralPreviewNote.content ? (
+                      <div className="memory-neural-preview-body">
+                        {isMarkdownDocument(neuralPreviewNote) ? (
+                          <AgentMarkdown>
+                            {readableContent(neuralPreviewNote)}
+                          </AgentMarkdown>
+                        ) : (
+                          <pre>{readableContent(neuralPreviewNote)}</pre>
+                        )}
+                      </div>
+                    ) : (
+                      <div className="memory-empty memory-neural-empty">
+                        {neuralPreviewNote.error || "Preview unavailable."}
+                      </div>
+                    )}
+                    <div className="memory-vault-actions">
+                      <button
+                        className="btn btn-secondary btn-sm"
+                        onClick={() =>
+                          void window.hermesAPI.openLocalPath(
+                            neuralPreviewNote.path,
+                          )
+                        }
+                      >
+                        Open
+                      </button>
+                      <button
+                        className="btn btn-secondary btn-sm"
+                        onClick={() =>
+                          void window.hermesAPI.revealLocalPath(
+                            neuralPreviewNote.path,
+                          )
+                        }
+                      >
+                        Reveal
+                      </button>
+                      <button
+                        className="btn btn-primary btn-sm"
+                        onClick={() => setTab("vault")}
+                      >
+                        Read / Edit
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="memory-neural-book">
+                    <BookOpen size={38} />
+                    <p>
+                      Select a brain node to preview the first matching Obsidian
+                      note here.
+                    </p>
+                  </div>
+                )}
+              </section>
+            </div>
+          </div>
+        )}
 
         {tab === "vault" && (
           <div className="memory-vault">

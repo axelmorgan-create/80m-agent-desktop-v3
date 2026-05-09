@@ -1,4 +1,10 @@
-import React, { useState, useCallback, useEffect, ReactNode } from "react";
+import React, {
+  useState,
+  useCallback,
+  useEffect,
+  useRef,
+  ReactNode,
+} from "react";
 import Sidebar from "./Sidebar";
 import ChatArea from "./ChatArea";
 import Settings from "./Settings";
@@ -15,6 +21,7 @@ import CommandPalette from "./CommandPalette";
 import AgentPreviewPanel from "./AgentPreviewPanel";
 import ProjectsSidebar from "./ProjectsSidebar";
 import {
+  Brain,
   Columns2,
   Eye,
   Folder,
@@ -38,6 +45,17 @@ type View =
   | "kanban";
 
 type ConversationViewMode = "tabs" | "split";
+
+const DEFAULT_PREVIEW_WIDTH = 520;
+const MIN_PREVIEW_WIDTH = 420;
+
+function clampPreviewWidth(width: number): number {
+  const maxWidth =
+    typeof window === "undefined"
+      ? 920
+      : Math.max(MIN_PREVIEW_WIDTH, Math.min(1080, window.innerWidth - 360));
+  return Math.min(Math.max(width, MIN_PREVIEW_WIDTH), maxWidth);
+}
 
 interface ConversationTab {
   id: string;
@@ -76,6 +94,13 @@ const Layout80m: React.FC = () => {
   const [activeView, setActiveView] = useState<View>("chat");
   const [showCommandPalette, setShowCommandPalette] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
+  const [previewWidth, setPreviewWidth] = useState(() => {
+    const saved = Number(localStorage.getItem("80m-agent-preview-width"));
+    return Number.isFinite(saved)
+      ? clampPreviewWidth(saved)
+      : DEFAULT_PREVIEW_WIDTH;
+  });
+  const previewResizeCleanupRef = useRef<(() => void) | null>(null);
   const [activeChatRuns, setActiveChatRuns] = useState(0);
   const [runningConversationIds, setRunningConversationIds] = useState<
     Set<string>
@@ -288,6 +313,60 @@ const Layout80m: React.FC = () => {
       window.removeEventListener("open-agent-preview-url", handlePreviewUrl);
   }, []);
 
+  const handlePreviewResizeStart = useCallback(
+    (event: React.MouseEvent<HTMLDivElement>) => {
+      event.preventDefault();
+      previewResizeCleanupRef.current?.();
+      document.body.classList.add("agent-preview-resizing");
+
+      const handleMouseMove = (moveEvent: MouseEvent) => {
+        if (moveEvent.buttons === 0) {
+          previewResizeCleanupRef.current?.();
+          return;
+        }
+        const nextWidth = clampPreviewWidth(
+          window.innerWidth - moveEvent.clientX,
+        );
+        setPreviewWidth(nextWidth);
+        localStorage.setItem("80m-agent-preview-width", String(nextWidth));
+      };
+
+      const handleVisibilityChange = () => {
+        if (document.visibilityState === "hidden") {
+          previewResizeCleanupRef.current?.();
+        }
+      };
+
+      const cleanup = () => {
+        document.body.classList.remove("agent-preview-resizing");
+        window.removeEventListener("mousemove", handleMouseMove);
+        window.removeEventListener("mouseup", cleanup);
+        window.removeEventListener("blur", cleanup);
+        document.removeEventListener("mouseleave", cleanup);
+        document.removeEventListener(
+          "visibilitychange",
+          handleVisibilityChange,
+        );
+        previewResizeCleanupRef.current = null;
+      };
+
+      previewResizeCleanupRef.current = cleanup;
+      window.addEventListener("mousemove", handleMouseMove);
+      window.addEventListener("mouseup", cleanup);
+      window.addEventListener("blur", cleanup);
+      document.addEventListener("mouseleave", cleanup);
+      document.addEventListener("visibilitychange", handleVisibilityChange);
+    },
+    [],
+  );
+
+  useEffect(
+    () => () => {
+      previewResizeCleanupRef.current?.();
+    },
+    [],
+  );
+
   const renderMainContent = () => {
     const wrap = (_title: string, el: ReactNode) => (
       <div className="main-80m">
@@ -322,6 +401,16 @@ const Layout80m: React.FC = () => {
           }}
         >
           <div className="conversation-toolbar">
+            <button
+              className={`conversation-icon-btn conversation-brain-btn${activeView === "memory" ? " active" : ""}`}
+              onClick={() => setActiveView("memory")}
+              title="Second Brain"
+              type="button"
+            >
+              <span className="conversation-brain-pulse">
+                <Brain size={15} />
+              </span>
+            </button>
             <button
               className={`conversation-icon-btn conversation-project-btn${activeProject ? " active" : ""}`}
               onClick={handleSelectProjectFolder}
@@ -606,7 +695,30 @@ const Layout80m: React.FC = () => {
         selectedAgent={selectedAgent}
         onAgentChange={handleAgentChange}
       />
-      {renderMainContent()}
+      <div className={`layout-80m-body${showPreview ? " preview-open" : ""}`}>
+        <div className="layout-80m-primary">{renderMainContent()}</div>
+        {showPreview && (
+          <aside
+            className="agent-preview-dock"
+            style={{ width: previewWidth }}
+            aria-label="Agent browser preview"
+          >
+            <div
+              className="agent-preview-resize-handle"
+              onMouseDown={handlePreviewResizeStart}
+              role="separator"
+              aria-orientation="vertical"
+              title="Resize Preview"
+            />
+            <AgentPreviewPanel
+              isOpen={showPreview}
+              onClose={() => setShowPreview(false)}
+              activeProject={activeProject}
+              isAgentWorking={activeChatRuns > 0}
+            />
+          </aside>
+        )}
+      </div>
 
       <CommandPalette
         isOpen={showCommandPalette}
@@ -619,13 +731,6 @@ const Layout80m: React.FC = () => {
           handleNewSession();
           setShowCommandPalette(false);
         }}
-      />
-
-      <AgentPreviewPanel
-        isOpen={showPreview}
-        onClose={() => setShowPreview(false)}
-        activeProject={activeProject}
-        isAgentWorking={activeChatRuns > 0}
       />
 
       {/* Expose toggle for Ctrl+K via a custom event */}

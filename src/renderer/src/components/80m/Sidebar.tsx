@@ -1,9 +1,9 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import AtmMascot from "./AtmMascot";
 import Animated80MLogo from "../Animated80MLogo";
 import { useTheme } from "../ThemeProvider";
-import { Brain, KanbanSquare, Plus } from "lucide-react";
+import { Check, ChevronDown, KanbanSquare, Plus } from "lucide-react";
 import { useProfiles } from "../../hooks/useProfiles";
 
 interface Session {
@@ -69,6 +69,8 @@ const Sidebar: React.FC<SidebarProps> = ({
 }) => {
   const [sessions, setSessions] = useState<Session[]>([]);
   const { profiles } = useProfiles();
+  const agentPickerRef = useRef<HTMLDivElement | null>(null);
+  const [agentMenuOpen, setAgentMenuOpen] = useState(false);
   const [mascotState, setMascotState] = useState<
     | "default"
     | "processing"
@@ -90,6 +92,46 @@ const Sidebar: React.FC<SidebarProps> = ({
   const nextTheme =
     theme === "system" ? "light" : theme === "light" ? "dark" : "system";
   const themeToggleLabel = `Theme: ${themeLabel(theme)}. Click for ${themeLabel(nextTheme)}.`;
+
+  const agentOptions = [
+    { name: "default", label: "80M Agent" },
+    ...profiles
+      .filter((p) => p.name !== "default")
+      .map((p) => ({ name: p.name, label: p.name })),
+  ];
+  const selectedAgentLabel =
+    agentOptions.find((agent) => agent.name === selectedAgent)?.label ||
+    selectedAgent;
+
+  const handleAgentSelect = useCallback(
+    (agent: string) => {
+      setAgentMenuOpen(false);
+      if (agent === selectedAgent) return;
+      playPowerUpSound();
+      onAgentChange(agent);
+    },
+    [onAgentChange, selectedAgent],
+  );
+
+  useEffect(() => {
+    if (!agentMenuOpen) return;
+
+    const handlePointerDown = (event: MouseEvent) => {
+      if (!agentPickerRef.current?.contains(event.target as Node)) {
+        setAgentMenuOpen(false);
+      }
+    };
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setAgentMenuOpen(false);
+    };
+
+    document.addEventListener("mousedown", handlePointerDown);
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.removeEventListener("mousedown", handlePointerDown);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [agentMenuOpen]);
 
   useEffect(() => {
     if (!window.hermesAPI) return;
@@ -267,18 +309,9 @@ const Sidebar: React.FC<SidebarProps> = ({
       ),
     },
     {
-      id: "soul",
-      label: "Soul",
-      icon: (
-        <svg
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2"
-        >
-          <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
-        </svg>
-      ),
+      id: "kanban",
+      label: "Kanban",
+      icon: <KanbanSquare size={18} />,
     },
     {
       id: "skills",
@@ -295,11 +328,6 @@ const Sidebar: React.FC<SidebarProps> = ({
       ),
     },
     {
-      id: "kanban",
-      label: "Kanban",
-      icon: <KanbanSquare size={18} />,
-    },
-    {
       id: "tools",
       label: "Tools",
       icon: (
@@ -310,6 +338,20 @@ const Sidebar: React.FC<SidebarProps> = ({
           strokeWidth="2"
         >
           <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z" />
+        </svg>
+      ),
+    },
+    {
+      id: "soul",
+      label: "Soul",
+      icon: (
+        <svg
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+        >
+          <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
         </svg>
       ),
     },
@@ -348,7 +390,7 @@ const Sidebar: React.FC<SidebarProps> = ({
   return (
     <div className="sidebar-80m">
       {/* Brand Header with logo + ATM mascot */}
-      <div className="sidebar-80m-brand">
+      <div className="sidebar-80m-brand" ref={agentPickerRef}>
         <div className="sidebar-80m-brand-row">
           <button
             type="button"
@@ -360,40 +402,63 @@ const Sidebar: React.FC<SidebarProps> = ({
             <Animated80MLogo />
           </button>
         </div>
-        <div className="sidebar-80m-atm-container">
-          <AtmMascot state={mascotState} />
-        </div>
-      </div>
-
-      {/* Agent Switcher — always visible */}
-      <div className="sidebar-80m-agent-switcher">
-        <select
-          className="sidebar-80m-agent-select"
-          value={selectedAgent}
-          onChange={(e) => {
-            playPowerUpSound();
-            onAgentChange(e.target.value);
-          }}
+        <motion.button
+          type="button"
+          className={`sidebar-80m-mascot-picker${agentMenuOpen ? " open" : ""}`}
+          onClick={() => setAgentMenuOpen((open) => !open)}
+          aria-expanded={agentMenuOpen}
+          aria-haspopup="listbox"
+          title={`Agent: ${selectedAgentLabel}`}
+          whileTap={{ scale: 0.96 }}
         >
-          <option value="default">Default Agent</option>
-          {profiles
-            .filter((p) => p.name !== "default")
-            .map((p) => (
-              <option key={p.name} value={p.name}>
-                {p.name}
-              </option>
-            ))}
-        </select>
+          <motion.div
+            key={selectedAgent}
+            className="sidebar-80m-atm-container"
+            initial={{ opacity: 0, scale: 0.72, y: 12, rotate: -6 }}
+            animate={{ opacity: 1, scale: 1, y: 0, rotate: 0 }}
+            transition={{ type: "spring", stiffness: 360, damping: 20 }}
+          >
+            <AtmMascot state={mascotState} />
+          </motion.div>
+          <span className="sidebar-80m-agent-chip">
+            <span>{selectedAgentLabel}</span>
+            <ChevronDown size={13} />
+          </span>
+        </motion.button>
+        <AnimatePresence>
+          {agentMenuOpen && (
+            <motion.div
+              className="sidebar-80m-agent-menu"
+              initial={{ opacity: 0, y: -8, scale: 0.98 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: -8, scale: 0.98 }}
+              transition={{ duration: 0.14, ease: "easeOut" }}
+              role="listbox"
+              aria-label="Agent profile"
+            >
+              {agentOptions.map((agent) => {
+                const active = agent.name === selectedAgent;
+                return (
+                  <button
+                    key={agent.name}
+                    type="button"
+                    className={`sidebar-80m-agent-menu-item${active ? " active" : ""}`}
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      handleAgentSelect(agent.name);
+                    }}
+                    role="option"
+                    aria-selected={active}
+                  >
+                    <span>{agent.label}</span>
+                    {active && <Check size={13} />}
+                  </button>
+                );
+              })}
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
-
-      <button
-        className={`sidebar-80m-second-brain${activeView === "memory" ? " active" : ""}`}
-        onClick={() => onViewChange("memory")}
-        title="Second Brain"
-      >
-        <Brain size={16} />
-        <span>Second Brain</span>
-      </button>
 
       {/* Navigation */}
       <div className="sidebar-80m-nav">
@@ -425,6 +490,7 @@ const Sidebar: React.FC<SidebarProps> = ({
         <AnimatePresence mode="wait">
           <motion.div
             key={selectedAgent}
+            className="sidebar-80m-session-list"
             initial={{ opacity: 0, y: 4 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -4 }}
