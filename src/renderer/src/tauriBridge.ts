@@ -178,6 +178,53 @@ export const installTauriBridge = (): void => {
           },
         },
       ),
+    getSettingsAudit: (profile) =>
+      call(
+        "get_settings_audit",
+        { profile },
+        {
+          profile: profile || "default",
+          createdAt: Date.now(),
+          summary: {
+            needsAttention: 1,
+            warnings: 1,
+            ready: 0,
+            optional: 0,
+            planGated: 0,
+            behindUpstream: 0,
+          },
+          buckets: {
+            needsAttention: [
+              {
+                id: "tauri-settings-audit",
+                title: "Settings audit is not ported to Tauri yet",
+                summary: fallbackNotice("get_settings_audit"),
+                severity: "warning",
+                category: "Tauri",
+                source: "tauri bridge",
+              },
+            ],
+            behindUpstream: [],
+            ready: [],
+            optional: [],
+            planGated: [],
+          },
+          cards: [],
+          raw: {},
+        },
+      ),
+    runSettingsAuditAction: (action, profile) =>
+      call(
+        "run_settings_audit_action",
+        { action, profile },
+        {
+          action,
+          createdAt: Date.now(),
+          success: false,
+          output: "",
+          error: fallbackNotice("run_settings_audit_action"),
+        },
+      ),
 
     checkOpenClaw: () =>
       call("check_open_claw", {}, { found: false, path: null }),
@@ -365,25 +412,51 @@ export const installTauriBridge = (): void => {
       call("get_session_messages", { sessionId }, []),
 
     listProfiles: () => call("list_profiles", {}, []),
-    createProfile: (name, clone) =>
-      call(
+    createProfile: async (name, options) => {
+      const result = await call(
         "create_profile",
-        { name, clone },
+        { name, options },
         {
           success: false,
           error: fallbackNotice("create_profile"),
         },
-      ),
-    deleteProfile: (name) =>
-      call(
+      );
+      if (result.success) {
+        emitLocal("profiles-changed", {
+          source: "create-profile",
+          createdAt: Date.now(),
+        });
+      }
+      return result;
+    },
+    deleteProfile: async (name) => {
+      const result = await call(
         "delete_profile",
         { name },
         {
           success: false,
           error: fallbackNotice("delete_profile"),
         },
-      ),
-    setActiveProfile: (name) => call("set_active_profile", { name }, false),
+      );
+      if (result.success) {
+        emitLocal("profiles-changed", {
+          source: "delete-profile",
+          createdAt: Date.now(),
+        });
+      }
+      return result;
+    },
+    setActiveProfile: async (name) => {
+      const ok = await call("set_active_profile", { name }, false);
+      if (ok) {
+        emitLocal("profiles-changed", {
+          source: "set-active-profile",
+          createdAt: Date.now(),
+        });
+      }
+      return ok;
+    },
+    onProfilesChanged: (callback) => onEvent("profiles-changed", callback),
 
     selectProjectDirectory: () => call("select_project_directory", {}, null),
     readDirectory: (dirPath) => call("read_directory", { dirPath }, []),
@@ -574,10 +647,10 @@ export const installTauriBridge = (): void => {
 
     listCronJobs: (includeDisabled, profile) =>
       call("list_cron_jobs", { includeDisabled, profile }, []),
-    createCronJob: (schedule, prompt, name, deliver, profile) =>
+    createCronJob: (schedule, prompt, name, deliver, profile, options) =>
       call(
         "create_cron_job",
-        { schedule, prompt, name, deliver, profile },
+        { schedule, prompt, name, deliver, profile, options },
         {
           success: false,
           error: fallbackNotice("create_cron_job"),
@@ -732,6 +805,8 @@ export const installTauriBridge = (): void => {
           error: fallbackNotice("run_hermes_import"),
         },
       ),
+    selectHermesImportArchive: () =>
+      call("select_hermes_import_archive", {}, null),
     runHermesDump: () =>
       call("run_hermes_dump", {}, fallbackNotice("run_hermes_dump")),
     runHermesCurator: (action, skill, profile) =>

@@ -61,10 +61,13 @@ describe("New IPC handlers from v0.8/v0.9 features", () => {
   const newChannels = [
     "run-hermes-backup",
     "run-hermes-import",
+    "select-hermes-import-archive",
     "read-logs",
     "run-hermes-dump",
     "list-mcp-servers",
     "discover-memory-providers",
+    "get-settings-audit",
+    "run-settings-audit-action",
   ];
 
   for (const ch of newChannels) {

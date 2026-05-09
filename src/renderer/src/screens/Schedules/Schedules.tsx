@@ -71,6 +71,9 @@ function Schedules({ profile }: SchedulesProps): React.JSX.Element {
   const [newName, setNewName] = useState("");
   const [newPrompt, setNewPrompt] = useState("");
   const [newDeliver, setNewDeliver] = useState("local");
+  const [newNoAgent, setNewNoAgent] = useState(false);
+  const [newScript, setNewScript] = useState("");
+  const [newWorkdir, setNewWorkdir] = useState("");
 
   // Schedule builder state
   const [frequency, setFrequency] = useState<FrequencyType>("daily");
@@ -113,6 +116,9 @@ function Schedules({ profile }: SchedulesProps): React.JSX.Element {
     setNewName("");
     setNewPrompt("");
     setNewDeliver("local");
+    setNewNoAgent(false);
+    setNewScript("");
+    setNewWorkdir("");
     setFrequency("daily");
     setMinutesInterval("30");
     setHourlyInterval("1");
@@ -147,6 +153,7 @@ function Schedules({ profile }: SchedulesProps): React.JSX.Element {
   }
 
   function isScheduleValid(): boolean {
+    if (newNoAgent && !newScript.trim()) return false;
     if (frequency === "custom") return customCron.trim().length > 0;
     if (frequency === "minutes") return parseInt(minutesInterval) > 0;
     if (frequency === "hourly") return parseInt(hourlyInterval) > 0;
@@ -164,6 +171,11 @@ function Schedules({ profile }: SchedulesProps): React.JSX.Element {
         newName.trim() || undefined,
         newDeliver !== "local" ? newDeliver : undefined,
         profile,
+        {
+          noAgent: newNoAgent,
+          script: newScript.trim() || undefined,
+          workdir: newWorkdir.trim() || undefined,
+        },
       );
       if (result.success) {
         closeCreateModal();
@@ -441,6 +453,39 @@ function Schedules({ profile }: SchedulesProps): React.JSX.Element {
                   onChange={(e) => setNewPrompt(e.target.value)}
                   rows={3}
                 />
+              </div>
+              <div className="schedules-field">
+                <label className="schedules-field-label">v0.13 Watchdog</label>
+                <label className="schedules-check-row">
+                  <input
+                    type="checkbox"
+                    checked={newNoAgent}
+                    onChange={(e) => setNewNoAgent(e.target.checked)}
+                  />
+                  Run script without an agent
+                </label>
+                {newNoAgent && (
+                  <div className="schedules-no-agent-grid">
+                    <input
+                      className="input"
+                      type="text"
+                      placeholder="~/.hermes/scripts/check-disk.sh"
+                      value={newScript}
+                      onChange={(e) => setNewScript(e.target.value)}
+                    />
+                    <input
+                      className="input"
+                      type="text"
+                      placeholder="Optional absolute workdir"
+                      value={newWorkdir}
+                      onChange={(e) => setNewWorkdir(e.target.value)}
+                    />
+                  </div>
+                )}
+                <div className="schedules-field-hint">
+                  No-agent jobs deliver script stdout directly; empty output is
+                  silent.
+                </div>
               </div>
               <div className="schedules-field">
                 <label className="schedules-field-label">

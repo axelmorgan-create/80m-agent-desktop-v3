@@ -1600,7 +1600,7 @@ fn count_installed_skills(home: &PathBuf) -> usize {
 
 fn active_profile_name() -> String {
     fs::read_to_string(hermes_home().join("active_profile"))
-        .map(|value| value.trim().to_string())
+        .map(|value| normalize_profile_name(Some(value.trim())))
         .ok()
         .filter(|value| !value.is_empty())
         .unwrap_or_else(|| "default".to_string())
@@ -2932,8 +2932,13 @@ fn list_profiles() -> Vec<ProfileInfo> {
             if !path.join("config.yaml").exists() && !path.join(".env").exists() {
                 continue;
             }
+            let raw_name = entry.file_name().to_string_lossy().to_string();
+            let profile_name = normalize_profile_name(Some(&raw_name));
+            if raw_name != profile_name || !is_valid_profile_name(Some(&profile_name)) {
+                continue;
+            }
             profiles.push(profile_info(
-                entry.file_name().to_string_lossy().to_string(),
+                profile_name,
                 path,
                 false,
                 &active,
@@ -2944,31 +2949,138 @@ fn list_profiles() -> Vec<ProfileInfo> {
 }
 
 #[tauri::command]
-fn create_profile(name: String, clone: bool) -> ActionResult {
-    let mut cmd = Command::new(hermes_python());
-    cmd.arg(hermes_script()).args(["profile", "create", &name]);
-    if clone {
-        cmd.arg("--clone");
+fn create_profile(name: String, options: Option<Value>, clone: Option<bool>) -> Value {
+    let profile_name = normalize_profile_name(Some(&name));
+    if profile_name == "default" || !is_valid_profile_name(Some(&profile_name)) {
+        return serde_json::json!({
+            "success": false,
+            "error": "Profile names must use lowercase letters, numbers, dashes, or underscores."
+        });
     }
+
+    let mode = match options.as_ref() {
+        Some(Value::Bool(value)) => {
+            if *value {
+                "clone"
+            } else {
+                "blank"
+            }
+        }
+        Some(Value::Object(map)) => map
+            .get("mode")
+            .and_then(Value::as_str)
+            .unwrap_or("clone"),
+        _ => {
+            if clone.unwrap_or(true) {
+                "clone"
+            } else {
+                "blank"
+            }
+        }
+    };
+    if !matches!(mode, "clone" | "blank" | "clone-all") {
+        return serde_json::json!({ "success": false, "error": "Unsupported profile creation mode." });
+    }
+
+    let mut args = vec!["profile".to_string(), "create".to_string(), profile_name.clone()];
+    if mode == "clone" {
+        args.push("--clone".to_string());
+    } else if mode == "clone-all" {
+        args.push("--clone-all".to_string());
+    }
+
+    if let Some(source) = options
+        .as_ref()
+        .and_then(|value| value.get("cloneFrom"))
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+    {
+        if mode == "blank" {
+            return serde_json::json!({
+                "success": false,
+                "error": "cloneFrom can only be used with clone or clone-all mode."
+            });
+        }
+        let source_name = normalize_profile_name(Some(source));
+        if !is_valid_profile_name(Some(&source_name)) {
+            return serde_json::json!({
+                "success": false,
+                "error": "Source profile names must use lowercase letters, numbers, dashes, or underscores."
+            });
+        }
+        args.push("--clone-from".to_string());
+        args.push(source_name);
+    }
+
+    if options
+        .as_ref()
+        .and_then(|value| value.get("noAlias"))
+        .and_then(Value::as_bool)
+        .unwrap_or(false)
+    {
+        args.push("--no-alias".to_string());
+    }
+    if options
+        .as_ref()
+        .and_then(|value| value.get("noSkills"))
+        .and_then(Value::as_bool)
+        .unwrap_or(false)
+    {
+        args.push("--no-skills".to_string());
+    }
+
+    let mut cmd = Command::new(hermes_python());
+    cmd.arg(hermes_script()).args(args);
     cmd.current_dir(hermes_repo())
         .env("PATH", enhanced_path())
         .env("HERMES_HOME", hermes_home())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped());
-    command_result(cmd)
+    let result = command_result(cmd);
+    if !result.success {
+        return serde_json::to_value(result).unwrap_or_else(|_| {
+            serde_json::json!({ "success": false, "error": "Profile creation failed." })
+        });
+    }
+    let profile = list_profiles()
+        .into_iter()
+        .find(|profile| profile.name == profile_name);
+    match profile {
+        Some(profile) => serde_json::json!({
+            "success": true,
+            "name": profile_name,
+            "profile": profile,
+        }),
+        None => serde_json::json!({
+            "success": false,
+            "name": profile_name,
+            "error": format!("Hermes reported success, but profile '{profile_name}' was not found on disk."),
+        }),
+    }
 }
 
 #[tauri::command]
 fn delete_profile(name: String) -> ActionResult {
-    if name == "default" {
+    let profile_name = normalize_profile_name(Some(&name));
+    if profile_name == "default" {
         return ActionResult {
             success: false,
             error: Some("Cannot delete the default profile".to_string()),
         };
     }
+    if !is_valid_profile_name(Some(&profile_name)) {
+        return ActionResult {
+            success: false,
+            error: Some(
+                "Profile names must use lowercase letters, numbers, dashes, or underscores."
+                    .to_string(),
+            ),
+        };
+    }
     let mut cmd = Command::new(hermes_python());
     cmd.arg(hermes_script())
-        .args(["profile", "delete", &name, "--yes"])
+        .args(["profile", "delete", &profile_name, "--yes"])
         .current_dir(hermes_repo())
         .env("PATH", enhanced_path())
         .env("HERMES_HOME", hermes_home())
@@ -2979,9 +3091,13 @@ fn delete_profile(name: String) -> ActionResult {
 
 #[tauri::command]
 fn set_active_profile(name: String) -> Result<bool, String> {
+    let profile_name = normalize_profile_name(Some(&name));
+    if !is_valid_profile_name(Some(&profile_name)) {
+        return Ok(false);
+    }
     let mut cmd = Command::new(hermes_python());
     cmd.arg(hermes_script())
-        .args(["profile", "use", &name])
+        .args(["profile", "use", &profile_name])
         .current_dir(hermes_repo())
         .env("PATH", enhanced_path())
         .env("HERMES_HOME", hermes_home())
@@ -4352,6 +4468,19 @@ fn list_kanban_board(options: Option<Value>) -> Value {
         vec!["assignees".to_string(), "--json".to_string()],
         board.as_deref(),
     );
+    let mut assignees = assignees_result
+        .get("data")
+        .and_then(Value::as_array)
+        .cloned()
+        .unwrap_or_default();
+    for profile in list_profiles() {
+        assignees.push(serde_json::json!({
+            "name": profile.name,
+            "on_disk": true,
+            "spawnable": true,
+            "counts": {},
+        }));
+    }
     let stats_result = run_kanban_json(
         vec!["stats".to_string(), "--json".to_string()],
         board.as_deref(),
@@ -4363,13 +4492,7 @@ fn list_kanban_board(options: Option<Value>) -> Value {
             "tasks": tasks,
             "columns": build_kanban_columns(&tasks),
             "boards": boards_result.get("data").cloned().unwrap_or_else(|| serde_json::json!([])),
-            "assignees": normalize_kanban_assignees(
-                assignees_result
-                    .get("data")
-                    .and_then(Value::as_array)
-                    .map(Vec::as_slice)
-                    .unwrap_or(&[])
-            ),
+            "assignees": normalize_kanban_assignees(&assignees),
             "stats": stats_result.get("data").cloned().unwrap_or_else(|| serde_json::json!({
                 "by_status": {},
                 "by_assignee": {},

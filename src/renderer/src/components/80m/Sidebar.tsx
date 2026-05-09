@@ -2,18 +2,15 @@ import React, { useState, useEffect, useCallback } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import AtmMascot from "./AtmMascot";
 import Animated80MLogo from "../Animated80MLogo";
+import { useTheme } from "../ThemeProvider";
 import { Brain, KanbanSquare, Plus } from "lucide-react";
+import { useProfiles } from "../../hooks/useProfiles";
 
 interface Session {
   id: string;
   name: string;
   agent: string;
   updatedAt: number;
-}
-
-interface Profile {
-  name: string;
-  isActive: boolean;
 }
 
 interface SidebarProps {
@@ -57,6 +54,11 @@ const playPowerUpSound = () => {
   }
 };
 
+function themeLabel(theme: "system" | "light" | "dark"): string {
+  if (theme === "dark") return "Night";
+  return theme === "light" ? "Light" : "System";
+}
+
 const Sidebar: React.FC<SidebarProps> = ({
   onSelectSession,
   currentSession,
@@ -66,7 +68,7 @@ const Sidebar: React.FC<SidebarProps> = ({
   onAgentChange,
 }) => {
   const [sessions, setSessions] = useState<Session[]>([]);
-  const [profiles, setProfiles] = useState<Profile[]>([]);
+  const { profiles } = useProfiles();
   const [mascotState, setMascotState] = useState<
     | "default"
     | "processing"
@@ -84,6 +86,10 @@ const Sidebar: React.FC<SidebarProps> = ({
     null,
   );
   const mascotPulseRef = React.useRef(0);
+  const { theme, setTheme } = useTheme();
+  const nextTheme =
+    theme === "system" ? "light" : theme === "light" ? "dark" : "system";
+  const themeToggleLabel = `Theme: ${themeLabel(theme)}. Click for ${themeLabel(nextTheme)}.`;
 
   useEffect(() => {
     if (!window.hermesAPI) return;
@@ -217,19 +223,6 @@ const Sidebar: React.FC<SidebarProps> = ({
     } catch (_) {}
   }, [selectedAgent]);
 
-  const loadProfiles = useCallback(async () => {
-    if (!window.hermesAPI) return;
-    try {
-      const list = await window.hermesAPI.listProfiles();
-      setProfiles(
-        (list || []).map((p) => ({
-          name: p.name,
-          isActive: p.isActive,
-        })),
-      );
-    } catch (_) {}
-  }, []);
-
   useEffect(() => {
     loadSessions();
   }, [loadSessions, currentSession]);
@@ -241,10 +234,6 @@ const Sidebar: React.FC<SidebarProps> = ({
     window.addEventListener("sessions-updated", refresh);
     return () => window.removeEventListener("sessions-updated", refresh);
   }, [loadSessions]);
-
-  useEffect(() => {
-    loadProfiles();
-  }, [loadProfiles]);
 
   // Nav items for the 80m app
   const navItems = [
@@ -361,7 +350,15 @@ const Sidebar: React.FC<SidebarProps> = ({
       {/* Brand Header with logo + ATM mascot */}
       <div className="sidebar-80m-brand">
         <div className="sidebar-80m-brand-row">
-          <Animated80MLogo />
+          <button
+            type="button"
+            className="sidebar-80m-logo-toggle"
+            onClick={() => setTheme(nextTheme)}
+            aria-label={themeToggleLabel}
+            title={themeToggleLabel}
+          >
+            <Animated80MLogo />
+          </button>
         </div>
         <div className="sidebar-80m-atm-container">
           <AtmMascot state={mascotState} />

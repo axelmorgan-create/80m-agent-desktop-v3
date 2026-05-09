@@ -6,6 +6,7 @@ import { existsSync } from "fs";
 import {
   HERMES_HOME,
   HERMES_PYTHON,
+  HERMES_REPO,
   HERMES_SCRIPT,
   getEnhancedPath,
 } from "./installer";
@@ -24,6 +25,86 @@ export interface ProfileInfo {
   hasSoul: boolean;
   skillCount: number;
   gatewayRunning: boolean;
+}
+
+export type ProfileCreateMode = "clone" | "blank" | "clone-all";
+
+export interface ProfileCreateOptions {
+  mode?: ProfileCreateMode;
+  cloneFrom?: string;
+  noAlias?: boolean;
+  noSkills?: boolean;
+}
+
+export interface ProfileCreateResult {
+  success: boolean;
+  name?: string;
+  profile?: ProfileInfo;
+  error?: string;
+}
+
+export function normalizeProfileCreateOptions(
+  options?: boolean | ProfileCreateOptions,
+): Required<Pick<ProfileCreateOptions, "mode">> &
+  Omit<ProfileCreateOptions, "mode"> {
+  if (typeof options === "boolean") {
+    return { mode: options ? "clone" : "blank" };
+  }
+  return {
+    ...options,
+    mode: options?.mode || "clone",
+  };
+}
+
+export function buildCreateProfileArgs(
+  name: string,
+  options?: boolean | ProfileCreateOptions,
+):
+  | { success: true; profileName: string; args: string[] }
+  | {
+      success: false;
+      error: string;
+    } {
+  const profileName = normalizeProfileName(name);
+  if (!isValidProfileName(profileName) || profileName === "default") {
+    return {
+      success: false,
+      error:
+        "Profile names must use lowercase letters, numbers, dashes, or underscores.",
+    };
+  }
+
+  const resolved = normalizeProfileCreateOptions(options);
+  if (!["clone", "blank", "clone-all"].includes(resolved.mode)) {
+    return { success: false, error: "Unsupported profile creation mode." };
+  }
+
+  const args = ["profile", "create", profileName];
+  if (resolved.mode === "clone") args.push("--clone");
+  if (resolved.mode === "clone-all") args.push("--clone-all");
+
+  if (resolved.cloneFrom?.trim()) {
+    if (resolved.mode === "blank") {
+      return {
+        success: false,
+        error: "cloneFrom can only be used with clone or clone-all mode.",
+      };
+    }
+    const source = normalizeProfileName(resolved.cloneFrom);
+    if (!isValidProfileName(source)) {
+      return {
+        success: false,
+        error:
+          "Source profile names must use lowercase letters, numbers, dashes, or underscores.",
+      };
+    }
+    args.push("--clone-from", source);
+  }
+
+  if (resolved.noAlias) args.push("--no-alias");
+  if (resolved.noSkills) args.push("--no-skills");
+
+  return { success: true, profileName, args };
 }
 
 async function readProfileConfig(profilePath: string): Promise<{
@@ -186,24 +267,15 @@ export async function listProfiles(): Promise<ProfileInfo[]> {
   return profiles;
 }
 
-export function createProfile(
+export async function createProfile(
   name: string,
-  clone: boolean,
-): { success: boolean; name?: string; error?: string } {
+  options?: boolean | ProfileCreateOptions,
+): Promise<ProfileCreateResult> {
   try {
-    const profileName = normalizeProfileName(name);
-    if (!isValidProfileName(profileName)) {
-      return {
-        success: false,
-        error:
-          "Profile names must use lowercase letters, numbers, dashes, or underscores.",
-      };
-    }
-    const args = clone
-      ? ["profile", "create", profileName, "--clone"]
-      : ["profile", "create", profileName];
-    execFileSync(HERMES_PYTHON, [HERMES_SCRIPT, ...args], {
-      cwd: join(HERMES_HOME, "hermes-agent"),
+    const planned = buildCreateProfileArgs(name, options);
+    if (!planned.success) return planned;
+    execFileSync(HERMES_PYTHON, [HERMES_SCRIPT, ...planned.args], {
+      cwd: HERMES_REPO,
       env: {
         ...process.env,
         PATH: getEnhancedPath(),
@@ -211,9 +283,19 @@ export function createProfile(
         HERMES_HOME,
       },
       stdio: "pipe",
-      timeout: 15000,
+      timeout: 120000,
     });
-    return { success: true, name: profileName };
+    const profile = (await listProfiles()).find(
+      (item) => item.name === planned.profileName,
+    );
+    if (!profile) {
+      return {
+        success: false,
+        name: planned.profileName,
+        error: `Hermes reported success, but profile '${planned.profileName}' was not found on disk.`,
+      };
+    }
+    return { success: true, name: planned.profileName, profile };
   } catch (err) {
     const msg =
       (err as { stderr?: Buffer }).stderr?.toString() || (err as Error).message;

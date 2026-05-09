@@ -268,6 +268,23 @@ export default function Kanban(): React.JSX.Element {
     return () => window.clearInterval(timer);
   }, [loadBoard]);
 
+  useEffect(() => {
+    const refreshBoard = (): void => {
+      void loadBoard();
+    };
+    const unsubscribe = window.hermesAPI?.onProfilesChanged?.(refreshBoard);
+    window.addEventListener("focus", refreshBoard);
+    const handleVisibility = (): void => {
+      if (!document.hidden) refreshBoard();
+    };
+    document.addEventListener("visibilitychange", handleVisibility);
+    return () => {
+      unsubscribe?.();
+      window.removeEventListener("focus", refreshBoard);
+      document.removeEventListener("visibilitychange", handleVisibility);
+    };
+  }, [loadBoard]);
+
   const filteredColumns = useMemo(() => {
     if (!boardData) return EMPTY_COLUMNS;
     return COLUMNS.reduce(

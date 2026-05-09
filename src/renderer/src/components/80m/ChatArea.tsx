@@ -5,18 +5,30 @@ import InputBar from "./InputBar";
 import type { Message } from "./Messages";
 
 interface ChatAreaProps {
+  conversationId?: string;
   currentSession: string | null;
-  onNewSession: () => void;
+  onNewSession?: () => void;
   onSessionChange?: (sessionId: string | null) => void;
   profile?: string;
   activeProject?: string | null;
+  isAudible?: boolean;
 }
 
 interface ActiveRequest {
   id: string;
   sessionId: string | null;
+  displaySessionId: string | null;
   localKey: string;
   response: string;
+  kind: "foreground" | "background";
+}
+
+interface QueuedChatTurn {
+  id: string;
+  text: string;
+  mode: "queue" | "steer";
+  messageId: string;
+  createdAt: number;
 }
 
 interface DroppedAttachment {
@@ -176,6 +188,36 @@ function makeAssistantMessage(req: ActiveRequest): Message | null {
   };
 }
 
+function requestDisplaySession(req: ActiveRequest): string | null {
+  return req.displaySessionId ?? req.sessionId;
+}
+
+function parseBusyCommand(text: string): {
+  command: "queue" | "steer" | "background" | null;
+  payload: string;
+} {
+  const trimmed = text.trim();
+  const match = trimmed.match(/^\/(queue|q|steer|background|bg|btw)\b\s*/i);
+  if (!match) return { command: null, payload: trimmed };
+  const raw = match[1].toLowerCase();
+  const command =
+    raw === "q"
+      ? "queue"
+      : raw === "bg" || raw === "btw"
+        ? "background"
+        : (raw as "queue" | "steer" | "background");
+  return { command, payload: trimmed.slice(match[0].length).trim() };
+}
+
+function buildSteerTurnPrompt(text: string): string {
+  return [
+    "[Steering note sent while the previous run was active]",
+    text,
+    "",
+    "Use this to adjust the work in the current conversation and continue from the latest state.",
+  ].join("\n");
+}
+
 function makeToolProgressMessage(
   req: ActiveRequest,
   payload: ChatToolProgressPayload,
@@ -205,11 +247,13 @@ function makeToolProgressMessage(
 }
 
 const ChatArea: React.FC<ChatAreaProps> = ({
+  conversationId,
   currentSession,
   onNewSession,
   onSessionChange,
   profile,
   activeProject,
+  isAudible = true,
 }) => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [loadingRequestId, setLoadingRequestId] = useState<string | null>(null);
@@ -218,12 +262,23 @@ const ChatArea: React.FC<ChatAreaProps> = ({
     id: string;
     text: string;
   } | null>(null);
+  const [queuedTurns, setQueuedTurns] = useState<QueuedChatTurn[]>([]);
+  const [busySendMode, setBusySendMode] = useState<
+    "queue" | "steer" | "background"
+  >(() => {
+    const saved = localStorage.getItem("hermes-chat-busy-send-mode");
+    return saved === "queue" || saved === "steer" || saved === "background"
+      ? saved
+      : "queue";
+  });
 
   const messagesRef = useRef<Message[]>([]);
+  const rootRef = useRef<HTMLDivElement>(null);
   const currentSessionRef = useRef<string | null>(currentSession);
   const activeRequestsRef = useRef<Record<string, ActiveRequest>>({});
   const visibleRequestIdRef = useRef<string | null>(null);
   const pendingMessagesRef = useRef<Record<string, Message[]>>({});
+  const queuedTurnsRef = useRef<QueuedChatTurn[]>([]);
   const dragDepthRef = useRef(0);
 
   useEffect(() => {
@@ -233,6 +288,15 @@ const ChatArea: React.FC<ChatAreaProps> = ({
   useEffect(() => {
     currentSessionRef.current = currentSession;
   }, [currentSession]);
+
+  useEffect(() => {
+    localStorage.setItem("hermes-chat-busy-send-mode", busySendMode);
+  }, [busySendMode]);
+
+  const updateQueuedTurns = useCallback((next: QueuedChatTurn[]) => {
+    queuedTurnsRef.current = next;
+    setQueuedTurns(next);
+  }, []);
 
   const playDoneSound = useCallback(() => {
     try {
@@ -342,8 +406,12 @@ const ChatArea: React.FC<ChatAreaProps> = ({
   }, []);
 
   const findRequestForSession = useCallback((targetSession: string | null) => {
-    return Object.values(activeRequestsRef.current).find((req) =>
-      targetSession ? req.sessionId === targetSession : req.sessionId === null,
+    return Object.values(activeRequestsRef.current).find(
+      (req) =>
+        req.kind === "foreground" &&
+        (targetSession
+          ? requestDisplaySession(req) === targetSession
+          : requestDisplaySession(req) === null),
     );
   }, []);
 
@@ -351,6 +419,7 @@ const ChatArea: React.FC<ChatAreaProps> = ({
     if (requestId && activeRequestsRef.current[requestId]) {
       return activeRequestsRef.current[requestId];
     }
+    if (requestId) return null;
     return Object.values(activeRequestsRef.current)[0] || null;
   }, []);
 
@@ -370,6 +439,13 @@ const ChatArea: React.FC<ChatAreaProps> = ({
     );
   }, []);
 
+  const isRequestVisible = useCallback((req: ActiveRequest) => {
+    return (
+      visibleRequestIdRef.current === req.id ||
+      requestDisplaySession(req) === currentSessionRef.current
+    );
+  }, []);
+
   const buildOverlayMessages = useCallback((targetSession: string | null) => {
     const direct =
       targetSession !== null
@@ -378,8 +454,8 @@ const ChatArea: React.FC<ChatAreaProps> = ({
     const active = Object.values(activeRequestsRef.current)
       .filter((req) =>
         targetSession
-          ? req.sessionId === targetSession
-          : req.sessionId === null,
+          ? requestDisplaySession(req) === targetSession
+          : requestDisplaySession(req) === null,
       )
       .flatMap((req) => {
         const pending =
@@ -431,11 +507,253 @@ const ChatArea: React.FC<ChatAreaProps> = ({
   ]);
 
   useEffect(() => {
-    const container = document.querySelector(".messages-80m");
+    const container = rootRef.current?.querySelector(".messages-80m");
     if (container) {
       container.scrollTop = container.scrollHeight;
     }
   }, [messages, loadingRequestId]);
+
+  const startChatRequest = useCallback(
+    async (
+      text: string,
+      options: {
+        kind?: "foreground" | "background";
+        displayUserMessage?: boolean;
+        sessionId?: string | null;
+        displaySessionId?: string | null;
+        excludeMessageId?: string;
+      } = {},
+    ) => {
+      if (!window.hermesAPI) return;
+
+      const kind = options.kind || "foreground";
+      const requestId = `chat-${Date.now()}-${Math.random()
+        .toString(16)
+        .slice(2)}`;
+      const activeSessionId =
+        kind === "background"
+          ? null
+          : options.sessionId !== undefined
+            ? options.sessionId
+            : currentSessionRef.current;
+      const displaySessionId =
+        options.displaySessionId !== undefined
+          ? options.displaySessionId
+          : currentSessionRef.current;
+      const localKey =
+        displaySessionId ||
+        activeSessionId ||
+        `${kind === "background" ? "background" : "request"}:${requestId}`;
+      const displayUserMessage = options.displayUserMessage !== false;
+
+      const userMsg: Message = {
+        id: `user-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+        role: "user",
+        content: text,
+      };
+
+      if (displayUserMessage) {
+        pendingMessagesRef.current[localKey] = [
+          ...(pendingMessagesRef.current[localKey] || []),
+          userMsg,
+        ];
+        setMessages((prev) => [...prev, userMsg]);
+      }
+
+      const initialResponse =
+        kind === "background" ? "**Background run started**\n\n" : "";
+      const request: ActiveRequest = {
+        id: requestId,
+        sessionId: activeSessionId,
+        displaySessionId,
+        localKey,
+        response: initialResponse,
+        kind,
+      };
+      activeRequestsRef.current[requestId] = request;
+
+      if (kind === "foreground") {
+        visibleRequestIdRef.current = requestId;
+        setLoadingRequestId(requestId);
+        if (!activeSessionId) onNewSession?.();
+      } else if (isRequestVisible(request)) {
+        const assistant = makeAssistantMessage(request);
+        if (assistant) setMessages((prev) => upsertMessage(prev, assistant));
+      }
+
+      window.dispatchEvent(
+        new CustomEvent("chat-started", {
+          detail: {
+            conversationId,
+            requestId,
+            sessionId: activeSessionId,
+            background: kind === "background",
+          },
+        }),
+      );
+
+      try {
+        const history =
+          kind === "background"
+            ? []
+            : messagesRef.current
+                .filter(
+                  (msg) =>
+                    msg.id !== options.excludeMessageId &&
+                    (msg.role === "user" || msg.role === "assistant"),
+                )
+                .slice(-20)
+                .map((msg) => ({ role: msg.role, content: msg.content }));
+        await window.hermesAPI.sendMessage(
+          text,
+          profile || "default",
+          activeSessionId || undefined,
+          history,
+          activeProject,
+          requestId,
+        );
+      } catch (err) {
+        const req = activeRequestsRef.current[requestId];
+        if (!req) return;
+        const errorMsg: Message = {
+          id: `error-${requestId}`,
+          role: "assistant",
+          content: `**Error:** ${err}`,
+        };
+        cacheOverlayMessage(req.localKey, errorMsg);
+        delete activeRequestsRef.current[requestId];
+        syncVisibleLoading();
+        window.dispatchEvent(
+          new CustomEvent("chat-finished", {
+            detail: {
+              conversationId,
+              requestId,
+              error: String(err),
+              background: kind === "background",
+            },
+          }),
+        );
+        if (isRequestVisible(req)) {
+          setMessages((prev) => upsertMessage(prev, errorMsg));
+        }
+      }
+    },
+    [
+      activeProject,
+      cacheOverlayMessage,
+      conversationId,
+      isRequestVisible,
+      onNewSession,
+      profile,
+      syncVisibleLoading,
+    ],
+  );
+
+  const drainQueuedTurn = useCallback(
+    async (preferredSessionId?: string | null) => {
+      const [next, ...rest] = queuedTurnsRef.current;
+      if (!next) return;
+      updateQueuedTurns(rest);
+      const text =
+        next.mode === "steer" ? buildSteerTurnPrompt(next.text) : next.text;
+      await startChatRequest(text, {
+        kind: "foreground",
+        displayUserMessage: false,
+        sessionId:
+          preferredSessionId !== undefined
+            ? preferredSessionId
+            : currentSessionRef.current,
+        excludeMessageId: next.messageId,
+      });
+    },
+    [startChatRequest, updateQueuedTurns],
+  );
+
+  const enqueueBusyTurn = useCallback(
+    (text: string, mode: "queue" | "steer") => {
+      const request = loadingRequestId
+        ? activeRequestsRef.current[loadingRequestId]
+        : null;
+      const localKey =
+        currentSessionRef.current ||
+        request?.localKey ||
+        `queued:${Date.now()}`;
+      const messageId = `queued-user-${Date.now()}-${Math.random()
+        .toString(16)
+        .slice(2)}`;
+      const userMsg: Message = {
+        id: messageId,
+        role: "user",
+        content: text,
+      };
+      pendingMessagesRef.current[localKey] = [
+        ...(pendingMessagesRef.current[localKey] || []),
+        userMsg,
+      ];
+      const next = [
+        ...queuedTurnsRef.current,
+        {
+          id: `queued-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+          text,
+          mode,
+          messageId,
+          createdAt: Date.now(),
+        },
+      ];
+      updateQueuedTurns(next);
+      setMessages((prev) => [...prev, userMsg]);
+      showToast(
+        mode === "steer" ? "Steer staged" : "Message queued",
+        mode === "steer"
+          ? "Hermes API has no native steer endpoint yet, so this will run at the next turn boundary."
+          : "This will send after the current run finishes.",
+        "info",
+      );
+    },
+    [loadingRequestId, showToast, updateQueuedTurns],
+  );
+
+  const handleSend = useCallback(
+    async (text: string) => {
+      const parsed = parseBusyCommand(text);
+      const command = parsed.command;
+      const payload = parsed.command ? parsed.payload : text.trim();
+      if (!payload) {
+        showToast("Missing prompt", "Add text after the command.", "warning");
+        return;
+      }
+
+      const isBusy = Boolean(loadingRequestId);
+      if (isBusy) {
+        const effectiveMode = command || busySendMode;
+        if (effectiveMode === "background") {
+          await startChatRequest(payload, { kind: "background" });
+          return;
+        }
+        enqueueBusyTurn(payload, effectiveMode);
+        return;
+      }
+
+      if (command === "background") {
+        await startChatRequest(payload, { kind: "background" });
+        return;
+      }
+
+      await startChatRequest(payload, { kind: "foreground" });
+    },
+    [
+      busySendMode,
+      enqueueBusyTurn,
+      loadingRequestId,
+      showToast,
+      startChatRequest,
+    ],
+  );
+
+  const handleStopRequest = useCallback(() => {
+    if (!loadingRequestId) return;
+    void window.hermesAPI?.abortChat(loadingRequestId);
+  }, [loadingRequestId]);
 
   useEffect(() => {
     if (!window.hermesAPI) return;
@@ -445,7 +763,7 @@ const ChatArea: React.FC<ChatAreaProps> = ({
         const req = resolveRequest(requestId);
         if (!req) return;
         req.response += chunk;
-        if (visibleRequestIdRef.current !== req.id) return;
+        if (!isRequestVisible(req)) return;
 
         playTypingSound();
         setMessages((prev) => {
@@ -462,7 +780,7 @@ const ChatArea: React.FC<ChatAreaProps> = ({
 
         const toolMsg = makeToolProgressMessage(req, tool);
         cacheOverlayMessage(req.localKey, toolMsg);
-        if (visibleRequestIdRef.current !== req.id) return;
+        if (!isRequestVisible(req)) return;
         setMessages((prev) => upsertMessage(prev, toolMsg));
       },
     );
@@ -472,20 +790,25 @@ const ChatArea: React.FC<ChatAreaProps> = ({
         const req = resolveRequest(requestId);
         if (!req) return;
 
-        const isVisible = visibleRequestIdRef.current === req.id;
+        const isVisible = isRequestVisible(req);
         const resolvedSessionId = newSessionId || req.sessionId || null;
+        const displaySessionId = requestDisplaySession(req);
+        const overlayKey =
+          req.kind === "background"
+            ? displaySessionId || req.localKey
+            : resolvedSessionId || req.localKey;
         const finalAssistant = makeAssistantMessage(req);
-        if (resolvedSessionId) {
+        if (overlayKey) {
           const finalMessages = [
             ...(pendingMessagesRef.current[req.localKey] || []),
             ...(finalAssistant ? [finalAssistant] : []),
           ];
-          pendingMessagesRef.current[resolvedSessionId] = mergeMessages(
-            pendingMessagesRef.current[resolvedSessionId] || [],
+          pendingMessagesRef.current[overlayKey] = mergeMessages(
+            pendingMessagesRef.current[overlayKey] || [],
             finalMessages,
           );
         }
-        if (resolvedSessionId !== req.localKey) {
+        if (overlayKey !== req.localKey) {
           delete pendingMessagesRef.current[req.localKey];
         }
         delete activeRequestsRef.current[req.id];
@@ -493,19 +816,43 @@ const ChatArea: React.FC<ChatAreaProps> = ({
         window.dispatchEvent(new CustomEvent("sessions-updated"));
         window.dispatchEvent(
           new CustomEvent("chat-finished", {
-            detail: { requestId: req.id, sessionId: resolvedSessionId },
+            detail: {
+              conversationId,
+              requestId: req.id,
+              sessionId: resolvedSessionId,
+              background: req.kind === "background",
+            },
           }),
         );
 
-        if (!isVisible) return;
+        if (req.kind === "background") {
+          if (isVisible && finalAssistant) {
+            setMessages((prev) => upsertMessage(prev, finalAssistant));
+          }
+          return;
+        }
+
+        const shouldDrainQueue = queuedTurnsRef.current.length > 0;
 
         onSessionChange?.(resolvedSessionId);
         if (resolvedSessionId) {
           loadSession(resolvedSessionId);
         }
 
-        playDoneSound();
-        void playTTS(req.response);
+        if (isAudible) {
+          playDoneSound();
+          void playTTS(req.response);
+        }
+
+        if (isVisible && finalAssistant) {
+          setMessages((prev) => upsertMessage(prev, finalAssistant));
+        }
+
+        if (shouldDrainQueue) {
+          window.setTimeout(() => {
+            void drainQueuedTurn(resolvedSessionId);
+          }, 0);
+        }
       },
     );
 
@@ -513,13 +860,13 @@ const ChatArea: React.FC<ChatAreaProps> = ({
       (error: string, requestId?: string) => {
         const req = resolveRequest(requestId);
         if (!req) return;
-        const isVisible = visibleRequestIdRef.current === req.id;
+        const isVisible = isRequestVisible(req);
         const errorMsg: Message = {
           id: `error-${req.id}`,
           role: "assistant" as const,
           content: `**Error:** ${error}`,
         };
-        const errorOverlayKey = req.sessionId || req.localKey;
+        const errorOverlayKey = requestDisplaySession(req) || req.localKey;
         cacheOverlayMessage(errorOverlayKey, errorMsg);
 
         if (errorOverlayKey !== req.localKey) {
@@ -529,12 +876,22 @@ const ChatArea: React.FC<ChatAreaProps> = ({
         syncVisibleLoading();
         window.dispatchEvent(
           new CustomEvent("chat-finished", {
-            detail: { requestId: req.id, error },
+            detail: {
+              conversationId,
+              requestId: req.id,
+              error,
+              background: req.kind === "background",
+            },
           }),
         );
 
         if (!isVisible) return;
         setMessages((prev) => upsertMessage(prev, errorMsg));
+        if (req.kind === "foreground" && queuedTurnsRef.current.length > 0) {
+          window.setTimeout(() => {
+            void drainQueuedTurn(req.sessionId);
+          }, 0);
+        }
       },
     );
 
@@ -546,6 +903,10 @@ const ChatArea: React.FC<ChatAreaProps> = ({
     };
   }, [
     cacheOverlayMessage,
+    conversationId,
+    drainQueuedTurn,
+    isAudible,
+    isRequestVisible,
     loadSession,
     onSessionChange,
     playDoneSound,
@@ -554,87 +915,6 @@ const ChatArea: React.FC<ChatAreaProps> = ({
     resolveRequest,
     syncVisibleLoading,
   ]);
-
-  const handleSend = useCallback(
-    async (text: string) => {
-      if (!window.hermesAPI) return;
-
-      const requestId = `chat-${Date.now()}-${Math.random()
-        .toString(16)
-        .slice(2)}`;
-      const activeSessionId = currentSessionRef.current;
-      const localKey = activeSessionId || `request:${requestId}`;
-      const alreadyRunning = Object.values(activeRequestsRef.current).some(
-        (req) => req.localKey === localKey,
-      );
-      if (alreadyRunning) return;
-
-      const userMsg: Message = {
-        id: `user-${Date.now()}`,
-        role: "user",
-        content: text,
-      };
-
-      pendingMessagesRef.current[localKey] = [
-        ...(pendingMessagesRef.current[localKey] || []),
-        userMsg,
-      ];
-      activeRequestsRef.current[requestId] = {
-        id: requestId,
-        sessionId: activeSessionId,
-        localKey,
-        response: "",
-      };
-      visibleRequestIdRef.current = requestId;
-      setLoadingRequestId(requestId);
-      setMessages((prev) => [...prev, userMsg]);
-
-      if (!activeSessionId) {
-        onNewSession();
-      }
-
-      window.dispatchEvent(
-        new CustomEvent("chat-started", {
-          detail: { requestId, sessionId: activeSessionId },
-        }),
-      );
-
-      try {
-        const history = messagesRef.current
-          .filter((msg) => msg.role === "user" || msg.role === "assistant")
-          .slice(-20)
-          .map((msg) => ({ role: msg.role, content: msg.content }));
-        await window.hermesAPI.sendMessage(
-          text,
-          profile || "default",
-          activeSessionId || undefined,
-          history,
-          activeProject,
-          requestId,
-        );
-      } catch (err) {
-        const req = activeRequestsRef.current[requestId];
-        if (!req) return;
-        delete pendingMessagesRef.current[localKey];
-        delete activeRequestsRef.current[requestId];
-        syncVisibleLoading();
-        window.dispatchEvent(
-          new CustomEvent("chat-finished", {
-            detail: { requestId, error: String(err) },
-          }),
-        );
-        setMessages((prev) => [
-          ...prev,
-          {
-            id: `error-${Date.now()}`,
-            role: "assistant" as const,
-            content: `**Error:** ${err}`,
-          },
-        ]);
-      }
-    },
-    [activeProject, onNewSession, profile, syncVisibleLoading],
-  );
 
   const resolveDroppedFilePaths = useCallback(
     (dataTransfer: DataTransfer): string[] => {
@@ -667,14 +947,6 @@ const ChatArea: React.FC<ChatAreaProps> = ({
     dragDepthRef.current = 0;
     setIsDraggingFiles(false);
     if (!window.hermesAPI || !hasDraggedFiles(e.dataTransfer)) return;
-    if (loadingRequestId) {
-      showToast(
-        "Drop paused",
-        "Wait for the current response to finish, then drop the file again.",
-        "warning",
-      );
-      return;
-    }
 
     try {
       const paths = resolveDroppedFilePaths(e.dataTransfer);
@@ -725,7 +997,7 @@ const ChatArea: React.FC<ChatAreaProps> = ({
   const handleDragOver = (e: React.DragEvent) => {
     if (!hasDraggedFiles(e.dataTransfer)) return;
     e.preventDefault();
-    e.dataTransfer.dropEffect = loadingRequestId ? "none" : "copy";
+    e.dataTransfer.dropEffect = "copy";
   };
 
   const handleDragEnter = (e: React.DragEvent) => {
@@ -744,6 +1016,7 @@ const ChatArea: React.FC<ChatAreaProps> = ({
 
   return (
     <div
+      ref={rootRef}
       className={`main-80m ${isDraggingFiles ? "file-drop-active" : ""}`}
       onDrop={handleDrop}
       onDragEnter={handleDragEnter}
@@ -761,7 +1034,11 @@ const ChatArea: React.FC<ChatAreaProps> = ({
       <Messages messages={messages} isLoading={Boolean(loadingRequestId)} />
       <InputBar
         onSend={handleSend}
-        disabled={Boolean(loadingRequestId)}
+        isBusy={Boolean(loadingRequestId)}
+        busyMode={busySendMode}
+        queuedCount={queuedTurns.length}
+        onBusyModeChange={setBusySendMode}
+        onStop={handleStopRequest}
         draftInsert={draftInsert}
         onDraftInsertConsumed={() => setDraftInsert(null)}
       />

@@ -11,6 +11,7 @@ import {
   HERMES_SCRIPT,
   getEnhancedPath,
 } from "./installer";
+import { listProfiles } from "./profiles";
 import { isValidProfileName, normalizeProfileName, stripAnsi } from "./utils";
 
 export type KanbanStatus =
@@ -389,19 +390,25 @@ export async function listKanbanBoard(
   if (options.tenant) listArgs.push("--tenant", options.tenant);
   if (options.includeArchived) listArgs.push("--archived");
 
-  const [tasksResult, boardsResult, assigneesResult, statsResult] =
-    await Promise.all([
-      runJson<KanbanTask[]>(listArgs, { board: options.board }),
-      runJson<KanbanBoard[]>(["boards", "list", "--json"], {
-        board: options.board,
-      }),
-      runJson<KanbanAssignee[]>(["assignees", "--json"], {
-        board: options.board,
-      }),
-      runJson<KanbanBoardData["stats"]>(["stats", "--json"], {
-        board: options.board,
-      }),
-    ]);
+  const [
+    tasksResult,
+    boardsResult,
+    assigneesResult,
+    statsResult,
+    profilesResult,
+  ] = await Promise.all([
+    runJson<KanbanTask[]>(listArgs, { board: options.board }),
+    runJson<KanbanBoard[]>(["boards", "list", "--json"], {
+      board: options.board,
+    }),
+    runJson<KanbanAssignee[]>(["assignees", "--json"], {
+      board: options.board,
+    }),
+    runJson<KanbanBoardData["stats"]>(["stats", "--json"], {
+      board: options.board,
+    }),
+    listProfiles().catch(() => []),
+  ]);
 
   if (!tasksResult.success) {
     return {
@@ -412,13 +419,22 @@ export async function listKanbanBoard(
   }
 
   const tasks = tasksResult.data || [];
+  const profileAssignees: KanbanAssignee[] = profilesResult.map((profile) => ({
+    name: profile.name,
+    on_disk: true,
+    spawnable: true,
+    counts: {},
+  }));
   return {
     success: true,
     data: {
       tasks,
       columns: buildColumns(tasks),
       boards: boardsResult.data || [],
-      assignees: normalizeKanbanAssignees(assigneesResult.data || []),
+      assignees: normalizeKanbanAssignees([
+        ...(assigneesResult.data || []),
+        ...profileAssignees,
+      ]),
       stats: statsResult.data || {
         by_status: {},
         by_assignee: {},

@@ -662,6 +662,15 @@ export async function runHermesBackup(
   });
 }
 
+export function validateHermesImportArchive(
+  archivePath: string,
+): string | null {
+  const archive = archivePath?.trim();
+  if (!archive) return "Choose a Hermes backup archive first.";
+  if (!existsSync(archive)) return `Backup archive not found: ${archive}`;
+  return null;
+}
+
 export async function runHermesImport(
   archivePath: string,
   profile?: string,
@@ -669,7 +678,10 @@ export async function runHermesImport(
   if (!existsSync(HERMES_PYTHON) || !existsSync(HERMES_SCRIPT)) {
     return { success: false, error: "80M is not installed." };
   }
-  const args = [HERMES_SCRIPT, "import", archivePath];
+  const archive = archivePath?.trim();
+  const validationError = validateHermesImportArchive(archive);
+  if (validationError) return { success: false, error: validationError };
+  const args = [HERMES_SCRIPT, "import", archive];
   if (profile && profile !== "default") args.push("-p", profile);
 
   return new Promise((resolve) => {
@@ -873,8 +885,15 @@ export async function runHermesCurator(
     case "resume":
       args = ["curator", "resume"];
       break;
+    case "list-archived":
+      args = ["curator", "list-archived"];
+      break;
+    case "prune":
+      args = ["curator", "prune", "--dry-run"];
+      break;
     case "pin":
     case "unpin":
+    case "archive":
     case "restore":
       if (!skill?.trim()) {
         return {

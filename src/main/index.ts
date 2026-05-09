@@ -219,6 +219,7 @@ import {
   createProfile,
   deleteProfile,
   setActiveProfile,
+  type ProfileCreateOptions,
 } from "./profiles";
 import {
   readMemory,
@@ -243,6 +244,7 @@ import {
   pauseCronJob,
   resumeCronJob,
   triggerCronJob,
+  type CronCreateOptions,
 } from "./cronjobs";
 import {
   assignKanbanTask,
@@ -256,6 +258,7 @@ import {
   type CreateKanbanTaskInput,
   type KanbanStatus,
 } from "./kanban";
+import { getSettingsAudit, runSettingsAuditAction } from "./settings-audit";
 import {
   bootstrapMobileAccess,
   disableTailscaleMobileAccess,
@@ -275,6 +278,67 @@ process.on("unhandledRejection", (reason) => {
 
 let mainWindow: BrowserWindow | null = null;
 const activeChatAborts = new Map<string, () => void>();
+let profileWatchers: fs.FSWatcher[] = [];
+let profileWatchDebounce: NodeJS.Timeout | null = null;
+
+function emitProfilesChanged(source: string): void {
+  mainWindow?.webContents.send("profiles-changed", {
+    source,
+    createdAt: Date.now(),
+  });
+}
+
+function scheduleProfilesChanged(source: string): void {
+  if (profileWatchDebounce) {
+    clearTimeout(profileWatchDebounce);
+  }
+  profileWatchDebounce = setTimeout(() => {
+    profileWatchDebounce = null;
+    emitProfilesChanged(source);
+  }, 250);
+}
+
+function stopProfileWatch(): void {
+  for (const watcher of profileWatchers) watcher.close();
+  profileWatchers = [];
+  if (profileWatchDebounce) {
+    clearTimeout(profileWatchDebounce);
+    profileWatchDebounce = null;
+  }
+}
+
+function startProfileWatch(): void {
+  stopProfileWatch();
+  const roots = [HERMES_HOME, join(HERMES_HOME, "profiles")];
+  for (const root of roots) {
+    if (!fs.existsSync(root)) continue;
+    try {
+      const watcher = fs.watch(
+        root,
+        { persistent: false },
+        (_event, filename) => {
+          const changed = filename ? String(filename) : "";
+          if (
+            root === HERMES_HOME &&
+            changed &&
+            changed !== "active_profile" &&
+            changed !== "profiles"
+          ) {
+            return;
+          }
+          scheduleProfilesChanged("filesystem");
+          if (root === HERMES_HOME || changed === "profiles") {
+            setTimeout(startProfileWatch, 500);
+          }
+        },
+      );
+      watcher.on("error", () => undefined);
+      profileWatchers.push(watcher);
+    } catch {
+      // Profile auto-discovery also has renderer focus/interval fallbacks.
+    }
+  }
+}
 
 interface WorkspaceFileChange {
   root: string;
@@ -1216,6 +1280,14 @@ function setupIPC(): void {
   ipcMain.handle("get-hermes-capabilities", (_event, profile?: string) =>
     getHermesCapabilities(profile),
   );
+  ipcMain.handle("get-settings-audit", (_event, profile?: string) =>
+    getSettingsAudit(profile),
+  );
+  ipcMain.handle(
+    "run-settings-audit-action",
+    (_event, action: string, profile?: string) =>
+      runSettingsAuditAction(action, profile),
+  );
 
   // OpenClaw migration
   ipcMain.handle("check-openclaw", () => checkOpenClawExists());
@@ -1634,14 +1706,22 @@ function setupIPC(): void {
 
   // Profiles
   ipcMain.handle("list-profiles", async () => listProfiles());
-  ipcMain.handle("create-profile", (_event, name: string, clone: boolean) =>
-    createProfile(name, clone),
+  ipcMain.handle(
+    "create-profile",
+    async (_event, name: string, options?: boolean | ProfileCreateOptions) => {
+      const result = await createProfile(name, options);
+      if (result.success) emitProfilesChanged("create-profile");
+      return result;
+    },
   );
-  ipcMain.handle("delete-profile", (_event, name: string) =>
-    deleteProfile(name),
-  );
+  ipcMain.handle("delete-profile", (_event, name: string) => {
+    const result = deleteProfile(name);
+    if (result.success) emitProfilesChanged("delete-profile");
+    return result;
+  });
   ipcMain.handle("set-active-profile", (_event, name: string) => {
     setActiveProfile(name);
+    emitProfilesChanged("set-active-profile");
     return true;
   });
 
@@ -1865,7 +1945,8 @@ function setupIPC(): void {
       name?: string,
       deliver?: string,
       profile?: string,
-    ) => createCronJob(schedule, prompt, name, deliver, profile),
+      options?: CronCreateOptions,
+    ) => createCronJob(schedule, prompt, name, deliver, profile, options),
   );
   ipcMain.handle("remove-cron-job", (_event, jobId: string, profile?: string) =>
     removeCronJob(jobId, profile),
@@ -1958,6 +2039,21 @@ function setupIPC(): void {
   ipcMain.handle("run-hermes-backup", (_event, profile?: string) =>
     runHermesBackup(profile),
   );
+  ipcMain.handle("select-hermes-import-archive", async () => {
+    if (!mainWindow) return null;
+    const result = await dialog.showOpenDialog(mainWindow, {
+      title: "Select Hermes Backup Archive",
+      properties: ["openFile"],
+      filters: [
+        {
+          name: "Hermes backup archives",
+          extensions: ["zip", "tgz", "gz", "tar"],
+        },
+        { name: "All files", extensions: ["*"] },
+      ],
+    });
+    return result.canceled ? null : result.filePaths[0] || null;
+  });
   ipcMain.handle(
     "run-hermes-import",
     (_event, archivePath: string, profile?: string) =>
@@ -2209,6 +2305,7 @@ app.whenReady().then(() => {
     console.error("Failed to bootstrap Tailscale mobile access:", error);
   });
   createWindow();
+  startProfileWatch();
   setupUpdater();
 
   app.on("activate", () => {
@@ -2231,6 +2328,7 @@ app.on("before-quit", () => {
   }
   activeChatAborts.clear();
   stopWorkspaceWatch();
+  stopProfileWatch();
   stopGateway();
   stopClaw3d();
   stopBrowserService();

@@ -27,6 +27,14 @@ export interface CronJob {
   session_title: string | null;
 }
 
+export interface CronCreateOptions {
+  repeat?: number | string;
+  skills?: string[];
+  script?: string;
+  noAgent?: boolean;
+  workdir?: string;
+}
+
 function jobsFilePath(profile?: string): string {
   return join(profileHome(profile), "cron", "jobs.json");
 }
@@ -151,18 +159,38 @@ export async function createCronJob(
   name?: string,
   deliver?: string,
   profile?: string,
+  options: CronCreateOptions = {},
 ): Promise<{ success: boolean; error?: string }> {
-  // Use -- to prevent prompt from being parsed as a flag
+  const args = buildCronCreateArgs(schedule, prompt, name, deliver, options);
+  const result = await runCronCommand(args, profile);
+  return { success: result.success, error: result.error };
+}
+
+export function buildCronCreateArgs(
+  schedule: string,
+  prompt?: string,
+  name?: string,
+  deliver?: string,
+  options: CronCreateOptions = {},
+): string[] {
   const args = ["create", schedule];
   if (name) args.push("--name", name);
   if (deliver) args.push("--deliver", deliver);
+  if (options.repeat != null && String(options.repeat).trim()) {
+    args.push("--repeat", String(options.repeat).trim());
+  }
+  for (const skill of options.skills || []) {
+    if (skill.trim()) args.push("--skill", skill.trim());
+  }
+  if (options.script?.trim()) args.push("--script", options.script.trim());
+  if (options.noAgent) args.push("--no-agent");
+  if (options.workdir?.trim()) args.push("--workdir", options.workdir.trim());
   if (prompt) {
+    // Use -- to prevent prompt from being parsed as a flag.
     args.push("--");
     args.push(prompt);
   }
-
-  const result = await runCronCommand(args, profile);
-  return { success: result.success, error: result.error };
+  return args;
 }
 
 export async function removeCronJob(

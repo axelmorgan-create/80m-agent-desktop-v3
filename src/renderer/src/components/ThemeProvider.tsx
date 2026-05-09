@@ -66,6 +66,11 @@ export function ThemeProvider({
   // Apply data-theme attribute to <html>
   useEffect(() => {
     document.documentElement.setAttribute("data-theme", resolved);
+    document.documentElement.style.colorScheme = resolved;
+    document.body?.setAttribute("data-theme", resolved);
+    if (document.body) {
+      document.body.style.colorScheme = resolved;
+    }
   }, [resolved]);
 
   return (

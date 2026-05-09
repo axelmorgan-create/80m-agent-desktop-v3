@@ -1,20 +1,8 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState } from "react";
 import { Plus, Trash, ChatBubble } from "../../assets/icons";
 import HermesLogo from "../../components/common/HermesLogo";
 import { useI18n } from "../../components/useI18n";
-
-interface ProfileInfo {
-  name: string;
-  path: string;
-  isDefault: boolean;
-  isActive: boolean;
-  model: string;
-  provider: string;
-  hasEnv: boolean;
-  hasSoul: boolean;
-  skillCount: number;
-  gatewayRunning: boolean;
-}
+import { useProfiles } from "../../hooks/useProfiles";
 
 interface AgentsProps {
   activeProfile: string;
@@ -41,8 +29,12 @@ function Agents({
   onChatWith,
 }: AgentsProps): React.JSX.Element {
   const { t } = useI18n();
-  const [profiles, setProfiles] = useState<ProfileInfo[]>([]);
-  const [loading, setLoading] = useState(true);
+  const {
+    profiles,
+    loading,
+    error: profileError,
+    refreshProfiles,
+  } = useProfiles();
   const [showCreate, setShowCreate] = useState(false);
   const [newName, setNewName] = useState("");
   const [cloneConfig, setCloneConfig] = useState(true);
@@ -50,27 +42,20 @@ function Agents({
   const [error, setError] = useState("");
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
 
-  const loadProfiles = useCallback(async (): Promise<void> => {
-    const list = await window.hermesAPI.listProfiles();
-    setProfiles(list);
-    setLoading(false);
-  }, []);
-
-  useEffect(() => {
-    loadProfiles();
-  }, [loadProfiles]);
-
   async function handleCreate(): Promise<void> {
     const name = newName.trim().toLowerCase();
     if (!name) return;
     setCreating(true);
     setError("");
-    const result = await window.hermesAPI.createProfile(name, cloneConfig);
+    const result = await window.hermesAPI.createProfile(name, {
+      mode: cloneConfig ? "clone" : "blank",
+      cloneFrom: activeProfile || "default",
+    });
     setCreating(false);
     if (result.success) {
       setShowCreate(false);
       setNewName("");
-      loadProfiles();
+      await refreshProfiles(false);
     } else {
       setError(result.error || t("agents.createFailed"));
     }
@@ -80,7 +65,7 @@ function Agents({
     const result = await window.hermesAPI.deleteProfile(name);
     if (result.success) {
       if (activeProfile === name) onSelectProfile("default");
-      loadProfiles();
+      await refreshProfiles(false);
     }
     setConfirmDelete(null);
   }
@@ -88,7 +73,7 @@ function Agents({
   async function handleSelect(name: string): Promise<void> {
     await window.hermesAPI.setActiveProfile(name);
     onSelectProfile(name);
-    loadProfiles();
+    await refreshProfiles(false);
   }
 
   function providerLabel(provider: string): string {
@@ -148,6 +133,9 @@ function Agents({
             <span>{t("agents.cloneConfig")}</span>
           </label>
           {error && <div className="agents-create-error">{error}</div>}
+          {profileError && (
+            <div className="agents-create-error">{profileError}</div>
+          )}
           <div className="agents-create-actions">
             <button
               className="btn btn-primary btn-sm"

@@ -3,7 +3,11 @@ import { motion, AnimatePresence } from "framer-motion";
 import QRCode from "qrcode";
 import {
   Activity,
+  AlertTriangle,
+  CheckCircle2,
+  Clock3,
   Copy,
+  Database,
   Download,
   ExternalLink,
   RefreshCw,
@@ -18,8 +22,11 @@ import {
   WifiOff,
   Info,
   Sparkles,
+  Terminal,
+  Wrench,
 } from "lucide-react";
 import Animated80MLogo from "../Animated80MLogo";
+import { useProfiles } from "../../hooks/useProfiles";
 
 interface Props {
   onBack: () => void;
@@ -27,6 +34,7 @@ interface Props {
 }
 
 type TabId =
+  | "overview"
   | "connection"
   | "mobile"
   | "health"
@@ -138,6 +146,54 @@ interface CuratorCommandResult {
     runJsonPath: string | null;
     runJson: unknown | null;
   };
+}
+
+type SettingsAuditBucket =
+  | "needsAttention"
+  | "behindUpstream"
+  | "ready"
+  | "optional"
+  | "planGated";
+
+interface SettingsAuditCard {
+  id: string;
+  title: string;
+  summary: string;
+  severity: "ok" | "info" | "warning" | "error";
+  category: string;
+  source: string;
+  details?: string;
+  docsUrl?: string;
+  commandPreview?: string;
+  action?: {
+    id: string;
+    label: string;
+    destructive?: boolean;
+  };
+}
+
+interface SettingsAudit {
+  profile: string;
+  createdAt: number;
+  summary: {
+    needsAttention: number;
+    warnings: number;
+    ready: number;
+    optional: number;
+    planGated: number;
+    behindUpstream: number;
+  };
+  buckets: Record<SettingsAuditBucket, SettingsAuditCard[]>;
+  cards: SettingsAuditCard[];
+  raw: Record<string, unknown>;
+}
+
+interface SettingsAuditActionResult {
+  action: string;
+  createdAt: number;
+  success: boolean;
+  output: string;
+  error?: string;
 }
 
 const NOUS_MODEL_PRESETS: Record<string, ModelPreset> = {
@@ -326,15 +382,8 @@ function buildActiveModelPresets(
   ];
 }
 
-interface Profile {
-  id: string;
-  name: string;
-  isActive: boolean;
-  createdAt: number;
-}
-
 const Settings80m: React.FC<Props> = ({ onBack, profile }) => {
-  const [activeTab, setActiveTab] = useState<TabId>("connection");
+  const [activeTab, setActiveTab] = useState<TabId>("overview");
   const [provider, setProvider] = useState("openrouter");
   const [model, setModel] = useState("");
   const [baseUrl, setBaseUrl] = useState("");
@@ -348,8 +397,17 @@ const Settings80m: React.FC<Props> = ({ onBack, profile }) => {
   const [apiKey, setApiKey] = useState("");
 
   // Profiles
-  const [profiles, setProfiles] = useState<Profile[]>([]);
+  const { profiles, refreshProfiles } = useProfiles();
   const [profileName, setProfileName] = useState("");
+  const [profileCreateMode, setProfileCreateMode] = useState<
+    "clone" | "blank" | "clone-all"
+  >("clone");
+  const [profileCloneFrom, setProfileCloneFrom] = useState(
+    profile || "default",
+  );
+  const [profileNoAlias, setProfileNoAlias] = useState(false);
+  const [profileNoSkills, setProfileNoSkills] = useState(false);
+  const [profileCreateResult, setProfileCreateResult] = useState("");
   const [creatingProfile, setCreatingProfile] = useState(false);
 
   // Backup/Import
@@ -369,6 +427,10 @@ const Settings80m: React.FC<Props> = ({ onBack, profile }) => {
     null,
   );
   const [capabilitiesLoading, setCapabilitiesLoading] = useState(false);
+  const [audit, setAudit] = useState<SettingsAudit | null>(null);
+  const [auditLoading, setAuditLoading] = useState(false);
+  const [auditActionBusy, setAuditActionBusy] = useState<string | null>(null);
+  const [auditActionOutput, setAuditActionOutput] = useState("");
   const [upgrading, setUpgrading] = useState(false);
   const [upgradeResult, setUpgradeResult] = useState("");
   const [curator, setCurator] = useState<CuratorCommandResult | null>(null);
@@ -409,6 +471,19 @@ const Settings80m: React.FC<Props> = ({ onBack, profile }) => {
       setCapabilities(next);
     } finally {
       setCapabilitiesLoading(false);
+    }
+  }, [profile]);
+
+  const refreshAudit = useCallback(async () => {
+    if (!window.hermesAPI?.getSettingsAudit) return;
+    setAuditLoading(true);
+    try {
+      const next = (await window.hermesAPI.getSettingsAudit(
+        profile,
+      )) as SettingsAudit;
+      setAudit(next);
+    } finally {
+      setAuditLoading(false);
     }
   }, [profile]);
 
@@ -505,6 +580,56 @@ const Settings80m: React.FC<Props> = ({ onBack, profile }) => {
     }
   };
 
+  const runAuditAction = async (card: SettingsAuditCard) => {
+    const actionId = card.action?.id;
+    if (!actionId) return;
+
+    const docsActions: Record<string, string> = {
+      "tool-gateway-docs":
+        "https://hermes-agent.nousresearch.com/docs/user-guide/features/tool-gateway",
+      "memory-docs":
+        "https://hermes-agent.nousresearch.com/docs/user-guide/features/memory-providers/",
+      "mcp-docs":
+        "https://hermes-agent.nousresearch.com/docs/user-guide/features/mcp",
+    };
+    if (docsActions[actionId]) {
+      void window.hermesAPI?.openExternal?.(docsActions[actionId]);
+      return;
+    }
+
+    if (actionId === "safe-upgrade") {
+      await handleSafeUpgrade();
+      await refreshAudit();
+      return;
+    }
+
+    if (!window.hermesAPI?.runSettingsAuditAction) return;
+    setAuditActionBusy(actionId);
+    setAuditActionOutput("");
+    try {
+      const result = (await window.hermesAPI.runSettingsAuditAction(
+        actionId,
+        profile,
+      )) as SettingsAuditActionResult;
+      setAuditActionOutput(
+        result.success
+          ? result.output || `${card.action?.label || actionId} complete.`
+          : result.error ||
+              result.output ||
+              `${card.action?.label || actionId} failed.`,
+      );
+      await Promise.all([
+        refreshAudit(),
+        refreshHealth(),
+        refreshCapabilities(),
+      ]);
+    } catch (err) {
+      setAuditActionOutput(err instanceof Error ? err.message : String(err));
+    } finally {
+      setAuditActionBusy(null);
+    }
+  };
+
   useEffect(() => {
     if (window.hermesAPI) {
       // Load model config
@@ -541,28 +666,9 @@ const Settings80m: React.FC<Props> = ({ onBack, profile }) => {
 
       void refreshHealth();
       void refreshCapabilities();
+      void refreshAudit();
       void refreshTailscale();
       void runCuratorAction("status");
-
-      // Load profiles - use raw response, map to our interface
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      window.hermesAPI.listProfiles?.().then((list: any[]) => {
-        setProfiles(
-          (list || []).map(
-            (p: {
-              id?: string;
-              name: string;
-              isActive?: boolean;
-              path?: string;
-            }) => ({
-              id: p.id || p.path || String(Math.random()),
-              name: p.name,
-              isActive: p.isActive || false,
-              createdAt: Date.now(),
-            }),
-          ),
-        );
-      });
 
       // Load versions
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -580,9 +686,14 @@ const Settings80m: React.FC<Props> = ({ onBack, profile }) => {
     profile,
     refreshHealth,
     refreshCapabilities,
+    refreshAudit,
     refreshTailscale,
     runCuratorAction,
   ]);
+
+  useEffect(() => {
+    setProfileCloneFrom(profile || "default");
+  }, [profile]);
 
   useEffect(() => {
     const url = tailscale?.pairUrl || tailscale?.tailnetUrl;
@@ -674,41 +785,49 @@ const Settings80m: React.FC<Props> = ({ onBack, profile }) => {
   const handleCreateProfile = async () => {
     if (!profileName.trim()) return;
     setCreatingProfile(true);
+    setProfileCreateResult("");
     try {
       const normalizedName = profileName.trim().toLowerCase();
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const result: any = await window.hermesAPI.createProfile(
-        normalizedName,
-        false,
-      );
-      if (!result?.success) return;
-      const id =
-        result?.name || result?.id || result?.profileId || normalizedName;
-      setProfiles((prev) => [
-        ...prev,
-        {
-          id,
-          name: id,
-          isActive: false,
-          createdAt: Date.now(),
-        },
-      ]);
-      setProfileName("");
-    } catch (_) {}
-    setCreatingProfile(false);
+      const result: any = await window.hermesAPI.createProfile(normalizedName, {
+        mode: profileCreateMode,
+        cloneFrom:
+          profileCreateMode === "blank"
+            ? undefined
+            : profileCloneFrom || profile || "default",
+        noAlias: profileNoAlias,
+        noSkills: profileNoSkills,
+      });
+      if (!result?.success) {
+        setProfileCreateResult(result?.error || "Profile create failed.");
+      } else {
+        setProfileName("");
+        setProfileCreateResult(
+          `Created ${result.profile?.name || result.name || normalizedName}.`,
+        );
+        await refreshProfiles(false);
+        await refreshAudit();
+      }
+    } catch (err) {
+      setProfileCreateResult(err instanceof Error ? err.message : String(err));
+    } finally {
+      setCreatingProfile(false);
+    }
   };
 
-  const handleDeleteProfile = async (id: string) => {
+  const handleDeleteProfile = async (name: string) => {
     try {
-      await window.hermesAPI.deleteProfile(id);
-      setProfiles((prev) => prev.filter((p) => p.id !== id));
+      await window.hermesAPI.deleteProfile(name);
+      await refreshProfiles(false);
+      await refreshAudit();
     } catch (_) {}
   };
 
-  const handleSetActiveProfile = async (id: string) => {
+  const handleSetActiveProfile = async (name: string) => {
     try {
-      await window.hermesAPI.setActiveProfile(id);
-      setProfiles((prev) => prev.map((p) => ({ ...p, isActive: p.id === id })));
+      await window.hermesAPI.setActiveProfile(name);
+      await refreshProfiles(false);
+      await refreshAudit();
     } catch (_) {}
   };
 
@@ -717,12 +836,15 @@ const Settings80m: React.FC<Props> = ({ onBack, profile }) => {
     setBackupResult("");
     try {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const result: any = await window.hermesAPI.runHermesBackup();
+      const result: any = await window.hermesAPI.runHermesBackup(
+        profile || "default",
+      );
       setBackupResult(
         result?.success
-          ? `Backup saved: ${result.path || "Success"}`
+          ? `Backup saved for ${profile || "default"}: ${result.path || "Success"}`
           : `Error: ${result?.error || "Unknown error"}`,
       );
+      await refreshAudit();
     } catch {
       setBackupResult("Backup failed");
     }
@@ -733,13 +855,23 @@ const Settings80m: React.FC<Props> = ({ onBack, profile }) => {
     setImporting(true);
     setImportResult("");
     try {
+      const archivePath = await window.hermesAPI.selectHermesImportArchive?.();
+      if (!archivePath) {
+        setImportResult("Import canceled.");
+        setImporting(false);
+        return;
+      }
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const result: any = await window.hermesAPI.runHermesImport("", "");
+      const result: any = await window.hermesAPI.runHermesImport(
+        archivePath,
+        profile || "default",
+      );
       setImportResult(
         result?.success
-          ? "Import complete"
+          ? `Import complete for ${profile || "default"}`
           : `Error: ${result?.error || "Unknown error"}`,
       );
+      await refreshAudit();
     } catch {
       setImportResult("Import failed");
     }
@@ -747,14 +879,104 @@ const Settings80m: React.FC<Props> = ({ onBack, profile }) => {
   };
 
   const tabs: { id: TabId; label: string; icon: React.ReactNode }[] = [
+    { id: "overview", label: "Overview", icon: <Activity size={14} /> },
     { id: "connection", label: "Connection", icon: <Wifi size={14} /> },
     { id: "mobile", label: "Mobile", icon: <Smartphone size={14} /> },
-    { id: "health", label: "Health", icon: <Activity size={14} /> },
+    { id: "health", label: "Health", icon: <ShieldCheck size={14} /> },
     { id: "curator", label: "Curator", icon: <Sparkles size={14} /> },
     { id: "profiles", label: "Profiles", icon: <User size={14} /> },
     { id: "backup", label: "Backup", icon: <Download size={14} /> },
     { id: "about", label: "About", icon: <Info size={14} /> },
   ];
+
+  const auditBucketMeta: Record<
+    SettingsAuditBucket,
+    { title: string; icon: React.ReactNode }
+  > = {
+    needsAttention: {
+      title: "Needs Attention",
+      icon: <AlertTriangle size={15} />,
+    },
+    behindUpstream: {
+      title: "Behind Upstream",
+      icon: <Clock3 size={15} />,
+    },
+    ready: {
+      title: "Ready",
+      icon: <CheckCircle2 size={15} />,
+    },
+    optional: {
+      title: "Optional Setup",
+      icon: <Wrench size={15} />,
+    },
+    planGated: {
+      title: "Plan-Gated",
+      icon: <ShieldCheck size={15} />,
+    },
+  };
+
+  const auditBucketOrder: SettingsAuditBucket[] = [
+    "needsAttention",
+    "behindUpstream",
+    "ready",
+    "optional",
+    "planGated",
+  ];
+
+  const auditCategoryIcon = (category: string) => {
+    const lower = category.toLowerCase();
+    if (lower.includes("memory")) return <Database size={14} />;
+    if (lower.includes("api") || lower.includes("runtime")) {
+      return <Terminal size={14} />;
+    }
+    if (lower.includes("tool") || lower.includes("provider")) {
+      return <Wrench size={14} />;
+    }
+    return <Activity size={14} />;
+  };
+
+  const renderAuditCard = (card: SettingsAuditCard) => (
+    <div
+      key={card.id}
+      className={`settings-80m-audit-card settings-80m-audit-card-${card.severity}`}
+    >
+      <div className="settings-80m-audit-card-top">
+        <span className="settings-80m-audit-category">
+          {auditCategoryIcon(card.category)}
+          {card.category}
+        </span>
+        <span className={`settings-80m-audit-severity ${card.severity}`}>
+          {card.severity}
+        </span>
+      </div>
+      <div className="settings-80m-audit-title">{card.title}</div>
+      <p className="settings-80m-audit-summary">{card.summary}</p>
+      <div className="settings-80m-audit-meta">
+        <span>{card.source}</span>
+        {card.commandPreview && <code>{card.commandPreview}</code>}
+      </div>
+      <div className="settings-80m-audit-actions">
+        {card.action && (
+          <button
+            className="settings-80m-profile-btn"
+            onClick={() => void runAuditAction(card)}
+            disabled={Boolean(auditActionBusy)}
+          >
+            {auditActionBusy === card.action.id ? "Running" : card.action.label}
+          </button>
+        )}
+        {card.docsUrl && (
+          <button
+            className="settings-80m-profile-btn"
+            onClick={() => void window.hermesAPI?.openExternal?.(card.docsUrl!)}
+          >
+            <ExternalLink size={12} />
+            Docs
+          </button>
+        )}
+      </div>
+    </div>
+  );
 
   if (loading) {
     return (
@@ -831,6 +1053,107 @@ const Settings80m: React.FC<Props> = ({ onBack, profile }) => {
 
       <div className="settings-80m-content">
         <AnimatePresence mode="wait">
+          {activeTab === "overview" && (
+            <motion.div
+              key="overview"
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -8 }}
+              transition={{ duration: 0.15 }}
+              className="settings-80m-section settings-80m-overview"
+            >
+              <div className="settings-80m-overview-header">
+                <div>
+                  <label className="settings-80m-label">
+                    Runtime Command Center
+                  </label>
+                  <p>
+                    Profile {audit?.profile || profile || "default"} ·{" "}
+                    {audit
+                      ? new Date(audit.createdAt).toLocaleTimeString()
+                      : "waiting for audit"}
+                  </p>
+                </div>
+                <button
+                  onClick={() =>
+                    void Promise.all([
+                      refreshAudit(),
+                      refreshHealth(),
+                      refreshCapabilities(),
+                    ])
+                  }
+                  disabled={
+                    auditLoading || healthLoading || capabilitiesLoading
+                  }
+                  className="settings-80m-save-btn"
+                >
+                  <RefreshCw size={13} />
+                  {auditLoading ? "REFRESHING" : "REFRESH AUDIT"}
+                </button>
+              </div>
+
+              <div className="settings-80m-audit-scoreboard">
+                <div>
+                  <span>{audit?.summary.needsAttention ?? 0}</span>
+                  <p>Needs Attention</p>
+                </div>
+                <div>
+                  <span>{audit?.summary.behindUpstream ?? 0}</span>
+                  <p>Behind Upstream</p>
+                </div>
+                <div>
+                  <span>{audit?.summary.ready ?? 0}</span>
+                  <p>Ready</p>
+                </div>
+                <div>
+                  <span>{audit?.summary.optional ?? 0}</span>
+                  <p>Optional</p>
+                </div>
+                <div>
+                  <span>{audit?.summary.planGated ?? 0}</span>
+                  <p>Plan-Gated</p>
+                </div>
+              </div>
+
+              {auditActionOutput && (
+                <pre className="settings-80m-log-block">
+                  {auditActionOutput}
+                </pre>
+              )}
+
+              {audit ? (
+                <div className="settings-80m-audit-groups">
+                  {auditBucketOrder.map((bucket) => {
+                    const cards = audit.buckets[bucket] || [];
+                    if (cards.length === 0) return null;
+                    const meta = auditBucketMeta[bucket];
+                    return (
+                      <section
+                        key={bucket}
+                        className="settings-80m-audit-group"
+                      >
+                        <div className="settings-80m-audit-group-title">
+                          {meta.icon}
+                          <span>{meta.title}</span>
+                          <strong>{cards.length}</strong>
+                        </div>
+                        <div className="settings-80m-audit-card-grid">
+                          {cards.map(renderAuditCard)}
+                        </div>
+                      </section>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="settings-80m-result">
+                  {auditLoading
+                    ? "Auditing Hermes runtime..."
+                    : "No audit loaded yet."}
+                </div>
+              )}
+            </motion.div>
+          )}
+
           {activeTab === "connection" && (
             <motion.div
               key="connection"
@@ -1439,6 +1762,8 @@ const Settings80m: React.FC<Props> = ({ onBack, profile }) => {
                       ["run", "Run"],
                       ["pause", "Pause"],
                       ["resume", "Resume"],
+                      ["list-archived", "Archived"],
+                      ["prune", "Prune Preview"],
                       ["backup", "Backup"],
                       ["rollback", "Rollback"],
                     ].map(([action, label]) => (
@@ -1466,7 +1791,7 @@ const Settings80m: React.FC<Props> = ({ onBack, profile }) => {
                     onChange={(event) => setCuratorSkill(event.target.value)}
                     placeholder="skill-name"
                   />
-                  {["pin", "unpin", "restore"].map((action) => (
+                  {["pin", "unpin", "archive", "restore"].map((action) => (
                     <button
                       key={action}
                       type="button"
@@ -1504,7 +1829,7 @@ const Settings80m: React.FC<Props> = ({ onBack, profile }) => {
             >
               <div className="settings-80m-field">
                 <label className="settings-80m-label">Create Profile</label>
-                <div style={{ display: "flex", gap: "8px" }}>
+                <div className="settings-80m-profile-create-grid">
                   <input
                     type="text"
                     value={profileName}
@@ -1517,11 +1842,51 @@ const Settings80m: React.FC<Props> = ({ onBack, profile }) => {
                     }
                     placeholder="Profile name"
                     className="settings-80m-input"
-                    style={{ flex: 1 }}
                     onKeyDown={(e) =>
                       e.key === "Enter" && handleCreateProfile()
                     }
                   />
+                  <select
+                    value={profileCreateMode}
+                    onChange={(e) =>
+                      setProfileCreateMode(
+                        e.target.value as "clone" | "blank" | "clone-all",
+                      )
+                    }
+                    className="settings-80m-input"
+                  >
+                    <option value="clone">Clone config</option>
+                    <option value="blank">Blank profile</option>
+                    <option value="clone-all">Clone everything</option>
+                  </select>
+                  <select
+                    value={profileCloneFrom}
+                    onChange={(e) => setProfileCloneFrom(e.target.value)}
+                    className="settings-80m-input"
+                    disabled={profileCreateMode === "blank"}
+                  >
+                    {profiles.map((item) => (
+                      <option key={item.name} value={item.name}>
+                        from {item.name}
+                      </option>
+                    ))}
+                  </select>
+                  <label className="settings-80m-check-row">
+                    <input
+                      type="checkbox"
+                      checked={profileNoAlias}
+                      onChange={(e) => setProfileNoAlias(e.target.checked)}
+                    />
+                    No alias
+                  </label>
+                  <label className="settings-80m-check-row">
+                    <input
+                      type="checkbox"
+                      checked={profileNoSkills}
+                      onChange={(e) => setProfileNoSkills(e.target.checked)}
+                    />
+                    No skills
+                  </label>
                   <button
                     onClick={handleCreateProfile}
                     disabled={creatingProfile || !profileName.trim()}
@@ -1531,6 +1896,18 @@ const Settings80m: React.FC<Props> = ({ onBack, profile }) => {
                     {creatingProfile ? "CREATING..." : "CREATE"}
                   </button>
                 </div>
+                <p className="settings-80m-hint">
+                  Clone config copies model, API, and SOUL settings with fresh
+                  sessions and memory. Profiles isolate Hermes state, not your
+                  filesystem workspace.
+                </p>
+                {profileCreateResult && (
+                  <div
+                    className={`settings-80m-result ${profileCreateResult.startsWith("Created") ? "success" : "error"}`}
+                  >
+                    {profileCreateResult}
+                  </div>
+                )}
               </div>
 
               <div className="settings-80m-divider" />
@@ -1549,33 +1926,49 @@ const Settings80m: React.FC<Props> = ({ onBack, profile }) => {
                     No profiles yet
                   </p>
                 ) : (
-                  profiles.map((profile) => (
-                    <div key={profile.id} className="settings-80m-profile-card">
+                  profiles.map((profileItem) => (
+                    <div
+                      key={profileItem.name}
+                      className="settings-80m-profile-card"
+                    >
                       <div className="settings-80m-profile-info">
                         <span className="settings-80m-profile-name">
-                          {profile.name}
+                          {profileItem.name}
                         </span>
-                        {profile.isActive && (
+                        {profileItem.isActive && (
                           <span className="settings-80m-profile-badge">
                             ACTIVE
                           </span>
                         )}
+                        <span className="settings-80m-profile-meta">
+                          {profileItem.model || "model unknown"} ·{" "}
+                          {profileItem.provider || "provider unknown"} ·{" "}
+                          {profileItem.gatewayRunning
+                            ? "gateway on"
+                            : "gateway off"}
+                        </span>
                       </div>
                       <div className="settings-80m-profile-actions">
-                        {!profile.isActive && (
+                        {!profileItem.isActive && (
                           <button
-                            onClick={() => handleSetActiveProfile(profile.id)}
+                            onClick={() =>
+                              handleSetActiveProfile(profileItem.name)
+                            }
                             className="settings-80m-profile-btn"
                           >
                             Activate
                           </button>
                         )}
                         <button
-                          onClick={() => handleDeleteProfile(profile.id)}
+                          onClick={() => handleDeleteProfile(profileItem.name)}
                           className="settings-80m-profile-btn settings-80m-profile-btn-danger"
+                          disabled={profileItem.isDefault}
                         >
                           Delete
                         </button>
+                      </div>
+                      <div className="settings-80m-profile-path">
+                        {profileItem.path}
                       </div>
                     </div>
                   ))

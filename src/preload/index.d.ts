@@ -97,6 +97,57 @@ interface HermesCapabilities {
   };
 }
 
+type SettingsAuditSeverity = "ok" | "info" | "warning" | "error";
+
+type SettingsAuditBucket =
+  | "needsAttention"
+  | "behindUpstream"
+  | "ready"
+  | "optional"
+  | "planGated";
+
+interface SettingsAuditCard {
+  id: string;
+  title: string;
+  summary: string;
+  severity: SettingsAuditSeverity;
+  category: string;
+  source: string;
+  details?: string;
+  docsUrl?: string;
+  commandPreview?: string;
+  action?: {
+    id: string;
+    label: string;
+    destructive?: boolean;
+  };
+  bucket?: SettingsAuditBucket;
+}
+
+interface SettingsAudit {
+  profile: string;
+  createdAt: number;
+  summary: {
+    needsAttention: number;
+    warnings: number;
+    ready: number;
+    optional: number;
+    planGated: number;
+    behindUpstream: number;
+  };
+  buckets: Record<SettingsAuditBucket, SettingsAuditCard[]>;
+  cards: SettingsAuditCard[];
+  raw: Record<string, unknown>;
+}
+
+interface SettingsAuditActionResult {
+  action: string;
+  createdAt: number;
+  success: boolean;
+  output: string;
+  error?: string;
+}
+
 interface CuratorCommandResult {
   success: boolean;
   supported: boolean;
@@ -130,6 +181,38 @@ interface WorkspaceFileChange {
   event: string;
   size: number;
   modifiedAt: number;
+}
+
+interface ProfileInfo {
+  name: string;
+  path: string;
+  isDefault: boolean;
+  isActive: boolean;
+  model: string;
+  provider: string;
+  hasEnv: boolean;
+  hasSoul: boolean;
+  skillCount: number;
+  gatewayRunning: boolean;
+}
+
+interface ProfileCreateOptions {
+  mode?: "clone" | "blank" | "clone-all";
+  cloneFrom?: string;
+  noAlias?: boolean;
+  noSkills?: boolean;
+}
+
+interface ProfileCreateResult {
+  success: boolean;
+  name?: string;
+  profile?: ProfileInfo;
+  error?: string;
+}
+
+interface ProfilesChangedEvent {
+  source: string;
+  createdAt: number;
 }
 
 interface AppNotificationPayload {
@@ -277,6 +360,14 @@ interface CreateKanbanTaskInput {
   board?: string;
 }
 
+interface CronCreateOptions {
+  repeat?: number | string;
+  skills?: string[];
+  script?: string;
+  noAgent?: boolean;
+  workdir?: string;
+}
+
 interface HermesAPI {
   // Installation
   checkInstall: () => Promise<InstallStatus>;
@@ -305,6 +396,11 @@ interface HermesAPI {
     error?: string;
   }>;
   getHermesCapabilities: (profile?: string) => Promise<HermesCapabilities>;
+  getSettingsAudit: (profile?: string) => Promise<SettingsAudit>;
+  runSettingsAuditAction: (
+    action: string,
+    profile?: string,
+  ) => Promise<SettingsAuditActionResult>;
 
   // OpenClaw migration
   checkOpenClaw: () => Promise<{ found: boolean; path: string | null }>;
@@ -452,28 +548,18 @@ interface HermesAPI {
   >;
 
   // Profiles
-  listProfiles: () => Promise<
-    Array<{
-      name: string;
-      path: string;
-      isDefault: boolean;
-      isActive: boolean;
-      model: string;
-      provider: string;
-      hasEnv: boolean;
-      hasSoul: boolean;
-      skillCount: number;
-      gatewayRunning: boolean;
-    }>
-  >;
+  listProfiles: () => Promise<ProfileInfo[]>;
   createProfile: (
     name: string,
-    clone: boolean,
-  ) => Promise<{ success: boolean; name?: string; error?: string }>;
+    options?: boolean | ProfileCreateOptions,
+  ) => Promise<ProfileCreateResult>;
   deleteProfile: (
     name: string,
   ) => Promise<{ success: boolean; error?: string }>;
   setActiveProfile: (name: string) => Promise<boolean>;
+  onProfilesChanged: (
+    callback: (event: ProfilesChangedEvent) => void,
+  ) => () => void;
 
   // Projects Sidebar
   selectProjectDirectory: () => Promise<string | null>;
@@ -731,6 +817,7 @@ interface HermesAPI {
     name?: string,
     deliver?: string,
     profile?: string,
+    options?: CronCreateOptions,
   ) => Promise<{ success: boolean; error?: string }>;
   removeCronJob: (
     jobId: string,
@@ -806,6 +893,7 @@ interface HermesAPI {
     archivePath: string,
     profile?: string,
   ) => Promise<{ success: boolean; error?: string }>;
+  selectHermesImportArchive: () => Promise<string | null>;
 
   // Debug dump
   runHermesDump: () => Promise<string>;

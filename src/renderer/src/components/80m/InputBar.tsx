@@ -1,9 +1,23 @@
 import React, { useState, useRef, useCallback, useEffect } from "react";
-import { ClipboardPaste, Send } from "lucide-react";
+import {
+  CircleStop,
+  ClipboardPaste,
+  GitBranch,
+  ListPlus,
+  Radio,
+  Send,
+} from "lucide-react";
+
+export type BusySendMode = "queue" | "steer" | "background";
 
 interface Props {
   onSend: (text: string) => void;
   disabled?: boolean;
+  isBusy?: boolean;
+  busyMode?: BusySendMode;
+  queuedCount?: number;
+  onBusyModeChange?: (mode: BusySendMode) => void;
+  onStop?: () => void;
   draftInsert?: { id: string; text: string } | null;
   onDraftInsertConsumed?: () => void;
 }
@@ -11,6 +25,11 @@ interface Props {
 const InputBar: React.FC<Props> = ({
   onSend,
   disabled,
+  isBusy = false,
+  busyMode = "queue",
+  queuedCount = 0,
+  onBusyModeChange,
+  onStop,
   draftInsert,
   onDraftInsertConsumed,
 }) => {
@@ -30,6 +49,9 @@ const InputBar: React.FC<Props> = ({
   const COMMANDS = [
     { cmd: "/new", desc: "Start a new chat session" },
     { cmd: "/clear", desc: "Clear current chat" },
+    { cmd: "/queue", desc: "Queue next turn" },
+    { cmd: "/steer", desc: "Steer current work" },
+    { cmd: "/background", desc: "Start background run" },
     { cmd: "/model", desc: "Switch model (e.g. /model anthropic)" },
     { cmd: "/settings", desc: "Open settings panel" },
   ];
@@ -323,7 +345,48 @@ const InputBar: React.FC<Props> = ({
 
   return (
     <div className="input-80m">
-      <div className={`input-80m-form ${disabled ? "thinking" : ""}`}>
+      {isBusy && (
+        <div className="input-80m-busy-row">
+          <div className="input-80m-mode-switch" aria-label="Busy send mode">
+            <button
+              className={busyMode === "queue" ? "active" : ""}
+              onClick={() => onBusyModeChange?.("queue")}
+              title="Queue follow-up"
+              type="button"
+            >
+              <ListPlus size={13} />
+              <span>Queue{queuedCount ? ` ${queuedCount}` : ""}</span>
+            </button>
+            <button
+              className={busyMode === "steer" ? "active" : ""}
+              onClick={() => onBusyModeChange?.("steer")}
+              title="Steer after current work"
+              type="button"
+            >
+              <GitBranch size={13} />
+              <span>Steer</span>
+            </button>
+            <button
+              className={busyMode === "background" ? "active" : ""}
+              onClick={() => onBusyModeChange?.("background")}
+              title="Send as background run"
+              type="button"
+            >
+              <Radio size={13} />
+              <span>BG</span>
+            </button>
+          </div>
+          <button
+            className="input-80m-stop"
+            onClick={onStop}
+            title="Stop current run"
+            type="button"
+          >
+            <CircleStop size={14} />
+          </button>
+        </div>
+      )}
+      <div className={`input-80m-form ${isBusy ? "thinking" : ""}`}>
         <div className="input-80m-wrapper">
           {showCommands && filteredCommands.length > 0 && (
             <div className="slash-commands-popup">
@@ -349,10 +412,14 @@ const InputBar: React.FC<Props> = ({
             placeholder={
               isRecording
                 ? "Recording... click the mic to stop"
-                : disabled
-                  ? "Processing..."
-                  : isTranscribing
-                    ? "Transcribing..."
+                : isTranscribing
+                  ? "Transcribing..."
+                  : isBusy
+                    ? busyMode === "background"
+                      ? "Send a background task..."
+                      : busyMode === "steer"
+                        ? "Steer this run..."
+                        : "Queue a follow-up..."
                     : "Type a message or /command..."
             }
             value={text}
@@ -443,7 +510,15 @@ const InputBar: React.FC<Props> = ({
           className="input-80m-send"
           onClick={handleSubmit}
           disabled={disabled || isRecording || !text.trim()}
-          title="Send"
+          title={
+            isBusy
+              ? busyMode === "background"
+                ? "Send background"
+                : busyMode === "steer"
+                  ? "Steer"
+                  : "Queue"
+              : "Send"
+          }
           type="button"
         >
           <Send size={18} />

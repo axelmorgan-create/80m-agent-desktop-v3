@@ -69,8 +69,10 @@ describe("New APIs from v0.8/v0.9 features", () => {
   it("has backup/import APIs", () => {
     expect(preloadMethods).toContain("runHermesBackup");
     expect(preloadMethods).toContain("runHermesImport");
+    expect(preloadMethods).toContain("selectHermesImportArchive");
     expect(typeMethods).toContain("runHermesBackup");
     expect(typeMethods).toContain("runHermesImport");
+    expect(typeMethods).toContain("selectHermesImportArchive");
   });
 
   it("has log viewer API", () => {
@@ -101,6 +103,8 @@ describe("New APIs from v0.8/v0.9 features", () => {
   it("has Hermes v0.12 capability and upgrade APIs", () => {
     for (const method of [
       "getHermesCapabilities",
+      "getSettingsAudit",
+      "runSettingsAuditAction",
       "runHermesUpdateCheck",
       "runSafeHermesUpgrade",
     ]) {
@@ -132,6 +136,11 @@ describe("New APIs from v0.8/v0.9 features", () => {
       expect(preloadMethods).toContain(method);
       expect(typeMethods).toContain(method);
     }
+  });
+
+  it("has profile change event API", () => {
+    expect(preloadMethods).toContain("onProfilesChanged");
+    expect(typeMethods).toContain("onProfilesChanged");
   });
 });
 
@@ -178,6 +187,7 @@ describe("Legacy APIs preserved (backward compat)", () => {
     "createProfile",
     "deleteProfile",
     "setActiveProfile",
+    "onProfilesChanged",
     // Memory
     "readMemory",
     "addMemoryEntry",

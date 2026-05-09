@@ -67,6 +67,13 @@ const hermesAPI = {
   }> => ipcRenderer.invoke("run-safe-hermes-upgrade", profile),
   getHermesCapabilities: (profile?: string): Promise<unknown> =>
     ipcRenderer.invoke("get-hermes-capabilities", profile),
+  getSettingsAudit: (profile?: string): Promise<unknown> =>
+    ipcRenderer.invoke("get-settings-audit", profile),
+  runSettingsAuditAction: (
+    action: string,
+    profile?: string,
+  ): Promise<unknown> =>
+    ipcRenderer.invoke("run-settings-audit-action", action, profile),
 
   // OpenClaw migration
   checkOpenClaw: (): Promise<{ found: boolean; path: string | null }> =>
@@ -348,14 +355,25 @@ const hermesAPI = {
 
   createProfile: (
     name: string,
-    clone: boolean,
+    options?: boolean | unknown,
   ): Promise<{ success: boolean; error?: string }> =>
-    ipcRenderer.invoke("create-profile", name, clone),
+    ipcRenderer.invoke("create-profile", name, options),
 
   deleteProfile: (
     name: string,
   ): Promise<{ success: boolean; error?: string }> =>
     ipcRenderer.invoke("delete-profile", name),
+
+  onProfilesChanged: (
+    callback: (payload: { source: string; createdAt: number }) => void,
+  ): (() => void) => {
+    const handler = (
+      _event: Electron.IpcRendererEvent,
+      payload: unknown,
+    ): void => callback(payload as { source: string; createdAt: number });
+    ipcRenderer.on("profiles-changed", handler);
+    return () => ipcRenderer.removeListener("profiles-changed", handler);
+  },
 
   // Projects Sidebar
   selectProjectDirectory: (): Promise<string | null> =>
@@ -687,6 +705,13 @@ const hermesAPI = {
     name?: string,
     deliver?: string,
     profile?: string,
+    options?: {
+      repeat?: number | string;
+      skills?: string[];
+      script?: string;
+      noAgent?: boolean;
+      workdir?: string;
+    },
   ): Promise<{ success: boolean; error?: string }> =>
     ipcRenderer.invoke(
       "create-cron-job",
@@ -695,6 +720,7 @@ const hermesAPI = {
       name,
       deliver,
       profile,
+      options,
     ),
 
   removeCronJob: (
@@ -816,6 +842,8 @@ const hermesAPI = {
     profile?: string,
   ): Promise<{ success: boolean; error?: string }> =>
     ipcRenderer.invoke("run-hermes-import", archivePath, profile),
+  selectHermesImportArchive: (): Promise<string | null> =>
+    ipcRenderer.invoke("select-hermes-import-archive"),
 
   // Debug dump
   runHermesDump: (): Promise<string> => ipcRenderer.invoke("run-hermes-dump"),
