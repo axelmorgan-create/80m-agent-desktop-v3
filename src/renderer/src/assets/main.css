@@ -13,7 +13,10 @@
 @import "./styles/06-models-office-system.css";
 @import "./styles/07-splash-mascot.css";
 @import "./styles/08-chat-shell.css";
-@import "./styles/09-screen-system-overrides.css";
+@import "./styles/09a-screen-system.css";
+@import "./styles/09b-legacy-screen-overrides.css";
+@import "./styles/09c-agent-preview-terminal.css";
+@import "./styles/09d-project-theme-overrides.css";
 @import "./styles/10-theme-memory-polish.css";
 @import "./styles/11-icon-motion.css";
 @import "./styles/12-premium-polish.css";

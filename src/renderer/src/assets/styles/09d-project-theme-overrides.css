@@ -1,0 +1,449 @@
+/* Projects Sidebar */
+.projects-sidebar {
+  width: 250px;
+  min-width: 250px;
+  background: rgba(15, 15, 15, 0.95);
+  border-right: 1px solid rgba(74, 222, 128, 0.2);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  font-family: "Fira Code", monospace;
+  font-size: 12px;
+}
+
+.projects-sidebar-collapsed {
+  width: 44px;
+  min-width: 44px;
+  background: rgba(10, 10, 10, 0.55);
+  border-right: 1px solid rgba(74, 222, 128, 0.08);
+  display: flex;
+  justify-content: center;
+  padding-top: 12px;
+}
+
+.projects-add-btn-collapsed {
+  width: 28px;
+  height: 28px;
+  border: 1px solid rgba(74, 222, 128, 0.16);
+  color: #4ade80;
+}
+
+.projects-sidebar-header {
+  padding: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid rgba(74, 222, 128, 0.1);
+  background: rgba(0, 0, 0, 0.3);
+}
+
+.projects-sidebar-header h3 {
+  margin: 0;
+  font-size: 11px;
+  color: #4ade80;
+  letter-spacing: 2px;
+  font-weight: 700;
+}
+
+.projects-add-btn {
+  background: transparent;
+  border: none;
+  color: #e8e8e8;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px;
+  border-radius: 4px;
+  transition: all 0.2s ease;
+}
+
+.projects-add-btn:hover {
+  color: #4ade80;
+  background: rgba(74, 222, 128, 0.1);
+}
+
+.projects-sidebar-content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 12px 0;
+}
+
+.projects-empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 32px 16px;
+  color: #e8e8e8;
+  text-align: center;
+}
+
+.file-tree-root {
+  display: flex;
+  flex-direction: column;
+}
+
+.file-tree-project-name {
+  padding: 8px 16px;
+  color: #fff;
+  font-weight: bold;
+  display: flex;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.file-tree-item {
+  display: flex;
+  align-items: center;
+  padding: 4px 16px;
+  cursor: pointer;
+  color: #bbb;
+  transition: all 0.1s;
+}
+
+.file-tree-item:hover {
+  background: rgba(74, 222, 128, 0.1);
+  color: #fff;
+}
+
+.file-tree-icon {
+  display: flex;
+  align-items: center;
+  margin-right: 6px;
+}
+
+.file-tree-name {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.file-tree-loading {
+  margin-left: 8px;
+  font-size: 10px;
+  color: #e8e8e8;
+}
+
+/* Theme-aware 80M shell overrides */
+.app-titlebar {
+  background:
+    linear-gradient(180deg, var(--shell-panel-bg), var(--shell-panel-solid)),
+    var(--bg-primary);
+  border-bottom-color: var(--shell-border);
+  color: var(--text-primary);
+}
+
+.app-titlebar-control {
+  color: var(--text-muted);
+}
+
+.app-titlebar-control:hover {
+  background: var(--accent-subtle);
+  color: var(--accent-text);
+}
+
+.layout-80m,
+.main-80m,
+.screen-content-80m,
+.conversation-workspace {
+  background: transparent;
+  color: var(--text-primary);
+}
+
+.animated-80m-logo-main {
+  background: var(--logo-main);
+}
+
+.sidebar-80m {
+  background: var(--shell-sidebar-bg);
+  border-right-color: var(--shell-border);
+  color: var(--text-primary);
+}
+
+.sidebar-80m-logo-toggle,
+.sidebar-80m-logo-toggle:hover {
+  background: transparent !important;
+}
+
+.sidebar-80m-nav-item,
+.sidebar-80m-sessions-header,
+.sidebar-80m-sessions-empty,
+.projects-add-btn,
+.file-tree-project-name {
+  color: var(--text-primary);
+}
+
+.sidebar-80m-nav-item:hover,
+.sidebar-80m-session-item:hover,
+.sidebar-80m-second-brain:hover,
+.sidebar-80m-second-brain.active {
+  background: var(--accent-subtle);
+  color: var(--accent-text);
+}
+
+.sidebar-80m-nav-item.active,
+.sidebar-80m-session-item.active {
+  background: var(--accent-subtle);
+  color: var(--accent-text);
+  border-color: var(--accent);
+}
+
+.sidebar-80m-session-item {
+  background: var(--shell-panel-muted);
+  color: var(--text-primary);
+}
+
+.sidebar-80m-session-item .session-time,
+.sidebar-80m-session-item.active .session-time,
+.conversation-tab-agent,
+.conversation-pane-title small,
+.file-tree-item,
+.projects-empty-state,
+.file-tree-loading {
+  color: var(--text-muted);
+}
+
+.sidebar-80m-new-chat,
+.sidebar-80m-agent-select,
+.sidebar-80m-second-brain,
+.conversation-tab-close,
+.conversation-icon-btn,
+.projects-add-btn-collapsed {
+  border-color: var(--shell-border);
+  background: var(--shell-panel-muted);
+  color: var(--accent-text);
+}
+
+.sidebar-80m-agent-select {
+  background-color: var(--shell-input-bg);
+}
+
+.sidebar-80m-agent-select:hover,
+.sidebar-80m-agent-select:focus {
+  background-color: var(--shell-panel-solid);
+}
+
+.sidebar-80m-agent-select option {
+  background: var(--shell-panel-solid);
+  color: var(--text-primary);
+}
+
+.conversation-shell,
+.conversation-workspace--split .conversation-pane,
+.conversation-pane-header,
+.projects-sidebar,
+.projects-sidebar-collapsed,
+.projects-sidebar-header {
+  background: var(--shell-panel-bg);
+  border-color: var(--shell-border);
+  color: var(--text-primary);
+}
+
+.conversation-tab-wrap,
+.conversation-view-switcher {
+  background: var(--shell-panel-muted);
+  border-color: var(--shell-border);
+  color: var(--text-primary);
+}
+
+.conversation-tab-wrap:hover,
+.conversation-workspace--split .conversation-pane.active {
+  background: var(--shell-panel-bg);
+  border-color: var(--border-bright);
+}
+
+.conversation-tab-wrap.active,
+.conversation-icon-btn.active {
+  background: var(--accent-subtle);
+  border-color: var(--accent);
+  color: var(--accent-text);
+}
+
+.conversation-tab-title,
+.conversation-pane-title,
+.chat-header-80m-title,
+.chat-header-80m-status,
+.msg-80m-label,
+.msg-80m-loading,
+.input-80m-textarea,
+.tool-progress-detail,
+.terminal-output,
+.generic-tool-visualizer pre,
+.tool-file-name,
+.tool-file-line code {
+  color: var(--text-primary);
+}
+
+.chat-header-80m {
+  background: var(--shell-panel-bg);
+  border-bottom-color: var(--shell-border);
+}
+
+.messages-80m {
+  color: var(--text-primary);
+}
+
+.messages-80m::-webkit-scrollbar-thumb,
+.conversation-tabs::-webkit-scrollbar-thumb {
+  background: var(--scrollbar-thumb);
+}
+
+.msg-80m-actions,
+.msg-80m.assistant .msg-80m-bubble,
+.msg-80m.tool .msg-80m-bubble,
+.assistant-tool-call,
+.tool-file-preview,
+.terminal-command,
+.tool-progress-detail {
+  background: var(--agent-bubble);
+  color: var(--agent-bubble-text);
+  border-color: var(--shell-border);
+}
+
+.msg-80m.user .msg-80m-bubble {
+  background: var(--user-bubble);
+  color: var(--user-bubble-text);
+}
+
+.msg-80m-bubble code,
+.msg-80m-bubble pre,
+.tool-file-content,
+.tool-media-preview {
+  background: var(--code-bg);
+  color: var(--text-primary);
+  border-color: var(--shell-border);
+}
+
+.msg-80m-action-btn,
+.tool-file-meta,
+.tool-progress-meta,
+.tool-file-action-status,
+.tool-document-preview-empty,
+.tool-file-empty,
+.tool-file-line-number {
+  color: var(--text-muted);
+}
+
+.input-80m-form,
+.screen-content-80m input,
+.screen-content-80m textarea,
+.screen-content-80m select,
+.screen-content-80m .input,
+.settings-80m-input {
+  background: var(--shell-input-bg);
+  border-color: var(--shell-border);
+  color: var(--text-primary);
+  box-shadow: 0 14px 34px var(--shell-shadow);
+}
+
+.input-80m-textarea::placeholder,
+.screen-content-80m input::placeholder,
+.screen-content-80m textarea::placeholder,
+.settings-80m-input::placeholder {
+  color: var(--input-placeholder);
+}
+
+.input-80m-send,
+.screen-content-80m .btn.btn-primary,
+.settings-80m-save-btn {
+  background: var(--accent);
+  color: var(--user-bubble-text);
+}
+
+.input-80m-paste,
+.input-80m-mic,
+.screen-content-80m .btn.btn-secondary,
+.screen-content-80m .btn-ghost,
+.settings-80m-profile-btn,
+.btn-ghost-80m {
+  background: var(--shell-panel-muted);
+  border-color: var(--shell-border);
+  color: var(--text-primary);
+}
+
+.input-80m-paste:hover:not(:disabled),
+.input-80m-mic:hover:not(:disabled),
+.screen-content-80m .btn.btn-secondary:hover:not(:disabled),
+.screen-content-80m .btn-ghost:hover,
+.settings-80m-profile-btn:hover:not(:disabled),
+.btn-ghost-80m:hover,
+.projects-add-btn:hover,
+.file-tree-item:hover {
+  background: var(--accent-subtle);
+  border-color: var(--border-bright);
+  color: var(--accent-text);
+}
+
+.settings-80m-tabs,
+.settings-80m-content,
+.settings-80m-section,
+.settings-80m-health-card,
+.settings-platform-card,
+.screen-content-80m .skills-card,
+.screen-content-80m .tools-card,
+.screen-content-80m .schedules-job-card,
+.screen-content-80m .settings-container,
+.skills-detail,
+.schedules-modal {
+  background: var(--shell-panel-bg);
+  border-color: var(--shell-border);
+  color: var(--text-primary);
+}
+
+.settings-80m-tab,
+.screen-content-80m .skills-tab,
+.screen-content-80m .skills-pill {
+  background: var(--shell-panel-muted);
+  border-color: var(--shell-border);
+  color: var(--text-primary);
+}
+
+.settings-80m-tab:hover,
+.settings-80m-tab.active,
+.screen-content-80m .skills-tab.active,
+.screen-content-80m .skills-pill.active {
+  background: var(--accent-subtle);
+  border-color: var(--accent);
+  color: var(--accent-text);
+}
+
+.screen-content-80m p,
+.screen-content-80m .settings-field-hint,
+.settings-80m-health-card p,
+.settings-80m-health-empty {
+  color: var(--text-secondary);
+}
+
+.projects-sidebar-header h3,
+.settings-80m-label,
+.settings-80m-health-title,
+.screen-content-80m .settings-header,
+.screen-content-80m .settings-section-title,
+.screen-content-80m .settings-field-label,
+.screen-content-80m .skills-card-category,
+.msg-80m-role,
+.msg-80m-assistant-label {
+  color: var(--accent-text);
+}
+
+[data-theme="dark"] .input-80m-form,
+[data-theme="dark"] .screen-content-80m input,
+[data-theme="dark"] .screen-content-80m textarea,
+[data-theme="dark"] .screen-content-80m select,
+[data-theme="dark"] .screen-content-80m .input,
+[data-theme="dark"] .settings-80m-input {
+  background: rgba(36, 43, 39, 0.96) !important;
+  color: #f4fff7;
+}
+
+[data-theme="light"] .input-80m-form,
+[data-theme="light"] .screen-content-80m input,
+[data-theme="light"] .screen-content-80m textarea,
+[data-theme="light"] .screen-content-80m select,
+[data-theme="light"] .screen-content-80m .input,
+[data-theme="light"] .settings-80m-input {
+  background: rgba(255, 255, 255, 0.94) !important;
+  color: #111111;
+}
+
