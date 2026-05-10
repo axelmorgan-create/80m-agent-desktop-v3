@@ -82,13 +82,16 @@ const Layout80m: React.FC<Layout80mProps> = ({ playSplashLanding = false }) => {
   const [activeProject, setActiveProject] = useState<string | null>(() => {
     return localStorage.getItem("hermes-active-project") || null;
   });
+  const [showProjectsSidebar, setShowProjectsSidebar] = useState(false);
 
   const handleProjectChange = useCallback((path: string | null) => {
     setActiveProject(path);
     if (path) {
       localStorage.setItem("hermes-active-project", path);
+      setShowProjectsSidebar(true);
     } else {
       localStorage.removeItem("hermes-active-project");
+      setShowProjectsSidebar(false);
     }
   }, []);
 
@@ -99,6 +102,14 @@ const Layout80m: React.FC<Layout80mProps> = ({ playSplashLanding = false }) => {
       handleProjectChange(path);
     }
   }, [handleProjectChange]);
+
+  const handleProjectToolbarToggle = useCallback(() => {
+    if (!activeProject) {
+      void handleSelectProjectFolder();
+      return;
+    }
+    setShowProjectsSidebar((open) => !open);
+  }, [activeProject, handleSelectProjectFolder]);
 
   const handleFileClick = useCallback((path: string) => {
     // Inject file focus command via a custom event that InputBar / ChatArea can listen to
@@ -337,6 +348,7 @@ const Layout80m: React.FC<Layout80mProps> = ({ playSplashLanding = false }) => {
         conversationViewMode={conversationViewMode}
         conversations={conversations}
         runningConversationIds={runningConversationIds}
+        showProjectsSidebar={showProjectsSidebar}
         showPreview={showPreview}
         onActiveConversationChange={(id) => {
           setActiveConversationId(id);
@@ -350,7 +362,7 @@ const Layout80m: React.FC<Layout80mProps> = ({ playSplashLanding = false }) => {
         onOpenSecondBrain={openSecondBrain}
         onPreviewToggle={() => setShowPreview((open) => !open)}
         onProjectChange={handleProjectChange}
-        onSelectProjectFolder={handleSelectProjectFolder}
+        onProjectToolbarToggle={handleProjectToolbarToggle}
       />
     );
 

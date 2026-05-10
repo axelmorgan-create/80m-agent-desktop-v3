@@ -25,6 +25,7 @@ interface ConversationWorkspaceProps {
   conversationViewMode: ConversationViewMode;
   conversations: ConversationTab[];
   runningConversationIds: Set<string>;
+  showProjectsSidebar: boolean;
   showPreview: boolean;
   onActiveConversationChange: (id: string) => void;
   onCloseConversation: (id: string) => void;
@@ -38,7 +39,7 @@ interface ConversationWorkspaceProps {
   onOpenSecondBrain: () => void;
   onPreviewToggle: () => void;
   onProjectChange: (path: string | null) => void;
-  onSelectProjectFolder: () => void;
+  onProjectToolbarToggle: () => void;
 }
 
 const ConversationWorkspace: React.FC<ConversationWorkspaceProps> = ({
@@ -48,6 +49,7 @@ const ConversationWorkspace: React.FC<ConversationWorkspaceProps> = ({
   conversationViewMode,
   conversations,
   runningConversationIds,
+  showProjectsSidebar,
   showPreview,
   onActiveConversationChange,
   onCloseConversation,
@@ -58,7 +60,7 @@ const ConversationWorkspace: React.FC<ConversationWorkspaceProps> = ({
   onOpenSecondBrain,
   onPreviewToggle,
   onProjectChange,
-  onSelectProjectFolder,
+  onProjectToolbarToggle,
 }) => {
   return (
     <div
@@ -69,7 +71,7 @@ const ConversationWorkspace: React.FC<ConversationWorkspaceProps> = ({
         minWidth: 0,
       }}
     >
-      {activeProject && (
+      {activeProject && showProjectsSidebar && (
         <ProjectsSidebar
           activeProject={activeProject}
           onProjectChange={onProjectChange}
@@ -98,16 +100,22 @@ const ConversationWorkspace: React.FC<ConversationWorkspaceProps> = ({
             </span>
           </button>
           <button
-            className={`conversation-icon-btn conversation-project-btn${activeProject ? " active" : ""}`}
-            onClick={onSelectProjectFolder}
+            className={`conversation-icon-btn conversation-project-btn${activeProject && showProjectsSidebar ? " active" : ""}`}
+            onClick={onProjectToolbarToggle}
             title={
               activeProject
-                ? `Workspace: ${activeProject}`
+                ? showProjectsSidebar
+                  ? `Hide workspace: ${activeProject}`
+                  : `Show workspace: ${activeProject}`
                 : "Open Project Folder"
             }
             type="button"
           >
-            {activeProject ? <FolderOpen size={14} /> : <Folder size={14} />}
+            {activeProject && showProjectsSidebar ? (
+              <FolderOpen size={14} />
+            ) : (
+              <Folder size={14} />
+            )}
           </button>
 
           <div
