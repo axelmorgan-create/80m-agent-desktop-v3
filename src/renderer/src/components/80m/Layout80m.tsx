@@ -6,7 +6,6 @@ import React, {
   ReactNode,
 } from "react";
 import Sidebar from "./Sidebar";
-import ChatArea from "./ChatArea";
 import Settings from "./Settings";
 import AtmMascot from "./AtmMascot";
 import Sessions from "../../screens/Sessions/Sessions";
@@ -19,18 +18,10 @@ import Models from "../../screens/Models/Models";
 import Schedules from "../../screens/Schedules/Schedules";
 import Kanban from "../../screens/Kanban/Kanban";
 import CommandPalette from "./CommandPalette";
-import AgentPreviewPanel from "./AgentPreviewPanel";
-import ProjectsSidebar from "./ProjectsSidebar";
-import {
-  Brain,
-  Columns2,
-  Eye,
-  Folder,
-  FolderOpen,
-  Plus,
-  SquareStack,
-  X,
-} from "lucide-react";
+import AgentPreviewDock from "./AgentPreviewDock";
+import ConversationWorkspace from "./ConversationWorkspace";
+import { useConversationTabs } from "./conversations";
+import { useAgentPreviewDock } from "./useAgentPreviewDock";
 
 type View =
   | "chat"
@@ -45,99 +36,47 @@ type View =
   | "schedules"
   | "kanban";
 
-type ConversationViewMode = "tabs" | "split";
 type AvatarIntroPhase = "landing" | "waiting" | "flying" | "done";
 
 interface Layout80mProps {
   playSplashLanding?: boolean;
 }
 
-const DEFAULT_PREVIEW_WIDTH = 520;
-const MIN_PREVIEW_WIDTH = 420;
-
-function clampPreviewWidth(width: number): number {
-  const maxWidth =
-    typeof window === "undefined"
-      ? 920
-      : Math.max(MIN_PREVIEW_WIDTH, Math.min(1080, window.innerWidth - 360));
-  return Math.min(Math.max(width, MIN_PREVIEW_WIDTH), maxWidth);
-}
-
-interface ConversationTab {
-  id: string;
-  sessionId: string | null;
-  profile: string;
-  title: string;
-  createdAt: number;
-  updatedAt: number;
-}
-
-function createConversationTab(
-  profile = "default",
-  sessionId: string | null = null,
-): ConversationTab {
-  const now = Date.now();
-  const id = `conversation-${now}-${Math.random().toString(16).slice(2)}`;
-  return {
-    id,
-    sessionId,
-    profile,
-    title: sessionId ? `Session ${sessionId.slice(0, 6)}` : "New chat",
-    createdAt: now,
-    updatedAt: now,
-  };
-}
-
-function labelForProfile(profile: string): string {
-  return profile === "default" ? "Default Agent" : profile;
-}
-
-function labelForConversation(tab: ConversationTab): string {
-  return tab.sessionId ? tab.title : "New chat";
-}
-
 const Layout80m: React.FC<Layout80mProps> = ({ playSplashLanding = false }) => {
   const [activeView, setActiveView] = useState<View>("chat");
   const [showCommandPalette, setShowCommandPalette] = useState(false);
-  const [showPreview, setShowPreview] = useState(false);
   const [avatarIntroPhase, setAvatarIntroPhase] = useState<AvatarIntroPhase>(
     () => (playSplashLanding ? "landing" : "done"),
   );
   const [brainPortalActive, setBrainPortalActive] = useState(false);
-  const [previewWidth, setPreviewWidth] = useState(() => {
-    const saved = Number(localStorage.getItem("80m-agent-preview-width"));
-    return Number.isFinite(saved)
-      ? clampPreviewWidth(saved)
-      : DEFAULT_PREVIEW_WIDTH;
-  });
   const avatarIntroMascotRef = useRef<HTMLDivElement | null>(null);
   const avatarIntroTimersRef = useRef<number[]>([]);
   const avatarIntroPhaseRef = useRef<AvatarIntroPhase>(avatarIntroPhase);
   const brainPortalTimersRef = useRef<number[]>([]);
   const brainPortalActiveRef = useRef(false);
-  const previewResizeCleanupRef = useRef<(() => void) | null>(null);
   const [activeChatRuns, setActiveChatRuns] = useState(0);
   const [runningConversationIds, setRunningConversationIds] = useState<
     Set<string>
   >(new Set());
-  const initialConversationRef = React.useRef<ConversationTab | null>(null);
-  if (!initialConversationRef.current) {
-    initialConversationRef.current = createConversationTab();
-  }
-  const [conversations, setConversations] = useState<ConversationTab[]>(() => [
-    initialConversationRef.current!,
-  ]);
-  const [activeConversationId, setActiveConversationId] = useState<string>(
-    () => initialConversationRef.current!.id,
-  );
-  const [conversationViewMode, setConversationViewMode] =
-    useState<ConversationViewMode>("tabs");
-
-  const activeConversation =
-    conversations.find((tab) => tab.id === activeConversationId) ||
-    conversations[0];
-  const selectedAgent = activeConversation?.profile || "default";
-  const currentSession = activeConversation?.sessionId || null;
+  const {
+    handlePreviewResizeStart,
+    previewWidth,
+    setShowPreview,
+    showPreview,
+  } = useAgentPreviewDock();
+  const {
+    activeConversationId,
+    closeConversation,
+    conversationViewMode,
+    conversations,
+    currentSession,
+    openConversation,
+    selectedAgent,
+    setActiveConversationId,
+    setActiveConversationProfile,
+    setConversationViewMode,
+    updateConversationSession,
+  } = useConversationTabs();
 
   // Projects state
   const [activeProject, setActiveProject] = useState<string | null>(() => {
@@ -272,50 +211,12 @@ const Layout80m: React.FC<Layout80mProps> = ({ playSplashLanding = false }) => {
     [clearAvatarIntroTimers, clearBrainPortalTimers],
   );
 
-  const openConversation = useCallback(
-    (sessionId: string | null = null, profile = selectedAgent) => {
-      if (sessionId) {
-        const existing = conversations.find(
-          (tab) => tab.sessionId === sessionId,
-        );
-        if (existing) {
-          setActiveConversationId(existing.id);
-          setActiveView("chat");
-          return;
-        }
-      }
-
-      const tab = createConversationTab(profile, sessionId);
-      setConversations((current) => [...current, tab]);
-      setActiveConversationId(tab.id);
-      setActiveView("chat");
-    },
-    [conversations, selectedAgent],
-  );
-
   const handleNewSession = useCallback(() => {
     // Hermes owns session ids. First send creates a real Hermes session and
     // ChatArea reports it back to the owning conversation tab.
     openConversation(null, selectedAgent);
     setActiveView("chat");
   }, [openConversation, selectedAgent]);
-
-  const handleConversationSessionChange = useCallback(
-    (conversationId: string, sessionId: string | null) => {
-      setConversations((current) =>
-        current.map((tab) => {
-          if (tab.id !== conversationId) return tab;
-          return {
-            ...tab,
-            sessionId,
-            title: sessionId ? `Session ${sessionId.slice(0, 6)}` : "New chat",
-            updatedAt: Date.now(),
-          };
-        }),
-      );
-    },
-    [],
-  );
 
   const handleSelectSession = useCallback(
     (id: string | null) => {
@@ -325,31 +226,16 @@ const Layout80m: React.FC<Layout80mProps> = ({ playSplashLanding = false }) => {
         return;
       }
       openConversation(id, selectedAgent);
+      setActiveView("chat");
     },
     [handleNewSession, openConversation, selectedAgent],
   );
 
   const handleCloseConversation = useCallback(
     (id: string) => {
-      if (runningConversationIds.has(id)) return;
-
-      setConversations((current) => {
-        if (current.length <= 1) {
-          const replacement = createConversationTab(selectedAgent);
-          setActiveConversationId(replacement.id);
-          return [replacement];
-        }
-
-        const closeIndex = current.findIndex((tab) => tab.id === id);
-        const next = current.filter((tab) => tab.id !== id);
-        if (activeConversationId === id) {
-          const nextIndex = Math.max(0, closeIndex - 1);
-          setActiveConversationId(next[nextIndex]?.id || next[0].id);
-        }
-        return next;
-      });
+      closeConversation(id, runningConversationIds);
     },
-    [activeConversationId, runningConversationIds, selectedAgent],
+    [closeConversation, runningConversationIds],
   );
 
   const handleBackToChat = useCallback(() => {
@@ -436,69 +322,6 @@ const Layout80m: React.FC<Layout80mProps> = ({ playSplashLanding = false }) => {
     };
   }, []);
 
-  useEffect(() => {
-    const handlePreviewUrl = () => {
-      setShowPreview(true);
-    };
-    window.addEventListener("open-agent-preview-url", handlePreviewUrl);
-    return () =>
-      window.removeEventListener("open-agent-preview-url", handlePreviewUrl);
-  }, []);
-
-  const handlePreviewResizeStart = useCallback(
-    (event: React.MouseEvent<HTMLDivElement>) => {
-      event.preventDefault();
-      previewResizeCleanupRef.current?.();
-      document.body.classList.add("agent-preview-resizing");
-
-      const handleMouseMove = (moveEvent: MouseEvent) => {
-        if (moveEvent.buttons === 0) {
-          previewResizeCleanupRef.current?.();
-          return;
-        }
-        const nextWidth = clampPreviewWidth(
-          window.innerWidth - moveEvent.clientX,
-        );
-        setPreviewWidth(nextWidth);
-        localStorage.setItem("80m-agent-preview-width", String(nextWidth));
-      };
-
-      const handleVisibilityChange = () => {
-        if (document.visibilityState === "hidden") {
-          previewResizeCleanupRef.current?.();
-        }
-      };
-
-      const cleanup = () => {
-        document.body.classList.remove("agent-preview-resizing");
-        window.removeEventListener("mousemove", handleMouseMove);
-        window.removeEventListener("mouseup", cleanup);
-        window.removeEventListener("blur", cleanup);
-        document.removeEventListener("mouseleave", cleanup);
-        document.removeEventListener(
-          "visibilitychange",
-          handleVisibilityChange,
-        );
-        previewResizeCleanupRef.current = null;
-      };
-
-      previewResizeCleanupRef.current = cleanup;
-      window.addEventListener("mousemove", handleMouseMove);
-      window.addEventListener("mouseup", cleanup);
-      window.addEventListener("blur", cleanup);
-      document.addEventListener("mouseleave", cleanup);
-      document.addEventListener("visibilitychange", handleVisibilityChange);
-    },
-    [],
-  );
-
-  useEffect(
-    () => () => {
-      previewResizeCleanupRef.current?.();
-    },
-    [],
-  );
-
   const renderMainContent = () => {
     const wrap = (_title: string, el: ReactNode) => (
       <div className="main-80m">
@@ -507,208 +330,28 @@ const Layout80m: React.FC<Layout80mProps> = ({ playSplashLanding = false }) => {
     );
 
     const chatShell = (
-      <div
-        style={{
-          display: activeView === "chat" ? "flex" : "none",
-          flex: 1,
-          overflow: "hidden",
-          minWidth: 0,
+      <ConversationWorkspace
+        activeConversationId={activeConversationId}
+        activeProject={activeProject}
+        activeViewIsChat={activeView === "chat"}
+        conversationViewMode={conversationViewMode}
+        conversations={conversations}
+        runningConversationIds={runningConversationIds}
+        showPreview={showPreview}
+        onActiveConversationChange={(id) => {
+          setActiveConversationId(id);
+          setActiveView("chat");
         }}
-      >
-        {activeProject && (
-          <ProjectsSidebar
-            activeProject={activeProject}
-            onProjectChange={handleProjectChange}
-            onFileClick={handleFileClick}
-          />
-        )}
-        <div
-          className="conversation-shell"
-          style={{
-            flex: 1,
-            display: "flex",
-            flexDirection: "column",
-            overflow: "hidden",
-            minWidth: 0,
-          }}
-        >
-          <div className="conversation-toolbar">
-            <button
-              className={`conversation-icon-btn conversation-brain-btn${activeView === "memory" ? " active" : ""}`}
-              onClick={openSecondBrain}
-              title="Second Brain"
-              type="button"
-            >
-              <span className="conversation-brain-pulse">
-                <Brain size={15} />
-              </span>
-            </button>
-            <button
-              className={`conversation-icon-btn conversation-project-btn${activeProject ? " active" : ""}`}
-              onClick={handleSelectProjectFolder}
-              title={
-                activeProject
-                  ? `Workspace: ${activeProject}`
-                  : "Open Project Folder"
-              }
-              type="button"
-            >
-              {activeProject ? <FolderOpen size={14} /> : <Folder size={14} />}
-            </button>
-
-            <div
-              className="conversation-tabs"
-              role="tablist"
-              aria-label="Open conversations"
-            >
-              {conversations.map((tab) => {
-                const isActive = tab.id === activeConversationId;
-                const isRunning = runningConversationIds.has(tab.id);
-                return (
-                  <div
-                    key={tab.id}
-                    className={`conversation-tab-wrap${isActive ? " active" : ""}${isRunning ? " running" : ""}`}
-                  >
-                    <button
-                      className="conversation-tab"
-                      role="tab"
-                      aria-selected={isActive}
-                      onClick={() => {
-                        setActiveConversationId(tab.id);
-                        setActiveView("chat");
-                      }}
-                      title={`${labelForConversation(tab)} - ${labelForProfile(tab.profile)}`}
-                    >
-                      <span className="conversation-tab-dot" />
-                      <span className="conversation-tab-copy">
-                        <span className="conversation-tab-title">
-                          {labelForConversation(tab)}
-                        </span>
-                        <span className="conversation-tab-agent">
-                          {labelForProfile(tab.profile)}
-                        </span>
-                      </span>
-                    </button>
-                    <button
-                      className="conversation-tab-close"
-                      onClick={() => handleCloseConversation(tab.id)}
-                      disabled={isRunning}
-                      title={
-                        isRunning
-                          ? "Conversation is running"
-                          : "Close conversation"
-                      }
-                      type="button"
-                    >
-                      <X size={12} />
-                    </button>
-                  </div>
-                );
-              })}
-              <button
-                className="conversation-icon-btn conversation-add-btn"
-                onClick={handleNewSession}
-                title="New conversation"
-                type="button"
-              >
-                <Plus size={14} />
-              </button>
-            </div>
-
-            <div className="conversation-action-cluster" aria-label="Chat view">
-              <button
-                className={`conversation-icon-btn${conversationViewMode === "tabs" ? " active" : ""}`}
-                onClick={() => setConversationViewMode("tabs")}
-                title="Tabbed conversations"
-                type="button"
-              >
-                <SquareStack size={14} />
-              </button>
-              <button
-                className={`conversation-icon-btn${conversationViewMode === "split" ? " active" : ""}`}
-                onClick={() => setConversationViewMode("split")}
-                title="Split screen conversations"
-                type="button"
-              >
-                <Columns2 size={14} />
-              </button>
-              <button
-                className={`conversation-icon-btn${showPreview ? " active" : ""}`}
-                onClick={() => setShowPreview((open) => !open)}
-                title={
-                  showPreview
-                    ? "Hide Agent Browser Preview"
-                    : "Show Agent Browser Preview"
-                }
-                type="button"
-              >
-                <Eye size={14} />
-              </button>
-            </div>
-          </div>
-
-          <div
-            className={`conversation-workspace conversation-workspace--${conversationViewMode}`}
-          >
-            {conversations.map((tab) => {
-              const isActive = tab.id === activeConversationId;
-              const isVisible = conversationViewMode === "split" || isActive;
-              const isRunning = runningConversationIds.has(tab.id);
-
-              return (
-                <section
-                  key={tab.id}
-                  className={`conversation-pane${isActive ? " active" : ""}${isRunning ? " running" : ""}`}
-                  style={{ display: isVisible ? "flex" : "none" }}
-                  aria-hidden={!isVisible}
-                >
-                  <div className="conversation-pane-header">
-                    <button
-                      className="conversation-pane-title"
-                      onClick={() => setActiveConversationId(tab.id)}
-                      type="button"
-                      title={`${labelForConversation(tab)} - ${labelForProfile(tab.profile)}`}
-                    >
-                      <span className="conversation-tab-dot" />
-                      <span>{labelForConversation(tab)}</span>
-                      <small>{labelForProfile(tab.profile)}</small>
-                    </button>
-                    <button
-                      className="conversation-tab-close"
-                      onClick={() => handleCloseConversation(tab.id)}
-                      disabled={isRunning}
-                      title={
-                        isRunning
-                          ? "Conversation is running"
-                          : "Close conversation"
-                      }
-                      type="button"
-                    >
-                      <X size={12} />
-                    </button>
-                  </div>
-                  <ChatArea
-                    conversationId={tab.id}
-                    currentSession={tab.sessionId}
-                    onNewSession={() => undefined}
-                    onSessionChange={(sessionId) =>
-                      handleConversationSessionChange(tab.id, sessionId || null)
-                    }
-                    profile={
-                      tab.profile !== "default" ? tab.profile : undefined
-                    }
-                    activeProject={activeProject}
-                    isAudible={
-                      conversationViewMode === "split" ||
-                      activeConversationId === tab.id
-                    }
-                  />
-                </section>
-              );
-            })}
-          </div>
-        </div>
-      </div>
+        onCloseConversation={handleCloseConversation}
+        onConversationSessionChange={updateConversationSession}
+        onConversationViewModeChange={setConversationViewMode}
+        onFileClick={handleFileClick}
+        onNewSession={handleNewSession}
+        onOpenSecondBrain={openSecondBrain}
+        onPreviewToggle={() => setShowPreview((open) => !open)}
+        onProjectChange={handleProjectChange}
+        onSelectProjectFolder={handleSelectProjectFolder}
+      />
     );
 
     let activePanel: ReactNode = null;
@@ -796,20 +439,9 @@ const Layout80m: React.FC<Layout80mProps> = ({ playSplashLanding = false }) => {
 
   const handleAgentChange = useCallback(
     (agent: string) => {
-      setConversations((current) =>
-        current.map((tab) => {
-          if (tab.id !== activeConversationId) return tab;
-          return {
-            ...tab,
-            profile: agent,
-            sessionId: agent !== tab.profile ? null : tab.sessionId,
-            title: agent !== tab.profile ? "New chat" : tab.title,
-            updatedAt: Date.now(),
-          };
-        }),
-      );
+      setActiveConversationProfile(agent);
     },
-    [activeConversationId],
+    [setActiveConversationProfile],
   );
 
   const agentThemeClass =
@@ -838,25 +470,13 @@ const Layout80m: React.FC<Layout80mProps> = ({ playSplashLanding = false }) => {
       <div className={`layout-80m-body${showPreview ? " preview-open" : ""}`}>
         <div className="layout-80m-primary">{renderMainContent()}</div>
         {showPreview && (
-          <aside
-            className="agent-preview-dock"
-            style={{ width: previewWidth }}
-            aria-label="Agent browser preview"
-          >
-            <div
-              className="agent-preview-resize-handle"
-              onMouseDown={handlePreviewResizeStart}
-              role="separator"
-              aria-orientation="vertical"
-              title="Resize Preview"
-            />
-            <AgentPreviewPanel
-              isOpen={showPreview}
-              onClose={() => setShowPreview(false)}
-              activeProject={activeProject}
-              isAgentWorking={activeChatRuns > 0}
-            />
-          </aside>
+          <AgentPreviewDock
+            activeProject={activeProject}
+            isAgentWorking={activeChatRuns > 0}
+            onClose={() => setShowPreview(false)}
+            onResizeStart={handlePreviewResizeStart}
+            width={previewWidth}
+          />
         )}
       </div>
 
@@ -875,8 +495,6 @@ const Layout80m: React.FC<Layout80mProps> = ({ playSplashLanding = false }) => {
           </div>
         </div>
       )}
-
-
 
       <CommandPalette
         isOpen={showCommandPalette}
