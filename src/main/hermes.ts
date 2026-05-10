@@ -8,7 +8,6 @@ import {
 } from "fs";
 import { join } from "path";
 import { homedir } from "os";
-import { randomBytes } from "crypto";
 import http from "http";
 import https from "https";
 import {
@@ -23,56 +22,38 @@ import {
   getModelConfig,
   readEnv,
   setEnvValue,
-  getConnectionConfig,
   getPlatformEnabled,
 } from "./config";
 import { stripAnsi } from "./utils";
 import { applyLongHaulEnv, ensureLongHaulConfig } from "./hermes-long-haul";
+import {
+  apiJson,
+  ensureApiServerKey,
+  getApiServerAuthHeader,
+  getApiUrl,
+  isApiServerReady,
+  isRemoteMode,
+  testRemoteConnection,
+} from "./hermes-api-client";
+import type {
+  ChatCallbacks,
+  ChatHandle,
+  ChatToolProgress,
+  HermesDesktopCapabilities,
+  HermesRunEvent,
+  HermesRunStartResult,
+  HermesRunStatusPayload,
+  HermesRunStatusResult,
+} from "./hermes-types";
 
-const LOCAL_API_URL = "http://127.0.0.1:8642";
-
-function getApiUrl(): string {
-  const conn = getConnectionConfig();
-  if (conn.mode === "remote" && conn.remoteUrl) {
-    return conn.remoteUrl.replace(/\/+$/, "");
-  }
-  return LOCAL_API_URL;
-}
-
-export function isRemoteMode(): boolean {
-  return getConnectionConfig().mode === "remote";
-}
-
-function getRemoteAuthHeader(): Record<string, string> {
-  const conn = getConnectionConfig();
-  if (conn.mode === "remote" && conn.apiKey) {
-    return { Authorization: `Bearer ${conn.apiKey}` };
-  }
-  return {};
-}
-
-function getApiServerAuthHeader(profile?: string): Record<string, string> {
-  const remoteHeader = getRemoteAuthHeader();
-  if (remoteHeader.Authorization) return remoteHeader;
-
-  const conn = getConnectionConfig();
-  if (conn.mode === "local") {
-    const key = readEnv(profile).API_SERVER_KEY || process.env.API_SERVER_KEY;
-    if (key) return { Authorization: `Bearer ${key}` };
-  }
-
-  return {};
-}
-
-function ensureApiServerKey(profile?: string): string {
-  const existing =
-    readEnv(profile).API_SERVER_KEY || process.env.API_SERVER_KEY;
-  if (existing?.trim()) return existing.trim();
-
-  const key = `hsk_${randomBytes(24).toString("hex")}`;
-  setEnvValue("API_SERVER_KEY", key, profile);
-  return key;
-}
+export { isRemoteMode, testRemoteConnection };
+export type {
+  ChatCallbacks,
+  ChatToolProgress,
+  HermesDesktopCapabilities,
+  HermesRunStartResult,
+  HermesRunStatusResult,
+};
 
 const PLATFORM_ENV_KEYS: Record<string, string[]> = {
   discord: [
@@ -135,113 +116,6 @@ const URL_KEY_MAP: Array<{ pattern: RegExp; envKey: string }> = [
   { pattern: /openai\.com/i, envKey: "OPENAI_API_KEY" },
   { pattern: /huggingface\.co/i, envKey: "HF_TOKEN" },
 ];
-
-interface ChatHandle {
-  abort: () => void;
-}
-
-interface ApiRequestResult<T = unknown> {
-  ok: boolean;
-  status: number | null;
-  data: T | null;
-  error?: string;
-}
-
-interface HermesRunEvent {
-  event?: string;
-  run_id?: string;
-  runId?: string;
-  delta?: string;
-  output?: string;
-  error?: string | boolean;
-  tool?: string;
-  toolCallId?: string;
-  preview?: string;
-  text?: string;
-  duration?: number;
-  usage?: {
-    input_tokens?: number;
-    output_tokens?: number;
-    total_tokens?: number;
-  };
-}
-
-export interface ChatToolProgress {
-  tool?: string;
-  name?: string;
-  label?: string;
-  preview?: string;
-  status?: "running" | "completed" | "error" | "reasoning";
-  toolCallId?: string;
-  duration?: number;
-  error?: boolean;
-}
-
-interface HermesRunStatusPayload {
-  run_id?: string;
-  status?: string;
-  session_id?: string;
-  output?: string;
-  error?: string;
-  usage?: {
-    input_tokens?: number;
-    output_tokens?: number;
-    total_tokens?: number;
-  };
-  last_event?: string;
-}
-
-export interface HermesDesktopCapabilities {
-  version: string | null;
-  semver: string | null;
-  isAtLeastV12: boolean;
-  updateAvailable: boolean;
-  api: {
-    ok: boolean;
-    status: number | null;
-    url: string;
-    error?: string;
-    features: Record<string, boolean>;
-    endpoints: Record<string, { method?: string; path?: string }>;
-    models: string[];
-  };
-  toolGateway: {
-    present: boolean;
-    available: boolean;
-    reason: string;
-    managedTools: string[];
-  };
-  supports: {
-    chatCompletions: boolean;
-    responses: boolean;
-    runs: boolean;
-    runEvents: boolean;
-    runStop: boolean;
-    toolProgress: boolean;
-    sessionContinuity: boolean;
-    curator: boolean;
-  };
-}
-
-export interface HermesRunStartResult {
-  success: boolean;
-  runId?: string;
-  status?: string;
-  sessionId?: string;
-  error?: string;
-  raw?: unknown;
-}
-
-export interface HermesRunStatusResult {
-  success: boolean;
-  runId?: string;
-  status?: string;
-  sessionId?: string;
-  output?: string;
-  usage?: unknown;
-  error?: string;
-  raw?: unknown;
-}
 
 function parseHermesSemver(version: string | null): string | null {
   return version?.match(/v(\d+\.\d+\.\d+)/)?.[1] || null;
@@ -322,86 +196,6 @@ function parseToolGateway(
       .join(" "),
     managedTools: unavailable ? [] : managedTools,
   };
-}
-
-function apiJson<T = unknown>(
-  path: string,
-  profile?: string,
-  method = "GET",
-  body?: unknown,
-): Promise<ApiRequestResult<T>> {
-  return new Promise((resolveResult) => {
-    try {
-      const target = new URL(path, getApiUrl());
-      const mod = target.protocol === "https:" ? https : http;
-      const payload =
-        body == null ? undefined : Buffer.from(JSON.stringify(body), "utf-8");
-      const headers: Record<string, string | number> = {
-        ...getApiServerAuthHeader(profile),
-        Accept: "application/json",
-      };
-      if (payload) {
-        headers["Content-Type"] = "application/json";
-        headers["Content-Length"] = payload.byteLength;
-      }
-
-      const req = mod.request(
-        target,
-        {
-          method,
-          timeout: 8000,
-          headers,
-        },
-        (res) => {
-          const chunks: Buffer[] = [];
-          res.on("data", (chunk: Buffer) => chunks.push(chunk));
-          res.on("end", () => {
-            const text = Buffer.concat(chunks).toString("utf-8");
-            try {
-              resolveResult({
-                ok: (res.statusCode || 0) >= 200 && (res.statusCode || 0) < 300,
-                status: res.statusCode || null,
-                data: text ? (JSON.parse(text) as T) : null,
-              });
-            } catch {
-              resolveResult({
-                ok: false,
-                status: res.statusCode || null,
-                data: null,
-                error: text.slice(0, 500) || "Invalid JSON response.",
-              });
-            }
-          });
-        },
-      );
-      req.on("error", (error) =>
-        resolveResult({
-          ok: false,
-          status: null,
-          data: null,
-          error: error.message,
-        }),
-      );
-      req.on("timeout", () => {
-        req.destroy();
-        resolveResult({
-          ok: false,
-          status: null,
-          data: null,
-          error: "timeout",
-        });
-      });
-      if (payload) req.write(payload);
-      req.end();
-    } catch (error) {
-      resolveResult({
-        ok: false,
-        status: null,
-        data: null,
-        error: error instanceof Error ? error.message : "invalid request",
-      });
-    }
-  });
 }
 
 export async function getHermesCapabilities(
@@ -555,35 +349,6 @@ export async function stopHermesRun(
 }
 
 // ────────────────────────────────────────────────────
-//  API Server health check
-// ────────────────────────────────────────────────────
-
-function isApiServerReady(profile?: string): Promise<boolean> {
-  return new Promise((resolve) => {
-    const url = `${getApiUrl()}/health`;
-    const mod = url.startsWith("https") ? https : http;
-    const req = mod.request(
-      url,
-      {
-        method: "GET",
-        timeout: 1500,
-        headers: getApiServerAuthHeader(profile),
-      },
-      (res) => {
-        resolve(res.statusCode === 200);
-        res.resume();
-      },
-    );
-    req.on("error", () => resolve(false));
-    req.on("timeout", () => {
-      req.destroy();
-      resolve(false);
-    });
-    req.end();
-  });
-}
-
-// ────────────────────────────────────────────────────
 //  Ensure API server is enabled in config
 // ────────────────────────────────────────────────────
 
@@ -599,21 +364,6 @@ function ensureApiServerConfig(): void {
 // ────────────────────────────────────────────────────
 //  HTTP API streaming (fast path — no process spawn)
 // ────────────────────────────────────────────────────
-
-export interface ChatCallbacks {
-  onChunk: (text: string) => void;
-  onDone: (sessionId?: string) => void;
-  onError: (error: string) => void;
-  onToolProgress?: (tool: string | ChatToolProgress) => void;
-  onUsage?: (usage: {
-    promptTokens: number;
-    completionTokens: number;
-    totalTokens: number;
-    cost?: number;
-    rateLimitRemaining?: number;
-    rateLimitReset?: number;
-  }) => void;
-}
 
 function normalizeConversationHistory(
   history?: Array<{ role: string; content: string }>,
@@ -1647,32 +1397,6 @@ export function isGatewayRunning(): boolean {
 
 export function isApiReady(): boolean {
   return apiServerAvailable === true;
-}
-
-export function testRemoteConnection(
-  url: string,
-  apiKey?: string,
-): Promise<boolean> {
-  return new Promise((resolve) => {
-    const target = `${url.replace(/\/+$/, "")}/health`;
-    const mod = target.startsWith("https") ? https : http;
-    const headers: Record<string, string> = {};
-    if (apiKey) headers.Authorization = `Bearer ${apiKey}`;
-    const req = mod.request(
-      target,
-      { method: "GET", timeout: 5000, headers },
-      (res) => {
-        resolve(res.statusCode === 200);
-        res.resume();
-      },
-    );
-    req.on("error", () => resolve(false));
-    req.on("timeout", () => {
-      req.destroy();
-      resolve(false);
-    });
-    req.end();
-  });
 }
 
 export function restartGateway(profile?: string): void {

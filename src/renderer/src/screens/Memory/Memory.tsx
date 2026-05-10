@@ -1,41 +1,21 @@
 import { useState, useEffect, useCallback } from "react";
-import { Plus, Trash, Refresh } from "../../assets/icons";
+import { Refresh } from "../../assets/icons";
 import { useI18n } from "../../components/useI18n";
-import {
-  BookOpen,
-  Brain,
-  Braces,
-  Calendar,
-  Check,
-  CheckCircle2,
-  ChevronDown,
-  ChevronRight,
-  CircleEllipsis,
-  DollarSign,
-  Edit3,
-  Eye,
-  ExternalLink,
-  FileCode2,
-  FileJson,
-  FileText,
-  Folder,
-  FolderOpen,
-  MessageSquare,
-  Radio,
-  Save,
-  User,
-  Users,
-  X,
-} from "lucide-react";
+import { BookOpen, Brain, Check, Edit3, Eye, Save, X } from "lucide-react";
 import AgentMarkdown from "../../components/AgentMarkdown";
 import NeuralMap3D from "../../components/80m/NeuralMap3D";
+import { MemoryDocumentIcon } from "./MemoryDocumentIcon";
+import { MemoryEntriesPanel } from "./MemoryEntriesPanel";
+import { MemoryProvidersPanel } from "./MemoryProvidersPanel";
+import { MemoryUserProfilePanel } from "./MemoryUserProfilePanel";
+import { MemoryVaultTreeNode } from "./MemoryVaultTreeNode";
+import { buildNeuralNodes } from "./memoryNeuralModel";
 import type {
   DocumentPreviewData,
   FileNode,
   MemoryData,
   MemoryProviderInfo,
   NeuralCluster,
-  NeuralClusterDefinition,
   NeuralClusterId,
   NeuralVaultIndex,
   ObsidianVaultInfo,
@@ -44,10 +24,8 @@ import {
   buildNeuralVaultIndex,
   displayFileName,
   displayLocalPath,
-  documentExtension,
   documentKindLabel,
   EMPTY_VAULT_INDEX,
-  entryMatchesCluster,
   formatCompact,
   isEditableDocument,
   isJsonDocument,
@@ -55,100 +33,6 @@ import {
   readableContent,
   timeAgo,
 } from "./memoryUtils";
-
-const PROVIDER_URLS: Record<string, string> = {
-  honcho: "https://app.honcho.dev",
-  hindsight: "https://ui.hindsight.vectorize.io",
-  mem0: "https://app.mem0.ai",
-  retaindb: "https://retaindb.com",
-  supermemory: "https://supermemory.ai",
-  byterover: "https://app.byterover.dev",
-};
-
-function DocumentKindIcon({
-  note,
-}: {
-  note: DocumentPreviewData;
-}): React.JSX.Element {
-  if (isMarkdownDocument(note)) return <BookOpen size={17} />;
-  if (isJsonDocument(note)) return <FileJson size={17} />;
-  if ([".yaml", ".yml"].includes(documentExtension(note))) {
-    return <Braces size={17} />;
-  }
-  if (note.kind === "text") return <FileCode2 size={17} />;
-  return <FileText size={17} />;
-}
-
-function VaultTreeNode({
-  node,
-  level,
-  onFileClick,
-}: {
-  node: FileNode;
-  level: number;
-  onFileClick: (path: string) => void;
-}): React.JSX.Element {
-  const [expanded, setExpanded] = useState(false);
-  const [children, setChildren] = useState<FileNode[]>([]);
-  const [loading, setLoading] = useState(false);
-
-  async function toggle(): Promise<void> {
-    if (!node.isDirectory) {
-      onFileClick(node.path);
-      return;
-    }
-    if (!expanded) {
-      setLoading(true);
-      try {
-        const entries = await window.hermesAPI.readDirectory(node.path);
-        setChildren(entries);
-      } finally {
-        setLoading(false);
-      }
-    }
-    setExpanded((value) => !value);
-  }
-
-  return (
-    <div className="memory-vault-node">
-      <button
-        type="button"
-        className="memory-vault-tree-item"
-        style={{ paddingLeft: `${level * 14 + 8}px` }}
-        onClick={() => void toggle()}
-        title={node.path}
-      >
-        {node.isDirectory ? (
-          <>
-            {expanded ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
-            <FolderOpen size={13} />
-          </>
-        ) : (
-          <>
-            <span className="memory-vault-tree-spacer" />
-            <FileText size={13} />
-          </>
-        )}
-        <span className="memory-vault-tree-name">
-          {displayFileName(node.name)}
-        </span>
-        {loading && <span className="memory-vault-tree-loading">...</span>}
-      </button>
-      {expanded && node.isDirectory && (
-        <div>
-          {children.map((child) => (
-            <VaultTreeNode
-              key={child.path}
-              node={child}
-              level={level + 1}
-              onFileClick={onFileClick}
-            />
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
 
 function Memory({ profile }: { profile?: string }): React.JSX.Element {
   const { t } = useI18n();
@@ -441,267 +325,7 @@ function Memory({ profile }: { profile?: string }): React.JSX.Element {
   const selectedNoteEditable = isEditableDocument(selectedNote);
   const selectedNoteDirty =
     selectedNoteEditable && noteEditContent !== noteOriginalContent;
-  const neuralClusterDefinitions: NeuralClusterDefinition[] = [
-    {
-      id: "streams",
-      label: "Inbox",
-      description: "Captures, sparks, voice notes, and unprocessed inputs.",
-      keywords: [
-        "inbox",
-        "capture",
-        "captures",
-        "spark",
-        "sparks",
-        "voice",
-        "stream",
-        "input",
-      ],
-      icon: <Radio size={18} />,
-      x: 18,
-      y: 34,
-    },
-    {
-      id: "sync",
-      label: "Vault Sync",
-      description:
-        "Every indexed markdown note in the configured Obsidian vault.",
-      keywords: [],
-      icon: <Refresh size={18} />,
-      x: 38,
-      y: 22,
-    },
-    {
-      id: "habits",
-      label: "Tasks",
-      description: "Tasks, habits, todos, active work, and Kanban material.",
-      keywords: [
-        "task",
-        "tasks",
-        "todo",
-        "todos",
-        "habit",
-        "habits",
-        "kanban",
-        "active task",
-      ],
-      icon: <CheckCircle2 size={18} />,
-      x: 53,
-      y: 17,
-    },
-    {
-      id: "projects",
-      label: "Projects",
-      description: "Client work, project folders, roadmaps, and deliverables.",
-      keywords: [
-        "project",
-        "projects",
-        "client",
-        "clients",
-        "roadmap",
-        "deliverable",
-        "launch",
-        "work",
-      ],
-      icon: <Folder size={18} />,
-      x: 67,
-      y: 25,
-    },
-    {
-      id: "contacts",
-      label: "People",
-      description:
-        "Contacts, client profiles, teams, vendors, and people notes.",
-      keywords: [
-        "people",
-        "person",
-        "contact",
-        "contacts",
-        "client",
-        "clients",
-        "team",
-        "vendor",
-        "crm",
-      ],
-      icon: <Users size={18} />,
-      x: 83,
-      y: 36,
-    },
-    {
-      id: "calendar",
-      label: "Calendar",
-      description:
-        "Dates, daily logs, weekly reviews, meetings, and schedules.",
-      keywords: [
-        "calendar",
-        "schedule",
-        "meeting",
-        "meetings",
-        "event",
-        "events",
-        "weekly",
-        "monthly",
-        "review",
-      ],
-      icon: <Calendar size={18} />,
-      x: 82,
-      y: 50,
-    },
-    {
-      id: "cortex",
-      label: "Knowledge",
-      description:
-        "Research, indexes, MOCs, reference notes, and second-brain material.",
-      keywords: [
-        "cortex",
-        "knowledge",
-        "research",
-        "reference",
-        "index",
-        "moc",
-        "wiki",
-        "second brain",
-        "memory",
-      ],
-      icon: <Brain size={18} />,
-      x: 78,
-      y: 62,
-    },
-    {
-      id: "more",
-      label: "Unsorted",
-      description: "Vault notes that did not match a focused brain area yet.",
-      keywords: [],
-      icon: <CircleEllipsis size={18} />,
-      x: 86,
-      y: 78,
-    },
-    {
-      id: "finance",
-      label: "Finance",
-      description:
-        "Money, transactions, invoices, billing, budgets, and tax notes.",
-      keywords: [
-        "finance",
-        "money",
-        "transaction",
-        "transactions",
-        "invoice",
-        "invoices",
-        "billing",
-        "budget",
-        "tax",
-        "stripe",
-        "sales",
-      ],
-      icon: <DollarSign size={18} />,
-      x: 63,
-      y: 80,
-    },
-    {
-      id: "daily",
-      label: "Daily",
-      description:
-        "Daily notes, journals, logs, and personal operating rhythm.",
-      keywords: [
-        "daily",
-        "journal",
-        "journals",
-        "log",
-        "logs",
-        "today",
-        "morning",
-        "evening",
-      ],
-      icon: <Calendar size={18} />,
-      x: 45,
-      y: 86,
-    },
-    {
-      id: "chat",
-      label: "Chat",
-      description:
-        "Chat sessions, transcripts, messages, and agent conversations.",
-      keywords: [
-        "chat",
-        "chats",
-        "conversation",
-        "conversations",
-        "message",
-        "messages",
-        "session",
-        "sessions",
-        "transcript",
-      ],
-      icon: <MessageSquare size={18} />,
-      x: 28,
-      y: 73,
-    },
-    {
-      id: "agents",
-      label: "Agents",
-      description:
-        "Agent rosters, assistant profiles, Hermes notes, and automations.",
-      keywords: [
-        "agent",
-        "agents",
-        "assistant",
-        "assistants",
-        "hermes",
-        "profile",
-        "profiles",
-        "round table",
-        "automation",
-      ],
-      icon: <User size={18} />,
-      x: 18,
-      y: 61,
-    },
-    {
-      id: "notes",
-      label: "Notes",
-      description: "All indexed markdown notes from the selected vault.",
-      keywords: [],
-      icon: <FileText size={18} />,
-      x: 17,
-      y: 47,
-    },
-  ];
-  const specificVaultClusters = neuralClusterDefinitions.filter(
-    (cluster) => !["sync", "more", "notes"].includes(cluster.id),
-  );
-  const unassignedNotes = vaultIndex.notes.filter(
-    (note) =>
-      !specificVaultClusters.some((cluster) =>
-        entryMatchesCluster(note, cluster),
-      ),
-  );
-  const unassignedFolders = vaultIndex.folders.filter(
-    (folder) =>
-      !specificVaultClusters.some((cluster) =>
-        entryMatchesCluster(folder, cluster),
-      ),
-  );
-  const neuralNodes: NeuralCluster[] = neuralClusterDefinitions.map(
-    (cluster) => {
-      const notes =
-        cluster.id === "more"
-          ? unassignedNotes
-          : vaultIndex.notes.filter((note) =>
-              entryMatchesCluster(note, cluster),
-            );
-      const folders =
-        cluster.id === "more"
-          ? unassignedFolders
-          : vaultIndex.folders.filter((folder) =>
-              entryMatchesCluster(folder, cluster),
-            );
-      const value =
-        cluster.id === "sync" || cluster.id === "notes"
-          ? vaultIndex.notes.length || vault?.noteCount || 0
-          : notes.length || folders.length;
-      return { ...cluster, value, notes, folders };
-    },
-  );
+  const neuralNodes = buildNeuralNodes(vaultIndex, vault?.noteCount || 0);
   const activeCluster =
     neuralNodes.find((node) => node.id === activeNeuralId) ||
     neuralNodes[neuralNodes.length - 1];
@@ -939,7 +563,7 @@ function Memory({ profile }: { profile?: string }): React.JSX.Element {
                 {neuralPreviewNote ? (
                   <div className="memory-neural-preview">
                     <div className="memory-neural-preview-heading">
-                      <DocumentKindIcon note={neuralPreviewNote} />
+                      <MemoryDocumentIcon note={neuralPreviewNote} />
                       <div>
                         <strong>
                           {displayFileName(neuralPreviewNote.name)}
@@ -1057,7 +681,7 @@ function Memory({ profile }: { profile?: string }): React.JSX.Element {
                     <div className="memory-vault-loading">Loading vault...</div>
                   ) : (
                     vaultRoot.map((node) => (
-                      <VaultTreeNode
+                      <MemoryVaultTreeNode
                         key={node.path}
                         node={node}
                         level={0}
@@ -1072,7 +696,7 @@ function Memory({ profile }: { profile?: string }): React.JSX.Element {
                       <header className="memory-vault-preview-header">
                         <div className="memory-vault-preview-heading">
                           <div className="memory-vault-document-icon">
-                            <DocumentKindIcon note={selectedNote} />
+                            <MemoryDocumentIcon note={selectedNote} />
                           </div>
                           <div>
                             <div className="memory-vault-kicker">
@@ -1244,343 +868,52 @@ function Memory({ profile }: { profile?: string }): React.JSX.Element {
 
         {/* Agent Memory Entries */}
         {tab === "entries" && (
-          <div className="memory-entries">
-            <div className="memory-entries-header">
-              <span className="memory-entries-count">
-                {t("memory.entries", { count: data.memory.entries.length })}
-              </span>
-              <button
-                className="btn btn-primary btn-sm"
-                onClick={() => setShowAdd(!showAdd)}
-              >
-                <Plus size={13} />
-                {t("memory.addMemory")}
-              </button>
-            </div>
-
-            {showAdd && (
-              <div className="memory-entry-form">
-                <textarea
-                  className="memory-entry-textarea"
-                  value={newEntry}
-                  onChange={(e) => setNewEntry(e.target.value)}
-                  placeholder={t("memory.entriesPlaceholder")}
-                  rows={3}
-                  autoFocus
-                />
-                <div className="memory-entry-form-actions">
-                  <span className="memory-entry-chars">
-                    {newEntry.length} chars
-                  </span>
-                  <button
-                    className="btn btn-secondary btn-sm"
-                    onClick={() => {
-                      setShowAdd(false);
-                      setNewEntry("");
-                    }}
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    className="btn btn-primary btn-sm"
-                    onClick={handleAddEntry}
-                    disabled={!newEntry.trim()}
-                  >
-                    Save
-                  </button>
-                </div>
-              </div>
-            )}
-
-            {data.memory.entries.length === 0 ? (
-              <div className="memory-empty">
-                <p>{t("memory.noMemoriesYet")}</p>
-                <p className="memory-empty-hint">
-                  {t("memory.addManuallyHint")}
-                </p>
-              </div>
-            ) : (
-              data.memory.entries.map((entry) => (
-                <div key={entry.index} className="memory-entry-card">
-                  {editingIndex === entry.index ? (
-                    <div className="memory-entry-form">
-                      <textarea
-                        className="memory-entry-textarea"
-                        value={editContent}
-                        onChange={(e) => setEditContent(e.target.value)}
-                        rows={3}
-                        autoFocus
-                      />
-                      <div className="memory-entry-form-actions">
-                        <span className="memory-entry-chars">
-                          {t("memory.chars", { count: editContent.length })}
-                        </span>
-                        <button
-                          className="btn btn-secondary btn-sm"
-                          onClick={() => setEditingIndex(null)}
-                        >
-                          {t("memory.cancel")}
-                        </button>
-                        <button
-                          className="btn btn-primary btn-sm"
-                          onClick={handleSaveEdit}
-                        >
-                          {t("memory.save")}
-                        </button>
-                      </div>
-                    </div>
-                  ) : (
-                    <>
-                      <div className="memory-entry-content">
-                        {entry.content}
-                      </div>
-                      <div className="memory-entry-actions">
-                        <button
-                          className="btn-ghost memory-entry-btn"
-                          onClick={() => {
-                            setEditingIndex(entry.index);
-                            setEditContent(entry.content);
-                          }}
-                        >
-                          {t("memory.edit")}
-                        </button>
-                        {confirmDelete === entry.index ? (
-                          <span className="memory-entry-confirm">
-                            {t("memory.deleteConfirm")}
-                            <button
-                              className="btn-ghost"
-                              style={{ color: "var(--error)" }}
-                              onClick={() => handleDeleteEntry(entry.index)}
-                            >
-                              {t("memory.yes")}
-                            </button>
-                            <button
-                              className="btn-ghost"
-                              onClick={() => setConfirmDelete(null)}
-                            >
-                              {t("memory.no")}
-                            </button>
-                          </span>
-                        ) : (
-                          <button
-                            className="btn-ghost memory-entry-btn"
-                            onClick={() => setConfirmDelete(entry.index)}
-                          >
-                            <Trash size={13} />
-                          </button>
-                        )}
-                      </div>
-                    </>
-                  )}
-                </div>
-              ))
-            )}
-          </div>
+          <MemoryEntriesPanel
+            entries={data.memory.entries}
+            showAdd={showAdd}
+            newEntry={newEntry}
+            editingIndex={editingIndex}
+            editContent={editContent}
+            confirmDelete={confirmDelete}
+            setShowAdd={setShowAdd}
+            setNewEntry={setNewEntry}
+            setEditingIndex={setEditingIndex}
+            setEditContent={setEditContent}
+            setConfirmDelete={setConfirmDelete}
+            onAddEntry={() => void handleAddEntry()}
+            onSaveEdit={() => void handleSaveEdit()}
+            onDeleteEntry={(index) => void handleDeleteEntry(index)}
+          />
         )}
 
         {/* User Profile */}
         {tab === "profile" && (
-          <div className="memory-profile">
-            <div className="memory-profile-header">
-              <span className="memory-profile-hint">
-                {t("memory.userProfileHint")}
-              </span>
-              {userSaved && (
-                <span
-                  style={{
-                    color: "var(--success)",
-                    fontSize: 12,
-                    fontWeight: 600,
-                  }}
-                >
-                  {t("common.saved")}
-                </span>
-              )}
-            </div>
-            <textarea
-              className="memory-profile-textarea"
-              value={userContent}
-              onChange={(e) => {
-                setUserContent(e.target.value);
-                setUserEditing(true);
-              }}
-              placeholder={t("memory.userProfilePlaceholder")}
-              rows={8}
-            />
-            <div className="memory-profile-footer">
-              <span className="memory-entry-chars">
-                {t("memory.chars", { count: userContent.length })} /{" "}
-                {data.user.charLimit}{" "}
-                {t("memory.chars", { count: 1 }).split(" ")[1]}
-              </span>
-              {userEditing && (
-                <button
-                  className="btn btn-primary btn-sm"
-                  onClick={handleSaveUserProfile}
-                >
-                  {t("memory.saveProfile")}
-                </button>
-              )}
-            </div>
-          </div>
+          <MemoryUserProfilePanel
+            user={data.user}
+            userContent={userContent}
+            userEditing={userEditing}
+            userSaved={userSaved}
+            setUserContent={setUserContent}
+            setUserEditing={setUserEditing}
+            onSaveUserProfile={() => void handleSaveUserProfile()}
+          />
         )}
 
         {/* Memory Providers */}
         {tab === "providers" && (
-          <div className="memory-providers">
-            <div className="memory-providers-hint">
-              {t("memory.providersHint")}
-              {memoryProvider ? (
-                <span>
-                  {" "}
-                  {t("memory.active")}: <strong>{memoryProvider}</strong>
-                </span>
-              ) : (
-                <span> {t("memory.providersHintInactive")}</span>
-              )}
-            </div>
-
-            {providers.length === 0 ? (
-              <div className="memory-empty">
-                <p>{t("memory.noProvidersFound")}</p>
-              </div>
-            ) : (
-              <div className="memory-providers-grid">
-                {providers.map((p) => (
-                  <div
-                    key={p.name}
-                    className={`memory-provider-card ${p.active ? "memory-provider-active" : ""}`}
-                  >
-                    <div className="memory-provider-header">
-                      <div className="memory-provider-name">
-                        {p.name}
-                        {p.active && (
-                          <span className="memory-provider-badge">
-                            <Check size={10} /> {t("memory.active")}
-                          </span>
-                        )}
-                      </div>
-                      {PROVIDER_URLS[p.name] && (
-                        <button
-                          className="btn-ghost"
-                          style={{ padding: 2, opacity: 0.6 }}
-                          onClick={() =>
-                            window.hermesAPI.openExternal(PROVIDER_URLS[p.name])
-                          }
-                          title={t("memory.openProviderWebsite")}
-                        >
-                          <ExternalLink size={12} />
-                        </button>
-                      )}
-                    </div>
-                    <div className="memory-provider-desc">
-                      {t(p.description)}
-                    </div>
-
-                    {/* Env var config fields */}
-                    {p.envVars.length > 0 && (
-                      <div className="memory-provider-fields">
-                        {p.envVars.map((envKey) => (
-                          <div key={envKey} className="memory-provider-field">
-                            <label className="memory-provider-field-label">
-                              {envKey}
-                              {providerSavedKey === envKey && (
-                                <span
-                                  style={{
-                                    color: "var(--success)",
-                                    fontSize: 10,
-                                    marginLeft: 6,
-                                  }}
-                                >
-                                  {t("common.saved")}
-                                </span>
-                              )}
-                            </label>
-                            <input
-                              className="input"
-                              type="password"
-                              value={providerEnv[envKey] || ""}
-                              onChange={(e) =>
-                                setProviderEnv((prev) => ({
-                                  ...prev,
-                                  [envKey]: e.target.value,
-                                }))
-                              }
-                              onBlur={async () => {
-                                await window.hermesAPI.setEnv(
-                                  envKey,
-                                  providerEnv[envKey] || "",
-                                  profile,
-                                );
-                                setProviderSavedKey(envKey);
-                                setTimeout(
-                                  () => setProviderSavedKey(null),
-                                  2000,
-                                );
-                              }}
-                              placeholder={t("memory.enterEnvKey", {
-                                key: envKey,
-                              })}
-                              style={{ fontSize: 12 }}
-                            />
-                          </div>
-                        ))}
-                      </div>
-                    )}
-
-                    <div className="memory-provider-actions">
-                      {p.active ? (
-                        <button
-                          className="btn btn-secondary btn-sm"
-                          onClick={async () => {
-                            setActivating(p.name);
-                            await window.hermesAPI.setConfig(
-                              "memory.provider",
-                              "",
-                              profile,
-                            );
-                            setMemoryProvider(null);
-                            setProviders((prev) =>
-                              prev.map((pr) => ({ ...pr, active: false })),
-                            );
-                            setActivating(null);
-                          }}
-                          disabled={activating !== null}
-                        >
-                          {t("memory.deactivate")}
-                        </button>
-                      ) : (
-                        <button
-                          className="btn btn-primary btn-sm"
-                          onClick={async () => {
-                            setActivating(p.name);
-                            await window.hermesAPI.setConfig(
-                              "memory.provider",
-                              p.name,
-                              profile,
-                            );
-                            setMemoryProvider(p.name);
-                            setProviders((prev) =>
-                              prev.map((pr) => ({
-                                ...pr,
-                                active: pr.name === p.name,
-                              })),
-                            );
-                            setActivating(null);
-                          }}
-                          disabled={activating !== null}
-                        >
-                          {activating === p.name
-                            ? t("memory.activating")
-                            : t("memory.activate")}
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
+          <MemoryProvidersPanel
+            profile={profile}
+            memoryProvider={memoryProvider}
+            providers={providers}
+            providerEnv={providerEnv}
+            providerSavedKey={providerSavedKey}
+            activating={activating}
+            setMemoryProvider={setMemoryProvider}
+            setProviders={setProviders}
+            setProviderEnv={setProviderEnv}
+            setProviderSavedKey={setProviderSavedKey}
+            setActivating={setActivating}
+          />
         )}
       </div>
     </div>
