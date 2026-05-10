@@ -29,150 +29,32 @@ import {
 } from "lucide-react";
 import AgentMarkdown from "../../components/AgentMarkdown";
 import NeuralMap3D from "../../components/80m/NeuralMap3D";
-
-interface MemoryEntry {
-  index: number;
-  content: string;
-}
-
-interface MemoryData {
-  memory: {
-    content: string;
-    exists: boolean;
-    lastModified: number | null;
-    entries: MemoryEntry[];
-    charCount: number;
-    charLimit: number;
-  };
-  user: {
-    content: string;
-    exists: boolean;
-    lastModified: number | null;
-    charCount: number;
-    charLimit: number;
-  };
-  stats: { totalSessions: number; totalMessages: number };
-}
-
-interface FileNode {
-  name: string;
-  isDirectory: boolean;
-  path: string;
-}
-
-interface VaultIndexEntry {
-  name: string;
-  path: string;
-  relativePath: string;
-  isDirectory: boolean;
-  depth: number;
-}
-
-interface GraphNote {
-  id: string; // relativePath without .md
-  path: string;
-  name: string;
-  relativePath: string;
-  linkCount: number;
-}
-
-interface GraphEdge {
-  source: string; // GraphNote id
-  target: string; // GraphNote id
-}
-
-interface NeuralVaultIndex {
-  folders: VaultIndexEntry[];
-  notes: VaultIndexEntry[];
-  scannedEntries: number;
-  truncated: boolean;
-  graphNotes: GraphNote[];
-  graphEdges: GraphEdge[];
-}
-
-interface ObsidianVaultInfo {
-  path: string | null;
-  name: string;
-  exists: boolean;
-  noteCount: number;
-  totalFiles: number;
-}
-
-interface DocumentPreviewData {
-  path: string;
-  name: string;
-  exists: boolean;
-  kind:
-    | "text"
-    | "markdown"
-    | "image"
-    | "pdf"
-    | "office"
-    | "directory"
-    | "binary"
-    | "missing";
-  size: number;
-  fileUrl?: string;
-  content?: string;
-  truncated?: boolean;
-  error?: string;
-}
-
-function timeAgo(ts: number | null): string {
-  if (!ts) return "";
-  const diff = Math.floor(Date.now() / 1000) - ts;
-  if (diff < 60) return "just now";
-  if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
-  if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
-  return `${Math.floor(diff / 86400)}d ago`;
-}
-
-function formatCompact(value: number): string {
-  if (value >= 1000000) return `${(value / 1000000).toFixed(1)}M`;
-  if (value >= 10000) return `${Math.round(value / 1000)}K`;
-  return value.toLocaleString();
-}
-
-
-
-interface MemoryProviderInfo {
-  name: string;
-  description: string;
-  installed: boolean;
-  active: boolean;
-  envVars: string[];
-}
-
-type NeuralClusterId =
-  | "streams"
-  | "sync"
-  | "habits"
-  | "projects"
-  | "contacts"
-  | "calendar"
-  | "cortex"
-  | "more"
-  | "finance"
-  | "daily"
-  | "chat"
-  | "agents"
-  | "notes";
-
-interface NeuralClusterDefinition {
-  id: NeuralClusterId;
-  label: string;
-  description: string;
-  keywords: string[];
-  icon: React.JSX.Element;
-  x: number;
-  y: number;
-}
-
-interface NeuralCluster extends NeuralClusterDefinition {
-  value: number;
-  notes: VaultIndexEntry[];
-  folders: VaultIndexEntry[];
-}
+import type {
+  DocumentPreviewData,
+  FileNode,
+  MemoryData,
+  MemoryProviderInfo,
+  NeuralCluster,
+  NeuralClusterDefinition,
+  NeuralClusterId,
+  NeuralVaultIndex,
+  ObsidianVaultInfo,
+} from "./memoryTypes";
+import {
+  buildNeuralVaultIndex,
+  displayFileName,
+  displayLocalPath,
+  documentExtension,
+  documentKindLabel,
+  EMPTY_VAULT_INDEX,
+  entryMatchesCluster,
+  formatCompact,
+  isEditableDocument,
+  isJsonDocument,
+  isMarkdownDocument,
+  readableContent,
+  timeAgo,
+} from "./memoryUtils";
 
 const PROVIDER_URLS: Record<string, string> = {
   honcho: "https://app.honcho.dev",
@@ -182,288 +64,6 @@ const PROVIDER_URLS: Record<string, string> = {
   supermemory: "https://supermemory.ai",
   byterover: "https://app.byterover.dev",
 };
-
-const VAULT_SCAN_MAX_ENTRIES = 1600;
-const VAULT_SCAN_MAX_NOTES = 700;
-const VAULT_SCAN_MAX_DEPTH = 5;
-
-const EMPTY_VAULT_INDEX: NeuralVaultIndex = {
-  folders: [],
-  notes: [],
-  scannedEntries: 0,
-  truncated: false,
-  graphNotes: [],
-  graphEdges: [],
-};
-
-const WIKILINK_RE = /\[\[([^\]|#]+)[^\]]*\]\]/g;
-const LINK_SCAN_LIMIT = 4096; // only read first 4KB for links
-
-function noteIdFromRelPath(relPath: string): string {
-  return relPath.replace(/\.(md|markdown)$/i, "").toLowerCase();
-}
-
-function noteIdFromWikilink(link: string): string {
-  // strip any path prefix, keep just the note name
-  const parts = link.trim().split("/");
-  return parts[parts.length - 1].toLowerCase();
-}
-
-async function extractWikilinks(notePath: string): Promise<string[]> {
-  try {
-    const preview = await window.hermesAPI.readDocumentPreview(notePath) as DocumentPreviewData;
-    const content = (preview.content || "").slice(0, LINK_SCAN_LIMIT);
-    const links: string[] = [];
-    let match: RegExpExecArray | null;
-    while ((match = WIKILINK_RE.exec(content)) !== null) {
-      links.push(noteIdFromWikilink(match[1]));
-    }
-    return links;
-  } catch {
-    return [];
-  }
-}
-
-function documentExtension(note: DocumentPreviewData | null): string {
-  if (!note) return "";
-  const match = (note.path || note.name).toLowerCase().match(/\.([^.]+)$/);
-  return match ? `.${match[1]}` : "";
-}
-
-function displayFileName(name: string): string {
-  const cleaned = name
-    .replace(
-      /^(?:\p{Extended_Pictographic}|\p{Emoji_Presentation}|\uFE0F|\s)+/gu,
-      "",
-    )
-    .trim();
-  return cleaned || name;
-}
-
-function displayLocalPath(value: string): string {
-  return value
-    .split(/([/\\])/)
-    .map((part) =>
-      part === "/" || part === "\\" ? part : displayFileName(part),
-    )
-    .join("");
-}
-
-function normalizeVaultPath(value: string): string {
-  return value.replace(/\\/g, "/").replace(/\/+/g, "/");
-}
-
-function vaultRelativePath(rootPath: string, entryPath: string): string {
-  const root = normalizeVaultPath(rootPath).replace(/\/$/, "");
-  const entry = normalizeVaultPath(entryPath);
-  if (entry === root) return "";
-  return entry.startsWith(`${root}/`) ? entry.slice(root.length + 1) : entry;
-}
-
-function vaultMatchText(entry: VaultIndexEntry): string {
-  return displayFileName(`${entry.relativePath} ${entry.name}`)
-    .toLowerCase()
-    .replace(/[_-]+/g, " ");
-}
-
-function isMarkdownVaultFile(node: FileNode): boolean {
-  return /\.(md|markdown)$/i.test(node.name);
-}
-
-function shouldSkipVaultNode(node: FileNode): boolean {
-  const name = node.name.toLowerCase();
-  if (name.startsWith(".")) return true;
-  return [
-    "node_modules",
-    "dist",
-    "out",
-    "build",
-    "release",
-    "releases",
-    "vendor",
-    "__pycache__",
-  ].includes(name);
-}
-
-function entryMatchesCluster(
-  entry: VaultIndexEntry,
-  cluster: NeuralClusterDefinition,
-): boolean {
-  if (cluster.id === "notes" || cluster.id === "sync") return true;
-  const text = vaultMatchText(entry);
-  return cluster.keywords.some((keyword) =>
-    text.includes(keyword.toLowerCase()),
-  );
-}
-
-async function buildNeuralVaultIndex(
-  vaultPath: string,
-): Promise<NeuralVaultIndex> {
-  const queue: Array<{ path: string; depth: number }> = [
-    { path: vaultPath, depth: 0 },
-  ];
-  const folders: VaultIndexEntry[] = [];
-  const notes: VaultIndexEntry[] = [];
-  let scannedEntries = 0;
-  let truncated = false;
-
-  while (queue.length > 0) {
-    const current = queue.shift()!;
-    let entries: FileNode[] = [];
-    try {
-      entries = await window.hermesAPI.readDirectory(current.path);
-    } catch {
-      truncated = true;
-      continue;
-    }
-
-    for (const node of entries) {
-      if (shouldSkipVaultNode(node)) continue;
-      scannedEntries += 1;
-      if (scannedEntries > VAULT_SCAN_MAX_ENTRIES) {
-        truncated = true;
-        break;
-      }
-
-      const entry: VaultIndexEntry = {
-        name: node.name,
-        path: node.path,
-        relativePath: vaultRelativePath(vaultPath, node.path),
-        isDirectory: node.isDirectory,
-        depth: current.depth,
-      };
-
-      if (node.isDirectory) {
-        folders.push(entry);
-        if (current.depth < VAULT_SCAN_MAX_DEPTH) {
-          queue.push({ path: node.path, depth: current.depth + 1 });
-        } else {
-          truncated = true;
-        }
-        continue;
-      }
-
-      if (isMarkdownVaultFile(node)) {
-        notes.push(entry);
-        if (notes.length >= VAULT_SCAN_MAX_NOTES) {
-          truncated = true;
-          break;
-        }
-      }
-    }
-  }
-
-  // ── Build backlink graph ──
-  // Build id → note lookup
-  const idToNote = new Map<string, VaultIndexEntry>();
-  for (const note of notes) {
-    idToNote.set(noteIdFromRelPath(note.relativePath), note);
-  }
-
-  // Parse wikilinks from each note (batched, max 8 concurrent)
-  const linkMap = new Map<string, string[]>();
-  const batchSize = 8;
-  for (let i = 0; i < notes.length; i += batchSize) {
-    const batch = notes.slice(i, i + batchSize);
-    const results = await Promise.all(
-      batch.map(async (note) => {
-        const links = await extractWikilinks(note.path);
-        return { id: noteIdFromRelPath(note.relativePath), links };
-      }),
-    );
-    for (const { id, links } of results) {
-      linkMap.set(id, links);
-    }
-  }
-
-  // Build edges (deduplicated, bidirectional)
-  const edgeSet = new Set<string>();
-  const graphEdges: GraphEdge[] = [];
-  const connectionCount = new Map<string, number>();
-
-  for (const [sourceId, links] of linkMap) {
-    for (const targetName of links) {
-      // find target in vault
-      let targetId: string | null = null;
-      if (idToNote.has(targetName)) {
-        targetId = targetName;
-      } else {
-        // fuzzy: check if any note ends with this name
-        for (const [id] of idToNote) {
-          if (id.endsWith("/" + targetName) || id === targetName) {
-            targetId = id;
-            break;
-          }
-        }
-      }
-      if (!targetId || targetId === sourceId) continue;
-
-      const edgeKey = [sourceId, targetId].sort().join("<>");
-      if (edgeSet.has(edgeKey)) continue;
-      edgeSet.add(edgeKey);
-      graphEdges.push({ source: sourceId, target: targetId });
-      connectionCount.set(sourceId, (connectionCount.get(sourceId) || 0) + 1);
-      connectionCount.set(targetId, (connectionCount.get(targetId) || 0) + 1);
-    }
-  }
-
-  // Build graph notes sorted by connection count (most connected first)
-  const graphNotes: GraphNote[] = notes.map((note) => {
-    const id = noteIdFromRelPath(note.relativePath);
-    return {
-      id,
-      path: note.path,
-      name: note.name,
-      relativePath: note.relativePath,
-      linkCount: connectionCount.get(id) || 0,
-    };
-  });
-  graphNotes.sort((a, b) => b.linkCount - a.linkCount);
-
-  return { folders, notes, scannedEntries, truncated, graphNotes, graphEdges };
-}
-
-function isMarkdownDocument(note: DocumentPreviewData | null): boolean {
-  const extension = documentExtension(note);
-  return note?.kind === "markdown" || [".md", ".markdown"].includes(extension);
-}
-
-function isJsonDocument(note: DocumentPreviewData | null): boolean {
-  return [".json", ".jsonl"].includes(documentExtension(note));
-}
-
-function isEditableDocument(note: DocumentPreviewData | null): boolean {
-  if (!note || note.content === undefined || note.truncated) return false;
-  return [
-    ".txt",
-    ".md",
-    ".markdown",
-    ".json",
-    ".jsonl",
-    ".yaml",
-    ".yml",
-  ].includes(documentExtension(note));
-}
-
-function readableJson(content: string): string {
-  try {
-    return JSON.stringify(JSON.parse(content), null, 2);
-  } catch {
-    return content;
-  }
-}
-
-function readableContent(note: DocumentPreviewData): string {
-  const content = note.content || "";
-  return isJsonDocument(note) ? readableJson(content) : content;
-}
-
-function documentKindLabel(note: DocumentPreviewData): string {
-  if (isMarkdownDocument(note)) return "Markdown";
-  if (isJsonDocument(note)) return "JSON";
-  if (note.kind === "office") return "Office";
-  return note.kind.charAt(0).toUpperCase() + note.kind.slice(1);
-}
 
 function DocumentKindIcon({
   note,
@@ -573,7 +173,9 @@ function Memory({ profile }: { profile?: string }): React.JSX.Element {
     useState<NeuralClusterId>("notes");
   const [graphMode, setGraphMode] = useState<"cluster" | "graph">("cluster");
   const [graphSearch, setGraphSearch] = useState("");
-  const [neuralLayout, setNeuralLayout] = useState<"stacked" | "side">("stacked");
+  const [neuralLayout, setNeuralLayout] = useState<"stacked" | "side">(
+    "stacked",
+  );
   const [selectedNote, setSelectedNote] = useState<DocumentPreviewData | null>(
     null,
   );
@@ -1142,11 +744,15 @@ function Memory({ profile }: { profile?: string }): React.JSX.Element {
               SECOND BRAIN {vault?.exists ? `// ${vault.name}` : ""}
             </span>
             <p className="memory-subtitle">
-              {vault?.path || "Obsidian vault, agent memory, and long-term profile context."}
+              {vault?.path ||
+                "Obsidian vault, agent memory, and long-term profile context."}
             </p>
           </div>
         </div>
-        <div className="memory-vault-actions" style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+        <div
+          className="memory-vault-actions"
+          style={{ display: "flex", gap: "8px", alignItems: "center" }}
+        >
           {vault?.path && (
             <button
               className="btn btn-secondary btn-sm"
@@ -1229,7 +835,9 @@ function Memory({ profile }: { profile?: string }): React.JSX.Element {
         {error && <div className="memory-error">{error}</div>}
 
         {tab === "map" && (
-          <div className={`memory-neural-dashboard memory-neural-layout-${neuralLayout}`}>
+          <div
+            className={`memory-neural-dashboard memory-neural-layout-${neuralLayout}`}
+          >
             <div className="memory-neural-pane-map">
               <div
                 className={`memory-neural-stage ${
@@ -1294,8 +902,16 @@ function Memory({ profile }: { profile?: string }): React.JSX.Element {
                   <button
                     type="button"
                     className={`neural-mode-btn ${neuralLayout === "side" ? "active" : ""}`}
-                    onClick={() => setNeuralLayout(neuralLayout === "stacked" ? "side" : "stacked")}
-                    title={neuralLayout === "stacked" ? "Switch to side-by-side layout" : "Switch to stacked layout"}
+                    onClick={() =>
+                      setNeuralLayout(
+                        neuralLayout === "stacked" ? "side" : "stacked",
+                      )
+                    }
+                    title={
+                      neuralLayout === "stacked"
+                        ? "Switch to side-by-side layout"
+                        : "Switch to stacked layout"
+                    }
                   >
                     {neuralLayout === "stacked" ? "⇔" : "⇕"}
                   </button>

@@ -12,196 +12,24 @@ import {
   X,
   Zap,
 } from "lucide-react";
-
-type KanbanStatus =
-  | "triage"
-  | "todo"
-  | "ready"
-  | "running"
-  | "blocked"
-  | "done"
-  | "archived";
-
-interface KanbanTask {
-  id: string;
-  title: string;
-  body: string | null;
-  assignee: string | null;
-  status: KanbanStatus;
-  priority: number;
-  tenant: string | null;
-  workspace_kind: string;
-  workspace_path: string | null;
-  created_by: string | null;
-  created_at: number;
-  started_at: number | null;
-  completed_at: number | null;
-  result: string | null;
-  skills: string[];
-}
-
-interface KanbanBoardData {
-  tasks: KanbanTask[];
-  columns: Record<KanbanStatus, KanbanTask[]>;
-  boards: Array<{ slug: string; name: string; is_current?: boolean }>;
-  assignees: Array<{
-    name: string;
-    on_disk: boolean;
-    spawnable?: boolean;
-    counts: Record<string, number>;
-  }>;
-  stats: {
-    by_status: Record<string, number>;
-    by_assignee: Record<string, Record<string, number>>;
-    oldest_ready_age_seconds: number | null;
-    now: number;
-  };
-  docs: KanbanDocs;
-}
-
-interface KanbanTaskDetails {
-  task: KanbanTask;
-  parents: string[];
-  children: string[];
-  comments: Array<{ author: string; body: string; created_at: number }>;
-  events: Array<{
-    kind: string;
-    payload: unknown;
-    created_at: number;
-    run_id: number | null;
-  }>;
-  runs: Array<{
-    id: number;
-    profile: string | null;
-    status: string;
-    outcome: string | null;
-    summary: string | null;
-    error: string | null;
-    metadata: string | null;
-    started_at: number;
-    ended_at: number | null;
-  }>;
-}
-
-interface KanbanDocs {
-  pluginPath: string;
-  releaseNotesPath: string;
-  overviewPath: string;
-  tutorialPath: string;
-  workerPath: string;
-  orchestratorPath: string;
-  specPath: string;
-  mediumPagePath: string;
-  officialDocsUrl: string;
-  officialTutorialUrl: string;
-  upstreamPluginUrl: string;
-  upstreamReleaseUrl: string;
-}
-
-interface KanbanCommandResult<T = unknown> {
-  success: boolean;
-  data?: T;
-  output?: string;
-  error?: string;
-}
-
-interface KanbanDispatchResult {
-  spawned?: Array<{ task_id: string; assignee: string; workspace?: string }>;
-  skipped_unassigned?: string[];
-  skipped_nonspawnable?: string[];
-}
-
-const COLUMNS: Array<{
-  id: KanbanStatus;
-  label: string;
-  short: string;
-}> = [
-  { id: "triage", label: "Triage", short: "Spec" },
-  { id: "todo", label: "Todo", short: "Queued" },
-  { id: "ready", label: "Ready", short: "Dispatch" },
-  { id: "running", label: "In progress", short: "Live" },
-  { id: "blocked", label: "Blocked", short: "Needs input" },
-  { id: "done", label: "Done", short: "Closed" },
-];
-
-const EMPTY_COLUMNS = COLUMNS.reduce(
-  (acc, col) => ({ ...acc, [col.id]: [] }),
-  {} as Record<KanbanStatus, KanbanTask[]>,
-);
-
-function formatAge(seconds: number | null | undefined): string {
-  if (seconds == null) return "--";
-  if (seconds < 60) return `${seconds}s`;
-  if (seconds < 3600) return `${Math.floor(seconds / 60)}m`;
-  if (seconds < 86400) return `${Math.floor(seconds / 3600)}h`;
-  return `${Math.floor(seconds / 86400)}d`;
-}
-
-function formatTime(ts: number | null | undefined): string {
-  if (!ts) return "--";
-  return new Date(ts * 1000).toLocaleString(undefined, {
-    month: "short",
-    day: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-}
-
-function parseSkillList(value: string): string[] {
-  return value
-    .split(",")
-    .map((item) => item.trim())
-    .filter(Boolean);
-}
-
-function taskMatches(
-  task: KanbanTask,
-  query: string,
-  assignee: string,
-): boolean {
-  if (assignee && task.assignee !== assignee) return false;
-  if (!query.trim()) return true;
-  const q = query.trim().toLowerCase();
-  return [
-    task.id,
-    task.title,
-    task.body || "",
-    task.assignee || "",
-    task.tenant || "",
-  ]
-    .join(" ")
-    .toLowerCase()
-    .includes(q);
-}
-
-function badgeLabel(task: KanbanTask): string {
-  if (task.tenant) return task.tenant;
-  if (task.assignee) return task.assignee;
-  return task.workspace_kind;
-}
-
-function summarizeDispatch(result: KanbanDispatchResult | undefined): {
-  tone: "info" | "warning";
-  message: string;
-} | null {
-  if (!result) return null;
-  const spawned = result.spawned?.length || 0;
-  const skippedNonspawnable = result.skipped_nonspawnable?.length || 0;
-  const skippedUnassigned = result.skipped_unassigned?.length || 0;
-  if (spawned > 0) {
-    return {
-      tone: "info",
-      message: `Dispatcher started ${spawned} task${spawned === 1 ? "" : "s"}.`,
-    };
-  }
-  if (skippedNonspawnable > 0 || skippedUnassigned > 0) {
-    return {
-      tone: "warning",
-      message: `No worker started: ${skippedNonspawnable} invalid profile, ${skippedUnassigned} unassigned.`,
-    };
-  }
-  return { tone: "info", message: "Dispatcher checked the board." };
-}
+import TaskCard from "./TaskCard";
+import type {
+  KanbanBoardData,
+  KanbanCommandResult,
+  KanbanDispatchResult,
+  KanbanStatus,
+  KanbanTask,
+  KanbanTaskDetails,
+} from "./kanbanTypes";
+import {
+  COLUMNS,
+  EMPTY_COLUMNS,
+  formatAge,
+  formatTime,
+  parseSkillList,
+  summarizeDispatch,
+  taskMatches,
+} from "./kanbanUtils";
 
 export default function Kanban(): React.JSX.Element {
   const [boardData, setBoardData] = useState<KanbanBoardData | null>(null);
@@ -808,7 +636,6 @@ export default function Kanban(): React.JSX.Element {
             })
           )}
         </div>
-
       </div>
 
       {selected && (
@@ -985,42 +812,5 @@ export default function Kanban(): React.JSX.Element {
         </aside>
       )}
     </div>
-  );
-}
-
-function TaskCard({
-  task,
-  active,
-  onClick,
-}: {
-  task: KanbanTask;
-  active: boolean;
-  onClick: () => void;
-}): React.JSX.Element {
-  return (
-    <button
-      className={`kanban-card ${active ? "active" : ""}`}
-      onClick={onClick}
-    >
-      <div className="kanban-card-top">
-        <span className="kanban-card-id">{task.id}</span>
-        {task.priority !== 0 && (
-          <b className="kanban-priority">P{task.priority}</b>
-        )}
-      </div>
-      <strong>{task.title}</strong>
-      {task.body && <p>{task.body}</p>}
-      <div className="kanban-card-meta">
-        <span>{badgeLabel(task)}</span>
-        <span>{formatTime(task.created_at)}</span>
-      </div>
-      {task.skills?.length > 0 && (
-        <div className="kanban-skill-row">
-          {task.skills.slice(0, 3).map((skill) => (
-            <span key={skill}>{skill}</span>
-          ))}
-        </div>
-      )}
-    </button>
   );
 }
