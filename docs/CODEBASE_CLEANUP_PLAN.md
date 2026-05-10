@@ -29,12 +29,22 @@ the codebase easier to navigate, review, and release.
   of `src/main/index.ts`.
 - Preserved all existing IPC channel names while creating clearer main-process
   ownership boundaries.
+- Removed the dead legacy renderer shell under `src/renderer/src/screens/Layout`
+  plus the older Chat, Agents, Office, and Settings screens it alone referenced.
+- Split main-process IPC registration into focused modules for runtime,
+  workspace, profile data, chat, automation/Kanban, browser, window controls,
+  updater, and profile watching.
+- Split preload construction so `src/preload/index.ts` is only the context
+  bridge entrypoint and `src/preload/hermes-api.ts` owns the exposed API map.
+- Moved Hermes capabilities and run-status helpers into `src/main/hermes-runs.ts`
+  while keeping `src/main/hermes.ts` focused on chat transport and gateway
+  lifecycle.
 
 ## Phase 1: Renderer Boundaries
 
 - Continue shrinking `Layout80m.tsx` until it only coordinates shell state,
   view routing, preview docking, and splash/portal transitions.
-- Move preview resizing into a `useAgentPreviewDock` hook.
+- Keep preview resizing in `useAgentPreviewDock`.
 - Move avatar intro and Second Brain portal timing into hooks with clear return
   values.
 - Keep feature screens under `src/renderer/src/screens/<Feature>/` and shared
@@ -58,22 +68,21 @@ the codebase easier to navigate, review, and release.
 - Split `Kanban.tsx` into board data, task cards, filters, and worker actions.
 - Split `Messages.tsx` into markdown rendering, tool-call rendering, transcript
   state, and message actions.
-- Confirm whether `src/renderer/src/screens/Settings/Settings.tsx` is legacy
-  shell code; if it is no longer routed, archive or delete it in a dedicated
-  dead-code removal pass.
+- Next renderer targets: split `Memory.tsx`, `ChatArea.tsx`, `Kanban.tsx`, and
+  `Schedules.tsx` by state hooks, command actions, and presentation components.
 
 ## Phase 4: Main Process And IPC
 
-- Continue grouping main-process services by responsibility: Hermes runtime,
-  settings audit, filesystem/project access, preview/browser control, and
-  desktop packaging helpers.
+- Continue grouping main-process services by responsibility inside the remaining
+  oversized domain files: `installer.ts`, `desktop-services.ts`,
+  `settings-audit.ts`, `claw3d.ts`, and `kanban.ts`.
 - Keep IPC channel names stable and document new channels at the boundary where
   preload exposes them.
 - Prefer typed request/response helpers over ad hoc payloads when adding new
   renderer-to-main calls.
-- Next highest-value extraction from `src/main/index.ts`: move installer/update,
-  profile/settings, and filesystem workspace IPC into separate registration
-  modules.
+- Next highest-value backend extractions: split installer doctor/update/backup
+  helpers, and tighten the preload API return types currently asserted from the
+  existing `HermesAPI` contract.
 
 ## Phase 5: Verification And Release Discipline
 
