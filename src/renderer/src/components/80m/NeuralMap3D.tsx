@@ -4,106 +4,18 @@ import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { EffectComposer } from "three/examples/jsm/postprocessing/EffectComposer.js";
 import { RenderPass } from "three/examples/jsm/postprocessing/RenderPass.js";
 import { UnrealBloomPass } from "three/examples/jsm/postprocessing/UnrealBloomPass.js";
-
-interface NeuralNode3D {
-  id: string;
-  label: string;
-  value: number;
-}
-interface GraphNote {
-  id: string;
-  path: string;
-  name: string;
-  relativePath: string;
-  linkCount: number;
-}
-interface GraphEdge {
-  source: string;
-  target: string;
-}
-
-interface NeuralMap3DProps {
-  nodes: NeuralNode3D[];
-  activeId: string;
-  onSelect: (id: string) => void;
-  scanning: boolean;
-  vaultConnected: boolean;
-  totalNotes: number;
-  mode?: "cluster" | "graph";
-  graphNotes?: GraphNote[];
-  graphEdges?: GraphEdge[];
-  graphSearch?: string;
-  onNoteSelect?: (path: string) => void;
-}
-
-const GREEN = new THREE.Color(0x4ade80);
-const GREEN_DIM = new THREE.Color(0x22c55e);
-const GREEN_DARK = new THREE.Color(0x166534);
-const BG = new THREE.Color(0x030a06);
-const MAX_GRAPH_NODES = 180;
-
-function sphericalPos(i: number, n: number, r: number): THREE.Vector3 {
-  const phi = Math.acos(1 - (2 * (i + 0.5)) / n);
-  const theta = Math.PI * (1 + Math.sqrt(5)) * i;
-  return new THREE.Vector3(
-    r * Math.sin(phi) * Math.cos(theta),
-    r * Math.cos(phi) * 0.7,
-    r * Math.sin(phi) * Math.sin(theta),
-  );
-}
-
-/* Simple force-directed layout — runs synchronously for N iterations */
-function forceLayout(
-  nodes: { id: string; x: number; y: number; z: number }[],
-  edges: GraphEdge[],
-  iterations: number,
-): void {
-  const idxMap = new Map<string, number>();
-  nodes.forEach((n, i) => idxMap.set(n.id, i));
-  const k = 2.5; // ideal distance
-  for (let iter = 0; iter < iterations; iter++) {
-    const temp = 0.3 * (1 - iter / iterations);
-    // repulsion
-    for (let i = 0; i < nodes.length; i++) {
-      for (let j = i + 1; j < nodes.length; j++) {
-        const dx = nodes[i].x - nodes[j].x,
-          dy = nodes[i].y - nodes[j].y,
-          dz = nodes[i].z - nodes[j].z;
-        const dist = Math.max(Math.sqrt(dx * dx + dy * dy + dz * dz), 0.1);
-        const force = ((k * k) / dist) * temp;
-        const fx = (dx / dist) * force,
-          fy = (dy / dist) * force,
-          fz = (dz / dist) * force;
-        nodes[i].x += fx;
-        nodes[i].y += fy;
-        nodes[i].z += fz;
-        nodes[j].x -= fx;
-        nodes[j].y -= fy;
-        nodes[j].z -= fz;
-      }
-    }
-    // attraction along edges
-    for (const e of edges) {
-      const si = idxMap.get(e.source),
-        ti = idxMap.get(e.target);
-      if (si === undefined || ti === undefined) continue;
-      const dx = nodes[ti].x - nodes[si].x,
-        dy = nodes[ti].y - nodes[si].y,
-        dz = nodes[ti].z - nodes[si].z;
-      const dist = Math.max(Math.sqrt(dx * dx + dy * dy + dz * dz), 0.1);
-      const force = (dist / k) * temp;
-      const fx = (dx / dist) * force,
-        fy = (dy / dist) * force,
-        fz = (dz / dist) * force;
-      nodes[si].x += fx;
-      nodes[si].y += fy;
-      nodes[si].z += fz;
-      nodes[ti].x -= fx;
-      nodes[ti].y -= fy;
-      nodes[ti].z -= fz;
-    }
-  }
-}
+import { clearNeuralMapNodes } from "./neuralMap3dDisposal";
+import { forceLayout, sphericalPos } from "./neuralMap3dLayout";
+import {
+  BG,
+  GREEN,
+  GREEN_DIM,
+  GREEN_DARK,
+  MAX_GRAPH_NODES,
+  createNeuralCenter,
+  createNeuralDust,
+} from "./neuralMap3dPrimitives";
+import type { LabelEl, NeuralMap3DProps, SceneNode } from "./neuralMap3dTypes";
 
 export default function NeuralMap3D(
   props: NeuralMap3DProps,
@@ -179,36 +91,13 @@ export default function NeuralMap3D(
     composer.addPass(bloom);
 
     scene.add(new THREE.AmbientLight(0x4ade80, 0.15));
-    const centerLight = new THREE.PointLight(0x4ade80, 2.5, 20);
-    scene.add(centerLight);
 
-    // Ambient dust
-    const dustCount = 400;
-    const dustGeo = new THREE.BufferGeometry();
-    const dustPos = new Float32Array(dustCount * 3);
-    const dustVel = new Float32Array(dustCount * 3);
-    for (let i = 0; i < dustCount; i++) {
-      dustPos[i * 3] = (Math.random() - 0.5) * 30;
-      dustPos[i * 3 + 1] = (Math.random() - 0.5) * 20;
-      dustPos[i * 3 + 2] = (Math.random() - 0.5) * 30;
-      dustVel[i * 3] = (Math.random() - 0.5) * 0.003;
-      dustVel[i * 3 + 1] = (Math.random() - 0.5) * 0.002;
-      dustVel[i * 3 + 2] = (Math.random() - 0.5) * 0.003;
-    }
-    dustGeo.setAttribute("position", new THREE.BufferAttribute(dustPos, 3));
-    const dustCloud = new THREE.Points(
-      dustGeo,
-      new THREE.PointsMaterial({
-        color: GREEN,
-        size: 0.035,
-        transparent: true,
-        opacity: 0.35,
-        blending: THREE.AdditiveBlending,
-        depthWrite: false,
-      }),
-    );
+    const {
+      cloud: dustCloud,
+      velocities: dustVel,
+      count: dustCount,
+    } = createNeuralDust();
     scene.add(dustCloud);
-
     // Labels container
     const labelContainer = document.createElement("div");
     labelContainer.className = "neural-3d-labels";
@@ -220,104 +109,28 @@ export default function NeuralMap3D(
     let hoveredId: string | null = null;
     const raycasterTargets: THREE.Mesh[] = [];
 
-    interface SceneNode {
-      mesh: THREE.Mesh;
-      glow: THREE.Mesh;
-      pos: THREE.Vector3;
-      id: string;
-      label: string;
-      path?: string;
-    }
     const sceneNodes: SceneNode[] = [];
     const clusterBeams: THREE.Line[] = []; // 1:1 with sceneNodes in cluster mode
     const graphWebLines: THREE.Line[] = []; // web connections in graph mode
-    interface LabelEl {
-      el: HTMLDivElement;
-      pos: THREE.Vector3;
-      id: string;
-    }
     const labels: LabelEl[] = [];
 
-    // Center brain (shared)
-    const centerGeo = new THREE.IcosahedronGeometry(1.1, 3);
-    const centerMat = new THREE.MeshPhysicalMaterial({
-      color: GREEN_DARK,
-      emissive: GREEN,
-      emissiveIntensity: 0.25,
-      transparent: true,
-      opacity: 0.18,
-      roughness: 0.3,
-      side: THREE.DoubleSide,
-    });
-    const centerMesh = new THREE.Mesh(centerGeo, centerMat);
-    scene.add(centerMesh);
-    const wireGeo = new THREE.IcosahedronGeometry(1.15, 1);
-    const wireMesh = new THREE.Mesh(
-      wireGeo,
-      new THREE.MeshBasicMaterial({
-        color: GREEN,
-        wireframe: true,
-        transparent: true,
-        opacity: 0.22,
-      }),
-    );
-    scene.add(wireMesh);
-    // inner cloud
-    const ipGeo = new THREE.BufferGeometry();
-    const ipPos = new Float32Array(150 * 3);
-    for (let i = 0; i < 150; i++) {
-      const r = Math.random() * 0.9,
-        t = Math.random() * Math.PI * 2,
-        p = Math.acos(2 * Math.random() - 1);
-      ipPos[i * 3] = r * Math.sin(p) * Math.cos(t);
-      ipPos[i * 3 + 1] = r * Math.sin(p) * Math.sin(t);
-      ipPos[i * 3 + 2] = r * Math.cos(p);
-    }
-    ipGeo.setAttribute("position", new THREE.BufferAttribute(ipPos, 3));
-    const innerCloud = new THREE.Points(
-      ipGeo,
-      new THREE.PointsMaterial({
-        color: GREEN,
-        size: 0.04,
-        transparent: true,
-        opacity: 0.7,
-        blending: THREE.AdditiveBlending,
-        depthWrite: false,
-      }),
-    );
-    scene.add(innerCloud);
-
+    const { centerMesh, wireMesh, innerCloud, centerLight } =
+      createNeuralCenter();
+    scene.add(centerMesh, wireMesh, innerCloud, centerLight);
     const centerLabel = document.createElement("div");
     centerLabel.className = "neural-3d-label neural-3d-label-center";
     centerLabel.innerHTML = "SECOND<br/>BRAIN";
     labelContainer.appendChild(centerLabel);
 
     function buildNodes(): void {
-      // Clear old
-      for (const n of sceneNodes) {
-        scene.remove(n.mesh);
-        scene.remove(n.glow);
-        n.mesh.geometry.dispose();
-        (n.mesh.material as THREE.Material).dispose();
-        n.glow.geometry.dispose();
-        (n.glow.material as THREE.Material).dispose();
-      }
-      sceneNodes.length = 0;
-      raycasterTargets.length = 0;
-      for (const l of clusterBeams) {
-        scene.remove(l);
-        l.geometry.dispose();
-        (l.material as THREE.Material).dispose();
-      }
-      clusterBeams.length = 0;
-      for (const l of graphWebLines) {
-        scene.remove(l);
-        l.geometry.dispose();
-        (l.material as THREE.Material).dispose();
-      }
-      graphWebLines.length = 0;
-      for (const lb of labels) lb.el.remove();
-      labels.length = 0;
+      clearNeuralMapNodes(
+        scene,
+        sceneNodes,
+        raycasterTargets,
+        clusterBeams,
+        graphWebLines,
+        labels,
+      );
 
       const state = stateRef.current;
       const isGraph = state.mode === "graph";

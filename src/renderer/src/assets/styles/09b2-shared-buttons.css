@@ -1,0 +1,76 @@
+/* === 80M BUTTONS === */
+.btn-primary-80m {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 10px 20px;
+  border-radius: 8px;
+  border: 1px solid #4ade80;
+  background: #4ade80;
+  color: #0f0f0f;
+  font-family: "Fira Code", monospace;
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.btn-primary-80m:hover {
+  background: #22c55e;
+  border-color: #22c55e;
+}
+.btn-primary-80m:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.btn-ghost-80m {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 10px 20px;
+  border-radius: 8px;
+  border: 1px solid rgba(74, 222, 128, 0.2);
+  background: transparent;
+  color: #4ade80;
+  font-family: "Fira Code", monospace;
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.btn-ghost-80m:hover {
+  background: rgba(74, 222, 128, 0.08);
+}
+.btn-ghost-80m:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.btn-danger-80m {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 8px 16px;
+  border-radius: 8px;
+  border: 1px solid rgba(248, 113, 113, 0.3);
+  background: transparent;
+  color: #f87171;
+  font-family: "Fira Code", monospace;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.btn-danger-80m:hover {
+  background: rgba(248, 113, 113, 0.1);
+}
+

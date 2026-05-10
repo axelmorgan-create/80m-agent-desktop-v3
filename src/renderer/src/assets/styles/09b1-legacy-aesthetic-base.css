@@ -1,0 +1,293 @@
+/* === 80M AESTHETIC OVERRIDES FOR LEGACY SCREENS === */
+
+/* Force Fira Code font on all text inside screen content */
+.screen-content-80m,
+.screen-content-80m * {
+  font-family:
+    "Fira Code", "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace;
+}
+
+/* Headings: 80M green uppercase style */
+.screen-content-80m h1,
+.screen-content-80m h2,
+.screen-content-80m h3 {
+  color: #4ade80;
+  font-family: "Fira Code", monospace;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.screen-content-80m h1 {
+  font-size: 16px;
+}
+.screen-content-80m h2 {
+  font-size: 14px;
+}
+.screen-content-80m h3 {
+  font-size: 13px;
+}
+
+/* Subtitles & muted text */
+.screen-content-80m p {
+  color: #e8f7ed;
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+/* Labels */
+.screen-content-80m label {
+  color: #f4fff7;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+/* Primary buttons → 80M green */
+.screen-content-80m .btn.btn-primary {
+  background: #4ade80;
+  color: #0f0f0f;
+  border: 1px solid #4ade80;
+  font-family: "Fira Code", monospace;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  border-radius: 8px;
+}
+
+.screen-content-80m .btn.btn-primary:hover:not(:disabled) {
+  background: #22c55e;
+  border-color: #22c55e;
+}
+
+/* Secondary buttons → dark with green border */
+.screen-content-80m .btn.btn-secondary {
+  background: rgba(52, 65, 57, 0.92);
+  color: #f4fff7;
+  border: 1px solid rgba(74, 222, 128, 0.32);
+  font-family: "Fira Code", monospace;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  border-radius: 8px;
+}
+
+.screen-content-80m .btn.btn-secondary:hover:not(:disabled) {
+  background: rgba(74, 222, 128, 0.14);
+  border-color: rgba(74, 222, 128, 0.52);
+  color: #4ade80;
+}
+
+/* Ghost buttons */
+.screen-content-80m .btn-ghost {
+  background: rgba(52, 65, 57, 0.82);
+  border: 1px solid rgba(244, 255, 247, 0.1);
+  color: #f4fff7;
+  font-family: "Fira Code", monospace;
+}
+
+.screen-content-80m .btn-ghost:hover {
+  color: #4ade80;
+  background: rgba(74, 222, 128, 0.12);
+  border-color: rgba(74, 222, 128, 0.32);
+}
+
+/* Inputs & textareas */
+.screen-content-80m input,
+.screen-content-80m textarea,
+.screen-content-80m select,
+.screen-content-80m .input {
+  background: #252d29;
+  border: 1px solid rgba(74, 222, 128, 0.22);
+  color: #f4fff7;
+  font-family: "Fira Code", monospace;
+  font-size: 12px;
+  border-radius: 8px;
+}
+
+.screen-content-80m input:focus,
+.screen-content-80m textarea:focus,
+.screen-content-80m select:focus,
+.screen-content-80m .input:focus {
+  border-color: #4ade80;
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(74, 222, 128, 0.12);
+}
+
+.screen-content-80m input::placeholder,
+.screen-content-80m textarea::placeholder {
+  color: #c7d3cc;
+}
+
+/* Cards & panels */
+.screen-content-80m .skills-card,
+.screen-content-80m .tools-card,
+.screen-content-80m .schedules-job-card {
+  background: rgba(36, 43, 39, 0.92);
+  border: 1px solid rgba(74, 222, 128, 0.14);
+  border-radius: 10px;
+  transition: all 0.15s ease;
+}
+
+.screen-content-80m .skills-card:hover,
+.screen-content-80m .tools-card:hover,
+.screen-content-80m .schedules-job-card:hover {
+  border-color: rgba(74, 222, 128, 0.2);
+  background: rgba(43, 52, 47, 0.96);
+}
+
+/* Tabs (Skills installed/browse) */
+.screen-content-80m .skills-tab {
+  background: rgba(52, 65, 57, 0.78);
+  color: #f4fff7;
+  border: 1px solid rgba(244, 255, 247, 0.1);
+  font-family: "Fira Code", monospace;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 8px 16px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.screen-content-80m .skills-tab.active {
+  color: #4ade80;
+  border-color: rgba(74, 222, 128, 0.2);
+  background: rgba(74, 222, 128, 0.06);
+}
+
+.screen-content-80m .skills-tab:hover:not(.active) {
+  color: #4ade80;
+  border-color: rgba(74, 222, 128, 0.28);
+}
+
+/* Category pills */
+.screen-content-80m .skills-pill {
+  background: rgba(52, 65, 57, 0.78);
+  color: #f4fff7;
+  border: 1px solid rgba(74, 222, 128, 0.16);
+  font-family: "Fira Code", monospace;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 5px 12px;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.screen-content-80m .skills-pill.active {
+  color: #4ade80;
+  border-color: #4ade80;
+  background: rgba(74, 222, 128, 0.08);
+}
+
+/* Settings containers (used by Gateway, Models) */
+.screen-content-80m .settings-container {
+  padding: 0;
+}
+
+.screen-content-80m .settings-header {
+  color: #4ade80;
+  font-size: 14px;
+}
+
+.screen-content-80m .settings-section-title {
+  color: #4ade80;
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-family: "Fira Code", monospace;
+}
+
+.screen-content-80m .settings-field-label {
+  color: #f4fff7;
+}
+
+.screen-content-80m .settings-field-hint {
+  color: #e8f7ed;
+  font-size: 11px;
+}
+
+/* Toggle switches */
+.screen-content-80m .tools-toggle-track {
+  background: #344139;
+  border: 1px solid rgba(74, 222, 128, 0.15);
+}
+
+.screen-content-80m .tools-card-enabled .tools-toggle-track {
+  background: #4ade80;
+  border-color: #4ade80;
+}
+
+/* Loading spinner */
+.screen-content-80m .loading-spinner {
+  border-color: rgba(74, 222, 128, 0.1);
+  border-top-color: #4ade80;
+}
+
+/* Detail overlays */
+.screen-content-80m .skills-detail-overlay {
+  background: rgba(0, 0, 0, 0.7);
+  backdrop-filter: blur(4px);
+}
+
+.screen-content-80m .skills-detail,
+.screen-content-80m .schedules-modal {
+  background: #202622;
+  border: 1px solid rgba(74, 222, 128, 0.15);
+  border-radius: 12px;
+}
+
+/* Search inputs */
+.screen-content-80m .skills-search,
+.screen-content-80m .models-search {
+  border: 1px solid rgba(74, 222, 128, 0.1);
+  border-radius: 8px;
+  background: #252d29;
+}
+
+/* Gateway status badges */
+.screen-content-80m .settings-gateway-status.running {
+  color: #4ade80;
+}
+
+.screen-content-80m .settings-gateway-status.stopped {
+  color: #f87171;
+}
+
+/* Platform cards (Gateway) */
+.screen-content-80m .settings-platform-card {
+  background: rgba(36, 43, 39, 0.92);
+  border: 1px solid rgba(74, 222, 128, 0.14);
+  border-radius: 10px;
+}
+
+.screen-content-80m .settings-platform-card:hover {
+  border-color: rgba(74, 222, 128, 0.2);
+}
+
+/* Error alerts */
+.screen-content-80m .skills-error {
+  background: rgba(248, 113, 113, 0.08);
+  border: 1px solid rgba(248, 113, 113, 0.2);
+  color: #f87171;
+  border-radius: 8px;
+}
+
+/* Installed badge */
+.screen-content-80m .skills-card-installed-badge {
+  color: #4ade80;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+

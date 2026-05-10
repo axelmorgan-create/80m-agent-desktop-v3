@@ -1,0 +1,119 @@
+@keyframes svgIconHoverBob {
+  0%,
+  100% {
+    translate: 0 0;
+    rotate: 0deg;
+    scale: 1;
+  }
+  28% {
+    translate: 0 -2px;
+    rotate: -7deg;
+    scale: 1.08;
+  }
+  58% {
+    translate: 0 1px;
+    rotate: 5deg;
+    scale: 1.03;
+  }
+}
+
+@keyframes svgIconHoverSkate {
+  0%,
+  100% {
+    translate: 0 0;
+    rotate: 0deg;
+    scale: 1;
+  }
+  24% {
+    translate: 3px -1px;
+    rotate: 5deg;
+    scale: 1.06;
+  }
+  62% {
+    translate: -1px 1px;
+    rotate: -4deg;
+    scale: 1.02;
+  }
+}
+
+@keyframes svgIconHoverLaunch {
+  0%,
+  100% {
+    translate: 0 0;
+    rotate: 0deg;
+    scale: 1;
+  }
+  34% {
+    translate: 4px -4px;
+    rotate: -12deg;
+    scale: 1.12;
+  }
+  68% {
+    translate: -1px 1px;
+    rotate: 4deg;
+    scale: 1.04;
+  }
+}
+
+@keyframes svgIconHoverTwirl {
+  0%,
+  100% {
+    translate: 0 0;
+    rotate: 0deg;
+    scale: 1;
+  }
+  35% {
+    translate: 0 -1px;
+    rotate: 14deg;
+    scale: 1.08;
+  }
+  70% {
+    translate: 0 1px;
+    rotate: -9deg;
+    scale: 1.02;
+  }
+}
+
+@keyframes svgIconHoverOrbit {
+  0%,
+  100% {
+    translate: 0 0;
+    rotate: 0deg;
+    scale: 1;
+  }
+  25% {
+    translate: 2px -2px;
+    rotate: 8deg;
+    scale: 1.07;
+  }
+  55% {
+    translate: -2px 1px;
+    rotate: -6deg;
+    scale: 1.04;
+  }
+  78% {
+    translate: 1px 2px;
+    rotate: 4deg;
+    scale: 1.02;
+  }
+}
+
+@keyframes svgIconHoverListen {
+  0%,
+  100% {
+    translate: 0 0;
+    rotate: 0deg;
+    scale: 1;
+  }
+  30% {
+    translate: -1px 0;
+    rotate: -5deg;
+    scale: 1.08;
+  }
+  60% {
+    translate: 1px 0;
+    rotate: 5deg;
+    scale: 1.04;
+  }
+}
+

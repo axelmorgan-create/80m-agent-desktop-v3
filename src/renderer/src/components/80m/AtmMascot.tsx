@@ -1,4 +1,6 @@
 import React from "react";
+import { AtmMascotMotionStyle } from "./AtmMascotMotionStyle";
+import { AtmMascotSvgDefs } from "./AtmMascotSvgDefs";
 
 interface AtmMascotProps {
   state?:
@@ -25,69 +27,14 @@ const AtmMascot: React.FC<AtmMascotProps> = ({
     <div
       className={`w-full h-full flex items-center justify-center atm-container ${isIntro ? "mascot-intro-wrapper" : `atm-container anim-${state}`} ${className}`}
     >
-      <style>{`
-        .atm-character { animation: master-hover 4.5s ease-in-out infinite; animation-delay: ${isIntro ? "2.8s" : "0s"}; transform-origin: center; }
-        .atm-shadow { transform-origin: 400px 920px; animation: shadow-pulse 4.5s ease-in-out infinite; opacity: ${isIntro ? "0" : "1"}; transition: opacity 1s ease-out 2.4s; }
-        .wing-left-container { transform-origin: 220px 450px; animation: flutter-left 0.12s ease-in-out infinite alternate; }
-        .wing-right-container { transform-origin: 580px 450px; animation: flutter-right 0.12s ease-in-out infinite alternate; }
-        .eye-anim { transform-origin: center; transform-box: fill-box; animation: blink 5s infinite; }
-        .anim-sleep .sleep-zzz-1 { animation: zzz-float 3s linear infinite; }
-        .anim-sleep .sleep-zzz-2 { animation: zzz-float 3s linear infinite 1s; }
-        .anim-searching .scan-line { animation: scan-line-anim 1.5s linear infinite alternate; }
-        .anim-typing .atm-character { animation: typing-bounce 0.15s infinite; }
-        .anim-error .atm-character { animation: shake-anim 0.2s infinite; }
-        .anim-jump .atm-character { animation: jump-anim 1s cubic-bezier(0.28, 0.84, 0.42, 1); }
-        .anim-jackpot .dollar-bill { animation: bill-rain 0.3s linear infinite; }
-        .anim-lobster .pincer-move { animation: claw-snap 0.2s infinite; }
-        .anim-urgent .atm-character { animation: shake-anim 0.1s infinite; }
-        .anim-default .top-light-glow { animation: top-light-breathe 2.8s ease-in-out infinite; }
-        .anim-processing .eye-anim { animation: look-around 2s ease-in-out infinite; }
-        .anim-processing .top-light-glow, .anim-processing .top-light-glow rect { fill: #4ade80; filter: drop-shadow(0 0 10px #4ade80); animation: flash-gold 0.4s infinite alternate; }
-      `}</style>
+      <AtmMascotMotionStyle isIntro={isIntro} />
 
       <div className={isIntro ? "mascot-intro-wrapper" : "w-full"}>
         <svg
           viewBox="-50 -50 900 1150"
           className="w-full h-auto drop-shadow-2xl overflow-visible"
         >
-          <defs>
-            <filter id="drop-shadow">
-              <feDropShadow
-                dx="0"
-                dy="25"
-                stdDeviation="20"
-                floodColor="#000000"
-                floodOpacity="0.4"
-              />
-            </filter>
-            <linearGradient id="beigeBody" x1="0" y1="0" x2="1" y2="0">
-              <stop offset="0%" stopColor="#d6d2c1" />
-              <stop offset="15%" stopColor="#eae7de" />
-              <stop offset="45%" stopColor="#cbc9ba" />
-              <stop offset="85%" stopColor="#b5b3a3" />
-              <stop offset="100%" stopColor="#8d8b7d" />
-            </linearGradient>
-            <radialGradient id="screenGrad" cx="50%" cy="40%" r="60%">
-              <stop offset="0%" stopColor="#fff9c4" />
-              <stop offset="30%" stopColor="#ffeb3b" />
-              <stop offset="100%" stopColor="#f57c00" />
-            </radialGradient>
-            <radialGradient id="blushGrad" cx="50%" cy="50%" r="50%">
-              <stop offset="0%" stopColor="#ff6b6b" stopOpacity="0.9" />
-              <stop offset="100%" stopColor="#ffc9c9" stopOpacity="0" />
-            </radialGradient>
-            <g id="feather-wing">
-              <path
-                d="M 0,0 C 70,-70 150,-90 220,-110 C 240,-80 210,-40 180,-10 C 220,-5 220,30 180,40 C 210,60 190,90 150,80 C 160,110 130,140 90,120 C 110,150 70,170 30,130 C 20,110 10,60 0,0 Z"
-                fill="#f8fafc"
-                stroke="#cbd5e1"
-                strokeWidth="4"
-              />
-            </g>
-            <clipPath id="screen-clip">
-              <rect x="235" y="255" width="330" height="200" rx="12" />
-            </clipPath>
-          </defs>
+          <AtmMascotSvgDefs />
 
           <g className="atm-shadow">
             <ellipse

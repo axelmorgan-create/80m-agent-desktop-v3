@@ -1,0 +1,102 @@
+.memory-main {
+  background:
+    radial-gradient(
+      circle at 55% 36%,
+      rgba(74, 222, 128, 0.08),
+      transparent 32%
+    ),
+    transparent;
+}
+
+.memory-screen-header {
+  min-height: 64px;
+  justify-content: space-between;
+  padding: 12px 24px 11px;
+  background: rgba(6, 18, 13, 0.42);
+  border-bottom-color: rgba(74, 222, 128, 0.12);
+}
+
+.memory-screen-title-lockup {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-width: 0;
+}
+
+.memory-screen-title-lockup .memory-subtitle {
+  margin-top: 4px;
+}
+
+.memory-brain-glyph {
+  width: 21px;
+  height: 21px;
+  display: inline-grid;
+  place-items: center;
+  color: #4ade80;
+  filter: drop-shadow(0 0 8px rgba(74, 222, 128, 0.55));
+  animation: memoryBrainGlow 2.8s ease-in-out infinite;
+}
+
+@keyframes memoryBrainGlow {
+  0%,
+  100% {
+    opacity: 0.82;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.08);
+  }
+}
+
+.memory-screen-content {
+  padding: 0 12px 18px;
+}
+
+.memory-tabs-neural {
+  position: sticky;
+  top: 0;
+  z-index: 4;
+  min-height: 44px;
+  align-items: stretch;
+  gap: 0;
+  margin: 0 0 12px;
+  border: 1px solid rgba(74, 222, 128, 0.1);
+  border-radius: 5px;
+  background: rgba(13, 29, 21, 0.54);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  overflow: hidden;
+}
+
+.memory-tabs-neural .memory-tab {
+  min-width: 130px;
+  justify-content: center;
+  border-bottom-width: 0;
+  border-right: 1px solid rgba(74, 222, 128, 0.08);
+  border-radius: 0;
+  color: #aebeb4;
+  font-family: "Fira Code", monospace;
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.memory-tabs-neural .memory-tab.active {
+  position: relative;
+  color: #4ade80;
+  background: rgba(74, 222, 128, 0.1);
+}
+
+.memory-tabs-neural .memory-tab.active::after {
+  content: "";
+  position: absolute;
+  right: 8px;
+  bottom: 0;
+  left: 8px;
+  height: 2px;
+  background: #4ade80;
+  box-shadow: 0 0 10px rgba(74, 222, 128, 0.72);
+}
+

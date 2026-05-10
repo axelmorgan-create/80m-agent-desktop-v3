@@ -1,0 +1,240 @@
+/* Splash launch bay, mascot arrival, and Second Brain transition */
+.splash-screen {
+  overflow: hidden;
+  isolation: isolate;
+  background:
+    radial-gradient(
+      ellipse at 50% 72%,
+      rgba(74, 222, 128, 0.18) 0%,
+      rgba(74, 222, 128, 0.04) 32%,
+      transparent 58%
+    ),
+    radial-gradient(
+      ellipse at 20% 18%,
+      rgba(34, 211, 238, 0.15) 0%,
+      transparent 34%
+    ),
+    linear-gradient(145deg, #18201d 0%, #151816 42%, #20251f 100%);
+}
+
+.splash-launch-bay,
+.splash-launch-grid,
+.splash-launch-radar,
+.splash-launch-circuits,
+.splash-launch-beams {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.splash-launch-bay {
+  z-index: -1;
+  perspective: 900px;
+}
+
+.splash-launch-grid {
+  top: 42%;
+  background-image:
+    linear-gradient(rgba(74, 222, 128, 0.2) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(34, 211, 238, 0.16) 1px, transparent 1px);
+  background-size: 44px 44px;
+  transform: rotateX(62deg) translateY(20%);
+  transform-origin: center top;
+  mask-image: linear-gradient(to bottom, transparent, #000 24%, #000 72%, transparent);
+  -webkit-mask-image: linear-gradient(
+    to bottom,
+    transparent,
+    #000 24%,
+    #000 72%,
+    transparent
+  );
+  animation: splashGridDrift 3.2s linear infinite;
+}
+
+.splash-launch-radar {
+  width: min(760px, 82vw);
+  height: min(760px, 82vw);
+  inset: auto;
+  left: 50%;
+  top: 50%;
+  border: 1px solid rgba(74, 222, 128, 0.18);
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+  background:
+    conic-gradient(
+      from 0deg,
+      transparent 0deg,
+      rgba(74, 222, 128, 0.2) 34deg,
+      transparent 82deg,
+      transparent 360deg
+    ),
+    repeating-radial-gradient(
+      circle,
+      transparent 0 82px,
+      rgba(34, 211, 238, 0.1) 83px 84px
+    );
+  opacity: 0.58;
+  animation: splashRadarSweep 4.8s linear infinite;
+}
+
+.splash-launch-circuits {
+  opacity: 0.76;
+}
+
+.splash-launch-circuits span {
+  position: absolute;
+  height: 1px;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(34, 211, 238, 0.9),
+    rgba(74, 222, 128, 0.84),
+    transparent
+  );
+  box-shadow: 0 0 18px rgba(34, 211, 238, 0.22);
+  animation: splashCircuitRun 1.65s ease-in-out infinite;
+}
+
+.splash-launch-circuits span:nth-child(1) {
+  top: 22%;
+  left: 8%;
+  width: 28vw;
+}
+
+.splash-launch-circuits span:nth-child(2) {
+  top: 35%;
+  right: 6%;
+  width: 34vw;
+  animation-delay: 0.28s;
+}
+
+.splash-launch-circuits span:nth-child(3) {
+  bottom: 28%;
+  left: 12%;
+  width: 26vw;
+  animation-delay: 0.56s;
+}
+
+.splash-launch-circuits span:nth-child(4) {
+  bottom: 18%;
+  right: 10%;
+  width: 24vw;
+  animation-delay: 0.84s;
+}
+
+.splash-launch-beams span {
+  position: absolute;
+  top: -12%;
+  bottom: -12%;
+  width: 16%;
+  transform: skewX(-18deg);
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(244, 255, 247, 0.045),
+    transparent
+  );
+  mix-blend-mode: screen;
+  animation: splashBeamSweep 3.2s ease-in-out infinite;
+}
+
+.splash-launch-beams span:nth-child(1) {
+  left: 12%;
+}
+
+.splash-launch-beams span:nth-child(2) {
+  left: 44%;
+  animation-delay: 0.7s;
+}
+
+.splash-launch-beams span:nth-child(3) {
+  left: 72%;
+  animation-delay: 1.35s;
+}
+
+.splash-screen .mascot-intro-container {
+  z-index: 2;
+}
+
+.splash-screen .splash-80m-branding {
+  bottom: 42px;
+  padding: 10px 16px;
+  border: 1px solid rgba(74, 222, 128, 0.2);
+  border-radius: 8px;
+  background: rgba(18, 24, 21, 0.42);
+  box-shadow:
+    0 18px 52px rgba(0, 0, 0, 0.28),
+    inset 0 1px rgba(244, 255, 247, 0.08);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  animation: splashBrandRise 0.9s cubic-bezier(0.16, 1, 0.3, 1) 1.7s both;
+}
+
+.splash-80m-logo {
+  letter-spacing: 0;
+}
+
+.splash-screen .animated-80m-logo-splash {
+  filter:
+    drop-shadow(0 0 16px rgba(74, 222, 128, 0.35))
+    drop-shadow(0 0 26px rgba(34, 211, 238, 0.12));
+}
+
+.splash-screen .splash-80m-branding-tagline {
+  color: #d8ffe5;
+  text-shadow: 0 0 12px rgba(74, 222, 128, 0.36);
+}
+
+@keyframes splashGridDrift {
+  from {
+    background-position: 0 0, 0 0;
+  }
+  to {
+    background-position: 0 44px, 44px 0;
+  }
+}
+
+@keyframes splashRadarSweep {
+  to {
+    transform: translate(-50%, -50%) rotate(1turn);
+  }
+}
+
+@keyframes splashCircuitRun {
+  0%,
+  100% {
+    opacity: 0.24;
+    transform: scaleX(0.56);
+  }
+  45% {
+    opacity: 1;
+    transform: scaleX(1);
+  }
+}
+
+@keyframes splashBeamSweep {
+  0%,
+  100% {
+    opacity: 0;
+    transform: translateX(-22vw) skewX(-18deg);
+  }
+  45% {
+    opacity: 1;
+  }
+  70% {
+    opacity: 0;
+    transform: translateX(18vw) skewX(-18deg);
+  }
+}
+
+@keyframes splashBrandRise {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) translateY(18px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0) scale(1);
+  }
+}
+

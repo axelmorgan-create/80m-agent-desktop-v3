@@ -1,0 +1,119 @@
+/* ── Light theme overrides for neural map ── */
+[data-theme="light"] .memory-neural-card {
+  background: linear-gradient(180deg, rgba(240, 255, 245, 0.95), rgba(245, 252, 248, 0.9));
+  border-color: rgba(22, 101, 52, 0.18);
+  box-shadow: 0 1px 8px rgba(0, 0, 0, 0.06);
+}
+
+[data-theme="light"] .memory-neural-preview-heading {
+  color: #1a3a28;
+}
+
+[data-theme="light"] .memory-neural-preview-heading svg {
+  color: #16a34a;
+}
+
+[data-theme="light"] .memory-neural-preview-heading strong {
+  color: #0f2519;
+}
+
+[data-theme="light"] .memory-neural-preview-heading span {
+  color: #5a7d68;
+}
+
+[data-theme="light"] .memory-neural-preview-body {
+  background: rgba(245, 252, 248, 0.85);
+  border-color: rgba(22, 101, 52, 0.12);
+  color: #1a3a28;
+}
+
+[data-theme="light"] .memory-neural-preview-body pre {
+  color: #1a3a28;
+}
+
+[data-theme="light"] .memory-neural-book {
+  color: #2d5a3e;
+}
+
+[data-theme="light"] .memory-neural-book svg {
+  color: #16a34a;
+  filter: none;
+}
+
+[data-theme="light"] .memory-neural-book p {
+  color: #3a6b4e;
+}
+
+[data-theme="light"] .memory-vault-index-header {
+  color: #1a3a28;
+}
+
+[data-theme="light"] .memory-vault-index-header span:last-child {
+  color: #16a34a;
+}
+
+[data-theme="light"] .memory-neural-stage-status {
+  background: rgba(240, 255, 245, 0.92);
+  border-color: rgba(22, 101, 52, 0.2);
+  color: #1a3a28;
+}
+
+[data-theme="light"] .memory-neural-stage-status span:last-child {
+  color: #16a34a;
+}
+
+[data-theme="light"] .neural-mode-btn {
+  background: rgba(240, 255, 245, 0.92);
+  border-color: rgba(22, 101, 52, 0.2);
+  color: #3a6b4e;
+}
+
+[data-theme="light"] .neural-mode-btn.active {
+  background: rgba(220, 252, 232, 0.95);
+  border-color: rgba(22, 163, 74, 0.5);
+  color: #16a34a;
+  text-shadow: none;
+}
+
+[data-theme="light"] .neural-search-input {
+  background: rgba(240, 255, 245, 0.92);
+  border-color: rgba(22, 101, 52, 0.2);
+  color: #1a3a28;
+}
+
+[data-theme="light"] .neural-search-input::placeholder {
+  color: #7da68e;
+}
+
+.memory-neural-empty {
+  padding: 14px 8px;
+}
+
+@media (max-width: 1040px) {
+  .memory-neural-dashboard {
+    grid-template-columns: 1fr;
+  }
+
+  .memory-neural-rail {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .memory-neural-stage {
+    min-height: 470px;
+  }
+}
+
+@media (max-width: 860px) {
+  .agent-preview-dock {
+    min-width: min(100vw, 420px);
+    width: min(100vw, 520px) !important;
+  }
+
+  .memory-stats-neural,
+  .memory-capacities-neural,
+  .memory-neural-rail {
+    grid-template-columns: 1fr;
+  }
+}
+

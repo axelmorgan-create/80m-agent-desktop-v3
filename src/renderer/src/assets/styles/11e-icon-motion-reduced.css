@@ -1,0 +1,33 @@
+@media (prefers-reduced-motion: reduce) {
+  :where(
+      button,
+      a[href],
+      [role="button"],
+      [role="tab"],
+      [data-icon-motion],
+      .agent-tab,
+      .sidebar-nav-item,
+      .sidebar-80m-nav-item,
+      .conversation-tab,
+      .memory-tab,
+      .skills-tab,
+      .kanban-doc-button,
+      .tools-card,
+      .agents-card,
+      [class*="-icon"]
+    ):where(:hover, :focus-visible, :active)
+    :where(svg),
+  :where(svg[class*="icon"], svg[class*="Icon"]):where(
+      :hover,
+      :focus-visible,
+      :active
+    ),
+  :where(svg).svg-icon-clicked {
+    animation: none !important;
+    transition: none !important;
+    translate: 0 0 !important;
+    rotate: 0deg !important;
+    scale: 1 !important;
+  }
+}
+

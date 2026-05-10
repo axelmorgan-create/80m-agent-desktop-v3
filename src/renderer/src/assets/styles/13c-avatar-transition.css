@@ -1,0 +1,194 @@
+.layout-80m.avatar-intro-landing .sidebar-80m-mascot-picker,
+.layout-80m.avatar-intro-waiting .sidebar-80m-mascot-picker,
+.layout-80m.avatar-intro-flying .sidebar-80m-mascot-picker {
+  opacity: 0;
+}
+
+.avatar-landing-overlay {
+  position: fixed;
+  inset: 36px 0 0 280px;
+  z-index: 86;
+  display: grid;
+  place-items: center;
+  pointer-events: none;
+  overflow: visible;
+}
+
+.avatar-landing-track {
+  position: relative;
+  width: min(280px, 34vw);
+  height: min(340px, 52vh);
+  display: grid;
+  place-items: center;
+  overflow: visible;
+}
+
+.avatar-landing-mascot {
+  --avatar-fly-x: -44vw;
+  --avatar-fly-y: -30vh;
+  position: relative;
+  width: 236px;
+  height: 292px;
+  display: grid;
+  place-items: center;
+  transform-origin: center;
+  filter: drop-shadow(0 28px 36px rgba(0, 0, 0, 0.42));
+}
+
+.avatar-landing-mascot .atm-container {
+  width: 100%;
+  height: 100%;
+}
+
+.avatar-landing-mascot svg {
+  transform: scale(1.12);
+}
+
+.avatar-landing-shadow {
+  position: absolute;
+  left: 18%;
+  right: 18%;
+  bottom: 7%;
+  height: 18px;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.34);
+  filter: blur(10px);
+  animation: avatarLandingShadow 1.04s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.avatar-landing-overlay.landing .avatar-landing-mascot {
+  animation: avatarLandFromSplash 1.04s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.avatar-landing-overlay.waiting .avatar-landing-mascot {
+  animation: avatarWaitOverChat 2.4s ease-in-out infinite;
+}
+
+.avatar-landing-overlay.flying .avatar-landing-mascot {
+  animation: avatarFlyToSidebar 0.92s cubic-bezier(0.2, 0.9, 0.24, 1) forwards;
+}
+
+.avatar-landing-overlay.flying .avatar-landing-shadow {
+  opacity: 0;
+  transition: opacity 0.18s ease;
+}
+
+.avatar-landing-overlay::before,
+.avatar-landing-overlay::after {
+  content: "";
+  position: absolute;
+  width: min(360px, 44vw);
+  height: min(360px, 44vw);
+  border: 1px solid rgba(74, 222, 128, 0.16);
+  border-radius: 50%;
+  opacity: 0;
+  animation: avatarLandingRing 1.25s ease-out 0.62s both;
+}
+
+.avatar-landing-overlay::after {
+  width: min(520px, 58vw);
+  height: min(520px, 58vw);
+  border-color: rgba(34, 211, 238, 0.14);
+  animation-delay: 0.74s;
+}
+
+.avatar-landing-overlay.flying::before,
+.avatar-landing-overlay.flying::after {
+  opacity: 0;
+  animation: none;
+}
+
+@keyframes avatarLandFromSplash {
+  0% {
+    opacity: 0;
+    transform: translate3d(28vw, -78vh, 0) rotate(-20deg) scale(0.28);
+    filter: blur(18px) brightness(2.2);
+  }
+  58% {
+    opacity: 1;
+    transform: translate3d(-2vw, 3vh, 0) rotate(4deg) scale(1.12);
+    filter: blur(0) brightness(1.15);
+  }
+  76% {
+    transform: translate3d(0, -2vh, 0) rotate(-2deg) scale(0.96);
+  }
+  100% {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) rotate(0) scale(1);
+    filter: blur(0) brightness(1);
+  }
+}
+
+@keyframes avatarLandingShadow {
+  from {
+    opacity: 0;
+    transform: scale(0.24);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes avatarWaitOverChat {
+  0%,
+  100% {
+    transform: translateY(0) rotate(0deg);
+  }
+  50% {
+    transform: translateY(-10px) rotate(1.5deg);
+  }
+}
+
+@keyframes avatarFlyToSidebar {
+  0% {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1) rotate(0deg);
+    filter: blur(0) brightness(1);
+  }
+  62% {
+    opacity: 1;
+    transform: translate3d(
+        calc(var(--avatar-fly-x) * 0.78),
+        calc(var(--avatar-fly-y) * 0.72),
+        0
+      )
+      scale(0.62)
+      rotate(10deg);
+    filter: blur(0) brightness(1.08);
+  }
+  100% {
+    opacity: 0;
+    transform: translate3d(var(--avatar-fly-x), var(--avatar-fly-y), 0)
+      scale(0.42)
+      rotate(0deg);
+    filter: blur(1px) brightness(1);
+  }
+}
+
+@keyframes avatarLandingRing {
+  0% {
+    opacity: 0;
+    transform: scale(0.45);
+  }
+  32% {
+    opacity: 0.78;
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.4);
+  }
+}
+
+.layout-80m.brain-portal-active .conversation-brain-pulse,
+.layout-80m.brain-portal-active .sidebar-80m-nav-item--memory .nav-icon {
+  opacity: 0;
+  transform: scale(0.2);
+  filter: blur(6px);
+  transition:
+    opacity 0.22s ease,
+    transform 0.22s ease,
+    filter 0.22s ease;
+}
+
+

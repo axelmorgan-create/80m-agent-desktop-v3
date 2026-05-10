@@ -1,0 +1,120 @@
+.memory-neural-dashboard {
+  display: flex;
+  gap: 14px;
+  min-height: calc(100vh - 132px);
+}
+
+/* ── Stacked layout (vertical, default) ── */
+.memory-neural-layout-stacked {
+  flex-direction: column;
+}
+
+.memory-neural-layout-stacked .memory-neural-pane-map {
+  min-width: 0;
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+}
+
+.memory-neural-layout-stacked .memory-neural-pane-preview {
+  min-width: 0;
+  flex: 0 0 auto;
+  max-height: 50vh;
+  overflow-y: auto;
+}
+
+/* ── Side-by-side layout ── */
+.memory-neural-layout-side {
+  flex-direction: row;
+}
+
+.memory-neural-layout-side .memory-neural-pane-map {
+  flex: 1 1 60%;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.memory-neural-layout-side .memory-neural-pane-preview {
+  flex: 1 1 40%;
+  min-width: 280px;
+  max-width: 50%;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+}
+
+.memory-neural-layout-side .memory-neural-pane-preview .memory-neural-card {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+}
+
+.memory-neural-layout-side .memory-neural-pane-preview .memory-neural-preview {
+  flex: 1 1 auto;
+}
+
+.memory-neural-layout-side .memory-neural-pane-preview .memory-neural-preview-body {
+  max-height: none;
+  flex: 1 1 auto;
+}
+
+.memory-neural-layout-side .memory-neural-stage {
+  min-height: 0;
+  flex: 1 1 auto;
+}
+
+.memory-neural-stage {
+  position: relative;
+  min-height: 520px;
+  overflow: hidden;
+  border: 1px solid rgba(74, 222, 128, 0.1);
+  border-radius: 6px;
+  background: #030a06;
+}
+
+.memory-neural-stage canvas {
+  display: block;
+  width: 100% !important;
+  height: 100% !important;
+  border-radius: inherit;
+}
+
+.memory-neural-stage-status {
+  position: absolute;
+  top: 14px;
+  left: 14px;
+  z-index: 10;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  max-width: calc(100% - 28px);
+  padding: 6px 9px;
+  border: 1px solid rgba(74, 222, 128, 0.18);
+  border-radius: 6px;
+  background: rgba(8, 25, 16, 0.82);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  color: #d8ffe5;
+  font-family: "Fira Code", monospace;
+  font-size: 10px;
+  font-weight: 900;
+  text-transform: uppercase;
+  pointer-events: none;
+}
+
+.memory-neural-stage-status span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.memory-neural-stage-status span:last-child {
+  color: #4ade80;
+}
+
+.memory-neural-stage-scanning .memory-neural-stage-status span:last-child {
+  animation: memoryBrainGlow 1.4s ease-in-out infinite;
+}
+

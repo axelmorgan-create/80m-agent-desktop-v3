@@ -1,0 +1,47 @@
+/* === 80M DIVIDER === */
+.divider-80m {
+  height: 1px;
+  background: rgba(74, 222, 128, 0.08);
+  margin: 16px 0;
+}
+
+/* === 80M STATUS BADGE === */
+.badge-80m {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 8px;
+  border-radius: 100px;
+  font-family: "Fira Code", monospace;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.badge-80m.green {
+  background: rgba(74, 222, 128, 0.15);
+  color: #4ade80;
+}
+.badge-80m.red {
+  background: rgba(248, 113, 113, 0.15);
+  color: #f87171;
+}
+.badge-80m.amber {
+  background: rgba(251, 191, 36, 0.15);
+  color: #fbbf24;
+}
+.badge-80m.blue {
+  background: rgba(74, 222, 128, 0.15);
+  color: #4ade80;
+}
+
+/* === 80M SECTION LABEL === */
+.section-label-80m {
+  font-family: "Fira Code", monospace;
+  font-size: 10px;
+  font-weight: 700;
+  color: #e8e8e8;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  margin-bottom: 8px;
+}
+

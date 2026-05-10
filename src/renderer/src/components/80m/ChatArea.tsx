@@ -19,7 +19,9 @@ import {
   requestDisplaySession,
   upsertMessage,
 } from "./chatAreaUtils";
+import { useChatBusySendMode } from "./useChatBusySendMode";
 import { useChatFileDrop } from "./useChatFileDrop";
+import { useDesktopToast } from "./useDesktopToast";
 
 const ChatArea: React.FC<ChatAreaProps> = ({
   conversationId,
@@ -37,15 +39,7 @@ const ChatArea: React.FC<ChatAreaProps> = ({
     text: string;
   } | null>(null);
   const [queuedTurns, setQueuedTurns] = useState<QueuedChatTurn[]>([]);
-  const [busySendMode, setBusySendMode] = useState<
-    "queue" | "steer" | "background"
-  >(() => {
-    const saved = localStorage.getItem("hermes-chat-busy-send-mode");
-    return saved === "queue" || saved === "steer" || saved === "background"
-      ? saved
-      : "queue";
-  });
-
+  const [busySendMode, setBusySendMode] = useChatBusySendMode();
   const messagesRef = useRef<Message[]>([]);
   const rootRef = useRef<HTMLDivElement>(null);
   const currentSessionRef = useRef<string | null>(currentSession);
@@ -57,34 +51,15 @@ const ChatArea: React.FC<ChatAreaProps> = ({
   useEffect(() => {
     messagesRef.current = messages;
   }, [messages]);
-
   useEffect(() => {
     currentSessionRef.current = currentSession;
   }, [currentSession]);
-
-  useEffect(() => {
-    localStorage.setItem("hermes-chat-busy-send-mode", busySendMode);
-  }, [busySendMode]);
 
   const updateQueuedTurns = useCallback((next: QueuedChatTurn[]) => {
     queuedTurnsRef.current = next;
     setQueuedTurns(next);
   }, []);
-
-  const showToast = useCallback(
-    (
-      title: string,
-      body: string,
-      tone: "info" | "success" | "warning" | "error" = "info",
-    ) => {
-      window.dispatchEvent(
-        new CustomEvent("desktop-toast", {
-          detail: { title, body, tone },
-        }),
-      );
-    },
-    [],
-  );
+  const showToast = useDesktopToast();
 
   const { isDraggingFiles, dragHandlers } = useChatFileDrop({
     setDraftInsert,
@@ -529,7 +504,6 @@ const ChatArea: React.FC<ChatAreaProps> = ({
           playDoneSound();
           void playTTS(req.response);
         }
-
         if (isVisible && finalAssistant) {
           setMessages((prev) => upsertMessage(prev, finalAssistant));
         }

@@ -1,25 +1,10 @@
 import React, { useState, useEffect, useCallback } from "react";
-import { AnimatePresence } from "framer-motion";
-import QRCode from "qrcode";
-import {
-  Activity,
-  Download,
-  ShieldCheck,
-  Smartphone,
-  User,
-  Wifi,
-  Info,
-  Sparkles,
-} from "lucide-react";
 import { useProfiles } from "../../hooks/useProfiles";
-import { SettingsAboutPanel } from "./SettingsAboutPanel";
-import { SettingsAuditPanel } from "./SettingsAuditPanel";
-import { SettingsBackupPanel } from "./SettingsBackupPanel";
-import { SettingsConnectionPanel } from "./SettingsConnectionPanel";
-import { SettingsCuratorPanel } from "./SettingsCuratorPanel";
-import { SettingsHealthPanel } from "./SettingsHealthPanel";
-import { SettingsMobilePanel } from "./SettingsMobilePanel";
-import { SettingsProfilesPanel } from "./SettingsProfilesPanel";
+import { SettingsFrame } from "./SettingsFrame";
+import { SettingsLoadingState } from "./SettingsLoadingState";
+import { SettingsPanelContent } from "./SettingsPanelContent";
+import { type SettingsTabId } from "./settingsTabs";
+import { useTailscaleQr } from "./useTailscaleQr";
 import {
   buildActiveModelPresets,
   modelConfigIssue,
@@ -40,18 +25,8 @@ interface Props {
   profile?: string;
 }
 
-type TabId =
-  | "overview"
-  | "connection"
-  | "mobile"
-  | "health"
-  | "curator"
-  | "profiles"
-  | "backup"
-  | "about";
-
 const Settings80m: React.FC<Props> = ({ onBack, profile }) => {
-  const [activeTab, setActiveTab] = useState<TabId>("overview");
+  const [activeTab, setActiveTab] = useState<SettingsTabId>("overview");
   const [provider, setProvider] = useState("openrouter");
   const [model, setModel] = useState("");
   const [baseUrl, setBaseUrl] = useState("");
@@ -112,7 +87,7 @@ const Settings80m: React.FC<Props> = ({ onBack, profile }) => {
     "enable" | "disable" | "rotate" | null
   >(null);
   const [tailscaleError, setTailscaleError] = useState("");
-  const [tailscaleQr, setTailscaleQr] = useState("");
+  const tailscaleQr = useTailscaleQr(tailscale);
 
   const activeModelPresets = buildActiveModelPresets(env, credentialPool);
 
@@ -363,31 +338,6 @@ const Settings80m: React.FC<Props> = ({ onBack, profile }) => {
     setProfileCloneFrom(profile || "default");
   }, [profile]);
 
-  useEffect(() => {
-    const url = tailscale?.pairUrl || tailscale?.tailnetUrl;
-    if (!url) {
-      setTailscaleQr("");
-      return;
-    }
-
-    let active = true;
-    QRCode.toDataURL(url, {
-      width: 220,
-      margin: 1,
-      color: { dark: "#111611", light: "#f4fff7" },
-    })
-      .then((dataUrl) => {
-        if (active) setTailscaleQr(dataUrl);
-      })
-      .catch(() => {
-        if (active) setTailscaleQr("");
-      });
-
-    return () => {
-      active = false;
-    };
-  }, [tailscale?.pairUrl, tailscale?.tailnetUrl]);
-
   const handleSave = async () => {
     if (window.hermesAPI) {
       try {
@@ -546,221 +496,102 @@ const Settings80m: React.FC<Props> = ({ onBack, profile }) => {
     setImporting(false);
   };
 
-  const tabs: { id: TabId; label: string; icon: React.ReactNode }[] = [
-    { id: "overview", label: "Overview", icon: <Activity size={14} /> },
-    { id: "connection", label: "Connection", icon: <Wifi size={14} /> },
-    { id: "mobile", label: "Mobile", icon: <Smartphone size={14} /> },
-    { id: "health", label: "Health", icon: <ShieldCheck size={14} /> },
-    { id: "curator", label: "Curator", icon: <Sparkles size={14} /> },
-    { id: "profiles", label: "Profiles", icon: <User size={14} /> },
-    { id: "backup", label: "Backup", icon: <Download size={14} /> },
-    { id: "about", label: "About", icon: <Info size={14} /> },
-  ];
-
-  if (loading) {
-    return (
-      <div className="main-80m">
-        <div className="chat-header-80m">
-          <button
-            onClick={onBack}
-            style={{
-              background: "none",
-              border: "none",
-              color: "#4ade80",
-              cursor: "pointer",
-              fontFamily: "'Fira Code', monospace",
-              fontSize: "12px",
-            }}
-          >
-            ← Back
-          </button>
-          <span className="chat-header-80m-title">SETTINGS</span>
-          <span />
-        </div>
-        <div
-          style={{
-            flex: 1,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            fontFamily: "'Fira Code', monospace",
-            color: "#e8e8e8",
-            fontSize: "12px",
-          }}
-        >
-          Loading...
-        </div>
-      </div>
-    );
-  }
+  if (loading) return <SettingsLoadingState onBack={onBack} />;
 
   return (
-    <div className="main-80m">
-      <div className="chat-header-80m">
-        <button
-          onClick={onBack}
-          style={{
-            background: "none",
-            border: "none",
-            color: "#4ade80",
-            cursor: "pointer",
-            fontFamily: "'Fira Code', monospace",
-            fontSize: "12px",
-            display: "flex",
-            alignItems: "center",
-            gap: "6px",
-          }}
-        >
-          ← Back
-        </button>
-        <span className="chat-header-80m-title">SETTINGS</span>
-        <span />
-      </div>
-
-      <div className="settings-80m-tabs">
-        {tabs.map((tab) => (
-          <button
-            key={tab.id}
-            className={`settings-80m-tab${activeTab === tab.id ? " active" : ""}`}
-            onClick={() => setActiveTab(tab.id)}
-          >
-            {tab.icon}
-            <span>{tab.label}</span>
-          </button>
-        ))}
-      </div>
-
-      <div className="settings-80m-content">
-        <AnimatePresence mode="wait">
-          {activeTab === "overview" && (
-            <SettingsAuditPanel
-              audit={audit}
-              profile={profile}
-              auditLoading={auditLoading}
-              healthLoading={healthLoading}
-              capabilitiesLoading={capabilitiesLoading}
-              auditActionBusy={auditActionBusy}
-              auditActionOutput={auditActionOutput}
-              onRefresh={() =>
-                void Promise.all([
-                  refreshAudit(),
-                  refreshHealth(),
-                  refreshCapabilities(),
-                ])
-              }
-              onRunAuditAction={(card) => void runAuditAction(card)}
-            />
-          )}
-
-          {activeTab === "connection" && (
-            <SettingsConnectionPanel
-              connMode={connMode}
-              setConnMode={setConnMode}
-              remoteUrl={remoteUrl}
-              setRemoteUrl={setRemoteUrl}
-              apiKey={apiKey}
-              setApiKey={setApiKey}
-              activeModelPresets={activeModelPresets}
-              provider={provider}
-              setProvider={setProvider}
-              model={model}
-              setModel={setModel}
-              baseUrl={baseUrl}
-              setBaseUrl={setBaseUrl}
-              modelError={modelError}
-              setModelError={setModelError}
-              saved={saved}
-              onQuickModelSelect={(modelPreset) =>
-                void handleQuickModelSelect(modelPreset)
-              }
-              onSave={() => void handleSave()}
-            />
-          )}
-
-          {activeTab === "mobile" && (
-            <SettingsMobilePanel
-              tailscale={tailscale}
-              tailscaleBusy={tailscaleBusy}
-              tailscaleError={tailscaleError}
-              tailscaleQr={tailscaleQr}
-              onRefresh={() => void refreshTailscale()}
-              onRunAction={(action) => void runTailscaleAction(action)}
-              onCopyMobileUrl={() => void copyMobileUrl()}
-              onOpenMobileUrl={openMobileUrl}
-            />
-          )}
-
-          {activeTab === "health" && (
-            <SettingsHealthPanel
-              health={health}
-              healthLoading={healthLoading}
-              capabilities={capabilities}
-              capabilitiesLoading={capabilitiesLoading}
-              upgrading={upgrading}
-              upgradeResult={upgradeResult}
-              onRefresh={() => {
-                void refreshHealth();
-                void refreshCapabilities();
-              }}
-              onSafeUpgrade={() => void handleSafeUpgrade()}
-            />
-          )}
-
-          {activeTab === "curator" && (
-            <SettingsCuratorPanel
-              capabilities={capabilities}
-              curator={curator}
-              curatorBusy={curatorBusy}
-              curatorSkill={curatorSkill}
-              setCuratorSkill={setCuratorSkill}
-              curatorOutput={curatorOutput}
-              onRunCuratorAction={(action, skill) =>
-                void runCuratorAction(action, skill)
-              }
-            />
-          )}
-
-          {activeTab === "profiles" && (
-            <SettingsProfilesPanel
-              profiles={profiles}
-              profileName={profileName}
-              setProfileName={setProfileName}
-              profileCreateMode={profileCreateMode}
-              setProfileCreateMode={setProfileCreateMode}
-              profileCloneFrom={profileCloneFrom}
-              setProfileCloneFrom={setProfileCloneFrom}
-              profileNoAlias={profileNoAlias}
-              setProfileNoAlias={setProfileNoAlias}
-              profileNoSkills={profileNoSkills}
-              setProfileNoSkills={setProfileNoSkills}
-              profileCreateResult={profileCreateResult}
-              creatingProfile={creatingProfile}
-              onCreateProfile={() => void handleCreateProfile()}
-              onDeleteProfile={(name) => void handleDeleteProfile(name)}
-              onSetActiveProfile={(name) => void handleSetActiveProfile(name)}
-            />
-          )}
-
-          {activeTab === "backup" && (
-            <SettingsBackupPanel
-              backingUp={backingUp}
-              importing={importing}
-              backupResult={backupResult}
-              importResult={importResult}
-              onBackup={() => void handleBackup()}
-              onImport={() => void handleImport()}
-            />
-          )}
-
-          {activeTab === "about" && (
-            <SettingsAboutPanel
-              appVersion={appVersion}
-              hermesVersion={hermesVersion}
-            />
-          )}
-        </AnimatePresence>
-      </div>
-    </div>
+    <SettingsFrame
+      activeTab={activeTab}
+      onBack={onBack}
+      onTabChange={setActiveTab}
+    >
+      <SettingsPanelContent
+        activeTab={activeTab}
+        profile={profile}
+        audit={audit}
+        auditLoading={auditLoading}
+        healthLoading={healthLoading}
+        capabilitiesLoading={capabilitiesLoading}
+        auditActionBusy={auditActionBusy}
+        auditActionOutput={auditActionOutput}
+        onRefreshAudit={() =>
+          void Promise.all([
+            refreshAudit(),
+            refreshHealth(),
+            refreshCapabilities(),
+          ])
+        }
+        onRunAuditAction={(card) => void runAuditAction(card)}
+        connMode={connMode}
+        setConnMode={setConnMode}
+        remoteUrl={remoteUrl}
+        setRemoteUrl={setRemoteUrl}
+        apiKey={apiKey}
+        setApiKey={setApiKey}
+        activeModelPresets={activeModelPresets}
+        provider={provider}
+        setProvider={setProvider}
+        model={model}
+        setModel={setModel}
+        baseUrl={baseUrl}
+        setBaseUrl={setBaseUrl}
+        modelError={modelError}
+        setModelError={setModelError}
+        saved={saved}
+        onQuickModelSelect={(modelPreset) =>
+          void handleQuickModelSelect(modelPreset)
+        }
+        onSave={() => void handleSave()}
+        tailscale={tailscale}
+        tailscaleBusy={tailscaleBusy}
+        tailscaleError={tailscaleError}
+        tailscaleQr={tailscaleQr}
+        onRefreshTailscale={() => void refreshTailscale()}
+        onRunTailscaleAction={(action) => void runTailscaleAction(action)}
+        onCopyMobileUrl={() => void copyMobileUrl()}
+        onOpenMobileUrl={openMobileUrl}
+        health={health}
+        capabilities={capabilities}
+        upgrading={upgrading}
+        upgradeResult={upgradeResult}
+        onRefreshHealth={() => {
+          void refreshHealth();
+          void refreshCapabilities();
+        }}
+        onSafeUpgrade={() => void handleSafeUpgrade()}
+        curator={curator}
+        curatorBusy={curatorBusy}
+        curatorSkill={curatorSkill}
+        setCuratorSkill={setCuratorSkill}
+        curatorOutput={curatorOutput}
+        onRunCuratorAction={(action, skill) =>
+          void runCuratorAction(action, skill)
+        }
+        profiles={profiles}
+        profileName={profileName}
+        setProfileName={setProfileName}
+        profileCreateMode={profileCreateMode}
+        setProfileCreateMode={setProfileCreateMode}
+        profileCloneFrom={profileCloneFrom}
+        setProfileCloneFrom={setProfileCloneFrom}
+        profileNoAlias={profileNoAlias}
+        setProfileNoAlias={setProfileNoAlias}
+        profileNoSkills={profileNoSkills}
+        setProfileNoSkills={setProfileNoSkills}
+        profileCreateResult={profileCreateResult}
+        creatingProfile={creatingProfile}
+        onCreateProfile={() => void handleCreateProfile()}
+        onDeleteProfile={(name) => void handleDeleteProfile(name)}
+        onSetActiveProfile={(name) => void handleSetActiveProfile(name)}
+        backingUp={backingUp}
+        importing={importing}
+        backupResult={backupResult}
+        importResult={importResult}
+        onBackup={() => void handleBackup()}
+        onImport={() => void handleImport()}
+        appVersion={appVersion}
+        hermesVersion={hermesVersion}
+      />
+    </SettingsFrame>
   );
 };
 
