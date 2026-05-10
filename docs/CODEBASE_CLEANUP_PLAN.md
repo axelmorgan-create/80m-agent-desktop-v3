@@ -23,6 +23,12 @@ the codebase easier to navigate, review, and release.
 - Extracted the chat conversation toolbar and split/tab workspace out of
   `Layout80m.tsx` into `ConversationWorkspace.tsx`.
 - Moved conversation tab/session state into `conversations.ts`.
+- Split the active 80m Settings surface into focused tab panels under
+  `src/renderer/src/components/80m/Settings*Panel.tsx`.
+- Moved window/external-link IPC, updater IPC, and Hermes profile watching out
+  of `src/main/index.ts`.
+- Preserved all existing IPC channel names while creating clearer main-process
+  ownership boundaries.
 
 ## Phase 1: Renderer Boundaries
 
@@ -45,22 +51,29 @@ the codebase easier to navigate, review, and release.
 
 ## Phase 3: Feature Screen Refactors
 
-- Split `Settings.tsx` into audit data, sections, and presentation components.
+- Continue shrinking `Settings.tsx` by moving API loading/saving effects into a
+  `useSettingsState` hook.
 - Split `Memory.tsx` into vault indexing, neural dashboard, provider settings,
   and entry list modules.
 - Split `Kanban.tsx` into board data, task cards, filters, and worker actions.
 - Split `Messages.tsx` into markdown rendering, tool-call rendering, transcript
   state, and message actions.
+- Confirm whether `src/renderer/src/screens/Settings/Settings.tsx` is legacy
+  shell code; if it is no longer routed, archive or delete it in a dedicated
+  dead-code removal pass.
 
 ## Phase 4: Main Process And IPC
 
-- Group main-process services by responsibility: Hermes runtime, profiles,
+- Continue grouping main-process services by responsibility: Hermes runtime,
   settings audit, filesystem/project access, preview/browser control, and
   desktop packaging helpers.
 - Keep IPC channel names stable and document new channels at the boundary where
   preload exposes them.
 - Prefer typed request/response helpers over ad hoc payloads when adding new
   renderer-to-main calls.
+- Next highest-value extraction from `src/main/index.ts`: move installer/update,
+  profile/settings, and filesystem workspace IPC into separate registration
+  modules.
 
 ## Phase 5: Verification And Release Discipline
 

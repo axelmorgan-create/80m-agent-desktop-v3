@@ -11,46 +11,21 @@ import { tmpdir } from "os";
 import http from "http";
 import https from "https";
 import { electronApp, optimizer, is } from "@electron-toolkit/utils";
-import type { AppUpdater } from "electron-updater";
 import icon from "../../resources/icon.png?asset";
 import { buildAppMenu } from "./app-menu";
+import { createProfileWatcher } from "./profile-watch";
+import { setupUpdaterIpc } from "./updater-ipc";
+import {
+  isRendererNavigation,
+  registerWindowIpc,
+  safeOpenExternal,
+} from "./window-ipc";
 
 interface AppNotificationPayload {
   title: string;
   body?: string;
   tone?: "info" | "success" | "warning" | "error";
   createdAt?: number;
-}
-
-/** Allowlist: only http, https, and mailto URLs for security. */
-function safeOpenExternal(url: string): boolean {
-  try {
-    const parsed = new URL(url);
-    if (["http:", "https:", "mailto:"].includes(parsed.protocol)) {
-      shell.openExternal(url);
-      return true;
-    }
-  } catch {
-    // invalid URL — silently ignore
-  }
-  return false;
-}
-
-function isRendererNavigation(url: string): boolean {
-  try {
-    const parsed = new URL(url);
-    if (parsed.protocol === "file:" || parsed.protocol === "devtools:") {
-      return true;
-    }
-    if (is.dev && process.env["ELECTRON_RENDERER_URL"]) {
-      return (
-        parsed.origin === new URL(process.env["ELECTRON_RENDERER_URL"]).origin
-      );
-    }
-  } catch {
-    return false;
-  }
-  return false;
 }
 
 function sendAppNotification(payload: AppNotificationPayload): void {
@@ -279,66 +254,15 @@ process.on("unhandledRejection", (reason) => {
 
 let mainWindow: BrowserWindow | null = null;
 const activeChatAborts = new Map<string, () => void>();
-let profileWatchers: fs.FSWatcher[] = [];
-let profileWatchDebounce: NodeJS.Timeout | null = null;
-
-function emitProfilesChanged(source: string): void {
+const profileWatcher = createProfileWatcher(HERMES_HOME, (source) => {
   mainWindow?.webContents.send("profiles-changed", {
     source,
     createdAt: Date.now(),
   });
-}
+});
 
-function scheduleProfilesChanged(source: string): void {
-  if (profileWatchDebounce) {
-    clearTimeout(profileWatchDebounce);
-  }
-  profileWatchDebounce = setTimeout(() => {
-    profileWatchDebounce = null;
-    emitProfilesChanged(source);
-  }, 250);
-}
-
-function stopProfileWatch(): void {
-  for (const watcher of profileWatchers) watcher.close();
-  profileWatchers = [];
-  if (profileWatchDebounce) {
-    clearTimeout(profileWatchDebounce);
-    profileWatchDebounce = null;
-  }
-}
-
-function startProfileWatch(): void {
-  stopProfileWatch();
-  const roots = [HERMES_HOME, join(HERMES_HOME, "profiles")];
-  for (const root of roots) {
-    if (!fs.existsSync(root)) continue;
-    try {
-      const watcher = fs.watch(
-        root,
-        { persistent: false },
-        (_event, filename) => {
-          const changed = filename ? String(filename) : "";
-          if (
-            root === HERMES_HOME &&
-            changed &&
-            changed !== "active_profile" &&
-            changed !== "profiles"
-          ) {
-            return;
-          }
-          scheduleProfilesChanged("filesystem");
-          if (root === HERMES_HOME || changed === "profiles") {
-            setTimeout(startProfileWatch, 500);
-          }
-        },
-      );
-      watcher.on("error", () => undefined);
-      profileWatchers.push(watcher);
-    } catch {
-      // Profile auto-discovery also has renderer focus/interval fallbacks.
-    }
-  }
+function emitProfilesChanged(source: string): void {
+  profileWatcher.emit(source);
 }
 
 function createWindow(): void {
@@ -1245,35 +1169,15 @@ function setupIPC(): void {
   );
   ipcMain.handle("get-kanban-docs", () => getKanbanDocs());
 
-  // Shell
-  ipcMain.handle("open-external", (_event, url: string) => {
-    if (safeOpenExternal(url)) {
+  registerWindowIpc({
+    getMainWindow: () => mainWindow,
+    onOpenedExternal: (url) =>
       sendAppNotification({
         title: "Opened outside",
         body: url,
         tone: "info",
-      });
-    }
+      }),
   });
-  ipcMain.handle("window-minimize", () => {
-    mainWindow?.minimize();
-  });
-  ipcMain.handle("window-toggle-maximize", () => {
-    if (!mainWindow) return false;
-    if (mainWindow.isMaximized()) {
-      mainWindow.unmaximize();
-    } else {
-      mainWindow.maximize();
-    }
-    return mainWindow.isMaximized();
-  });
-  ipcMain.handle("window-close", () => {
-    mainWindow?.close();
-  });
-  ipcMain.handle(
-    "window-is-maximized",
-    () => mainWindow?.isMaximized() ?? false,
-  );
 
   // Backup / Import
   ipcMain.handle("run-hermes-backup", (_event, profile?: string) =>
@@ -1364,67 +1268,7 @@ function buildMenu(): void {
 }
 
 function setupUpdater(): void {
-  // IPC handlers must always be registered to avoid invoke errors
-  ipcMain.handle("get-app-version", () => app.getVersion());
-
-  if (!app.isPackaged) {
-    // Skip auto-update in dev mode
-    ipcMain.handle("check-for-updates", async () => null);
-    ipcMain.handle("download-update", () => true);
-    ipcMain.handle("install-update", () => {});
-    return;
-  }
-
-  // Dynamic import to avoid electron-updater issues in dev mode
-  const { autoUpdater } = require("electron-updater") as {
-    autoUpdater: AppUpdater;
-  };
-
-  autoUpdater.autoDownload = false;
-  autoUpdater.autoInstallOnAppQuit = true;
-
-  autoUpdater.on("update-available", (info) => {
-    mainWindow?.webContents.send("update-available", {
-      version: info.version,
-      releaseNotes: info.releaseNotes,
-    });
-  });
-
-  autoUpdater.on("download-progress", (progress) => {
-    mainWindow?.webContents.send("update-download-progress", {
-      percent: Math.round(progress.percent),
-    });
-  });
-
-  autoUpdater.on("update-downloaded", () => {
-    mainWindow?.webContents.send("update-downloaded");
-  });
-
-  autoUpdater.on("error", (err) => {
-    mainWindow?.webContents.send("update-error", err.message);
-  });
-
-  ipcMain.handle("check-for-updates", async () => {
-    try {
-      const result = await autoUpdater.checkForUpdates();
-      return result?.updateInfo?.version || null;
-    } catch {
-      return null;
-    }
-  });
-
-  ipcMain.handle("download-update", () => {
-    autoUpdater.downloadUpdate();
-    return true;
-  });
-
-  ipcMain.handle("install-update", () => {
-    autoUpdater.quitAndInstall(false, true);
-  });
-
-  setTimeout(() => {
-    autoUpdater.checkForUpdates().catch(() => {});
-  }, 5000);
+  setupUpdaterIpc(() => mainWindow);
 }
 
 app.whenReady().then(() => {
@@ -1441,7 +1285,7 @@ app.whenReady().then(() => {
     console.error("Failed to bootstrap Tailscale mobile access:", error);
   });
   createWindow();
-  startProfileWatch();
+  profileWatcher.start();
   setupUpdater();
 
   app.on("activate", () => {
@@ -1464,7 +1308,7 @@ app.on("before-quit", () => {
   }
   activeChatAborts.clear();
   stopWorkspaceWatch();
-  stopProfileWatch();
+  profileWatcher.stop();
   stopGateway();
   stopClaw3d();
   stopBrowserService();
