@@ -84,6 +84,60 @@ const missingImportTargets = manifestImports
   .map((importPath) => path.join(path.dirname(mainCssPath), importPath))
   .filter((filePath) => !existsSync(filePath));
 
+function readRelativeFile(relativePath) {
+  const filePath = path.join(root, relativePath);
+  return existsSync(filePath) ? readFileSync(filePath, "utf8") : "";
+}
+
+const requiredModulePaths = [
+  "src/main/settings-audit-utils.ts",
+  "src/renderer/src/components/80m/SettingsFrame.tsx",
+  "src/renderer/src/components/80m/SettingsPanelContent.tsx",
+  "src/renderer/src/components/80m/useAgentPreviewDock.ts",
+  "src/renderer/src/screens/Memory/MemoryNeuralMapPanel.tsx",
+  "src/renderer/src/screens/Memory/MemoryVaultTreeNode.tsx",
+  "src/renderer/src/screens/Schedules/SchedulesCreateModal.tsx",
+  "src/renderer/src/screens/Schedules/SchedulesDeleteModal.tsx",
+];
+const missingRequiredModules = requiredModulePaths.filter(
+  (relativePath) => !existsSync(path.join(root, relativePath)),
+);
+
+const layoutSource = readRelativeFile(
+  "src/renderer/src/components/80m/Layout80m.tsx",
+);
+const workspaceSource = readRelativeFile(
+  "src/renderer/src/components/80m/ConversationWorkspace.tsx",
+);
+const projectsSource = readRelativeFile(
+  "src/renderer/src/components/80m/ProjectsSidebar.tsx",
+);
+
+const rendererContractFailures = [];
+if (
+  !/if\s*\(\s*showProjectsSidebar\s*\)[\s\S]*handleProjectChange\(null\)/.test(
+    layoutSource,
+  )
+) {
+  rendererContractFailures.push(
+    "Project toolbar must close the active project",
+  );
+}
+if (!workspaceSource.includes("Close project:")) {
+  rendererContractFailures.push(
+    "Project toolbar tooltip must expose close mode",
+  );
+}
+if (
+  !/className="file-tree-project-name"[\s\S]*onProjectChange\(null\)/.test(
+    projectsSource,
+  )
+) {
+  rendererContractFailures.push(
+    "Project root folder must close the active project",
+  );
+}
+
 console.log("80m codebase audit");
 console.log("");
 console.log("Largest source files:");
@@ -121,11 +175,33 @@ if (missingStyleImports.length === 0 && missingImportTargets.length === 0) {
   }
 }
 
+console.log("");
+if (missingRequiredModules.length === 0) {
+  console.log("Cleanup module boundaries: ok");
+} else {
+  console.log("Cleanup module boundaries missing files:");
+  missingRequiredModules.forEach((relativePath) => {
+    console.log(`- ${relativePath}`);
+  });
+}
+
+console.log("");
+if (rendererContractFailures.length === 0) {
+  console.log("Renderer interaction contracts: ok");
+} else {
+  console.log("Renderer interaction contract failures:");
+  rendererContractFailures.forEach((failure) => {
+    console.log(`- ${failure}`);
+  });
+}
+
 if (
   strict &&
   (oversized.length > 0 ||
     missingStyleImports.length > 0 ||
-    missingImportTargets.length > 0)
+    missingImportTargets.length > 0 ||
+    missingRequiredModules.length > 0 ||
+    rendererContractFailures.length > 0)
 ) {
   process.exitCode = 1;
 }

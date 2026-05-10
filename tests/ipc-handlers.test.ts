@@ -1,13 +1,35 @@
 import { describe, it, expect } from "vitest";
-import { readFileSync } from "fs";
+import { readdirSync, readFileSync } from "fs";
 import { join } from "path";
 
 const ROOT = join(__dirname, "..");
-const indexSrc = readFileSync(join(ROOT, "src/main/index.ts"), "utf-8");
-const preloadSrc = readFileSync(join(ROOT, "src/preload/index.ts"), "utf-8");
+
+function readSourceFiles(
+  relativeDir: string,
+  filter: (fileName: string) => boolean,
+): string {
+  const dir = join(ROOT, relativeDir);
+  return readdirSync(dir)
+    .filter(filter)
+    .sort()
+    .map((fileName) => readFileSync(join(dir, fileName), "utf-8"))
+    .join("\n");
+}
+
+const mainSrc = readSourceFiles(
+  "src/main",
+  (fileName) => fileName.endsWith(".ts") && !fileName.endsWith(".d.ts"),
+);
+const preloadSrc = readSourceFiles(
+  "src/preload",
+  (fileName) =>
+    fileName.endsWith(".ts") &&
+    !fileName.endsWith(".d.ts") &&
+    !fileName.endsWith(".types.ts"),
+);
 
 /**
- * Extract all IPC channel names registered in main/index.ts.
+ * Extract all IPC channel names registered in main process modules.
  */
 function extractIpcHandleChannels(src: string): string[] {
   const channels: string[] = [];
@@ -32,7 +54,7 @@ function extractPreloadInvokeChannels(src: string): string[] {
   return [...new Set(channels)];
 }
 
-const mainChannels = extractIpcHandleChannels(indexSrc);
+const mainChannels = extractIpcHandleChannels(mainSrc);
 const preloadChannels = extractPreloadInvokeChannels(preloadSrc);
 
 describe("IPC Handler ↔ Preload Consistency", () => {

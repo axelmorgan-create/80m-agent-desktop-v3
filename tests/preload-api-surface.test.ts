@@ -1,12 +1,32 @@
 import { describe, it, expect } from "vitest";
-import { readFileSync } from "fs";
+import { readdirSync, readFileSync } from "fs";
 import { join } from "path";
 
 const ROOT = join(__dirname, "..");
-const preloadSrc = readFileSync(join(ROOT, "src/preload/index.ts"), "utf-8");
-const preloadTypes = readFileSync(
-  join(ROOT, "src/preload/index.d.ts"),
-  "utf-8",
+
+function readSourceFiles(
+  relativeDir: string,
+  filter: (fileName: string) => boolean,
+): string {
+  const dir = join(ROOT, relativeDir);
+  return readdirSync(dir)
+    .filter(filter)
+    .sort()
+    .map((fileName) => readFileSync(join(dir, fileName), "utf-8"))
+    .join("\n");
+}
+
+const preloadSrc = readSourceFiles(
+  "src/preload",
+  (fileName) =>
+    fileName.endsWith(".ts") &&
+    !fileName.endsWith(".d.ts") &&
+    !fileName.endsWith(".types.ts"),
+);
+const preloadTypes = readSourceFiles(
+  "src/preload",
+  (fileName) =>
+    fileName.endsWith(".types.ts") && fileName !== "hermes-api-common.types.ts",
 );
 
 /**
@@ -24,17 +44,13 @@ function extractPreloadMethods(src: string): string[] {
 }
 
 /**
- * Extract method names from the HermesAPI interface in index.d.ts.
+ * Extract method names from the split HermesAPI interfaces.
  */
 function extractTypeMethods(src: string): string[] {
   const methods: string[] = [];
-  // Match lines inside `interface HermesAPI { ... }`
-  const interfaceMatch = src.match(/interface\s+HermesAPI\s*\{([\s\S]*?)^\}/m);
-  if (!interfaceMatch) return [];
-  const body = interfaceMatch[1];
   const re = /^\s{2}(\w+)\s*[:(]/gm;
   let m: RegExpExecArray | null;
-  while ((m = re.exec(body)) !== null) {
+  while ((m = re.exec(src)) !== null) {
     methods.push(m[1]);
   }
   return [...new Set(methods)];

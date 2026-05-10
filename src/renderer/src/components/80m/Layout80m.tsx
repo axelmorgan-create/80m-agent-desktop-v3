@@ -108,8 +108,17 @@ const Layout80m: React.FC<Layout80mProps> = ({ playSplashLanding = false }) => {
       void handleSelectProjectFolder();
       return;
     }
-    setShowProjectsSidebar((open) => !open);
-  }, [activeProject, handleSelectProjectFolder]);
+    if (showProjectsSidebar) {
+      handleProjectChange(null);
+      return;
+    }
+    setShowProjectsSidebar(true);
+  }, [
+    activeProject,
+    handleProjectChange,
+    handleSelectProjectFolder,
+    showProjectsSidebar,
+  ]);
 
   const handleFileClick = useCallback((path: string) => {
     // Inject file focus command via a custom event that InputBar / ChatArea can listen to

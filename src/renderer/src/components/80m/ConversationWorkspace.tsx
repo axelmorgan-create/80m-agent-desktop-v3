@@ -105,7 +105,7 @@ const ConversationWorkspace: React.FC<ConversationWorkspaceProps> = ({
             title={
               activeProject
                 ? showProjectsSidebar
-                  ? `Hide workspace: ${activeProject}`
+                  ? `Close project: ${activeProject}`
                   : `Show workspace: ${activeProject}`
                 : "Open Project Folder"
             }

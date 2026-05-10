@@ -134,6 +134,7 @@ const ProjectsSidebar: React.FC<ProjectsSidebarProps> = ({
           className="projects-add-btn projects-add-btn-collapsed"
           onClick={handleSelectFolder}
           title="Open Project Folder"
+          type="button"
         >
           <Folder size={16} />
         </button>
@@ -149,6 +150,7 @@ const ProjectsSidebar: React.FC<ProjectsSidebarProps> = ({
           className="projects-add-btn"
           onClick={handleSelectFolder}
           title="Open Project Folder"
+          type="button"
         >
           <Plus size={16} />
         </button>
@@ -159,14 +161,19 @@ const ProjectsSidebar: React.FC<ProjectsSidebarProps> = ({
           <div className="projects-loading">Loading...</div>
         ) : (
           <div className="file-tree-root">
-            <div className="file-tree-project-name">
+            <button
+              className="file-tree-project-name"
+              onClick={() => onProjectChange(null)}
+              title="Close project"
+              type="button"
+            >
               <FolderOpen
                 size={14}
-                style={{ marginRight: 6 }}
+                className="file-tree-project-icon"
                 color="#4ade80"
               />
-              {projectName}
-            </div>
+              <span className="file-tree-project-label">{projectName}</span>
+            </button>
             {rootFiles.map((node) => (
               <FileTreeNode
                 key={node.path}
@@ -175,24 +182,6 @@ const ProjectsSidebar: React.FC<ProjectsSidebarProps> = ({
                 onFileClick={onFileClick}
               />
             ))}
-            <div style={{ marginTop: 24, padding: "0 8px" }}>
-              <button
-                onClick={() => onProjectChange(null)}
-                style={{
-                  background: "transparent",
-                  border: "1px solid rgba(255,100,100,0.3)",
-                  color: "#ff6666",
-                  padding: "4px 8px",
-                  borderRadius: "4px",
-                  fontSize: "10px",
-                  cursor: "pointer",
-                  width: "100%",
-                  fontFamily: "'Fira Code', monospace",
-                }}
-              >
-                CLOSE WORKSPACE
-              </button>
-            </div>
           </div>
         )}
       </div>
