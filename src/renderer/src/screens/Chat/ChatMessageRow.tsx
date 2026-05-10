@@ -7,7 +7,11 @@ import type { ChatMessage } from "./chatTypes";
 const APPROVAL_RE =
   /⚠️.*dangerous|requires? (your )?approval|\/approve.*\/deny|do you want (me )?to (proceed|continue|run|execute)/i;
 
-export function HermesAvatar({ size = 30 }: { size?: number }): React.JSX.Element {
+export function HermesAvatar({
+  size = 30,
+}: {
+  size?: number;
+}): React.JSX.Element {
   return (
     <div className="chat-avatar chat-avatar-agent">
       <img src={icon} width={size} height={size} alt="" />

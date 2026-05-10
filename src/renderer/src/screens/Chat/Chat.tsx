@@ -9,13 +9,7 @@ import {
   type KeyboardEvent as ReactKeyboardEvent,
   type SetStateAction,
 } from "react";
-import {
-  Trash2 as Trash,
-  Send,
-  Square as Stop,
-  Plus,
-  Zap,
-} from "lucide-react";
+import { Trash2 as Trash, Send, Square as Stop, Plus, Zap } from "lucide-react";
 import { PROVIDERS } from "../../constants";
 import { useI18n } from "../../components/useI18n";
 import { ChatEmptyState } from "./ChatEmptyState";

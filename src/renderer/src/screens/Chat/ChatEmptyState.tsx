@@ -1,12 +1,5 @@
 import type { RefObject } from "react";
-import {
-  Bell,
-  ChartLine,
-  Clock,
-  Code,
-  Mail,
-  Search,
-} from "lucide-react";
+import { Bell, ChartLine, Clock, Code, Mail, Search } from "lucide-react";
 import icon from "../../assets/icon.png";
 import { useI18n } from "../../components/useI18n";
 
