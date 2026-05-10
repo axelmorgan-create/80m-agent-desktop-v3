@@ -1,0 +1,327 @@
+/* Annotated UI upgrades: mascot picker, docked preview, Second Brain map */
+.layout-80m-body {
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  display: flex;
+  overflow: hidden;
+}
+
+.layout-80m-primary {
+  flex: 1 1 auto;
+  min-width: 0;
+  height: 100%;
+  display: flex;
+  overflow: hidden;
+}
+
+.sidebar-80m {
+  padding-top: 0;
+}
+
+.sidebar-80m-brand {
+  position: relative;
+  height: 226px;
+  min-height: 226px;
+  padding: 0;
+  display: block;
+  overflow: visible;
+}
+
+.sidebar-80m-brand-row {
+  position: absolute;
+  top: 16px;
+  left: 22px;
+  z-index: 2;
+}
+
+.sidebar-80m-logo-toggle {
+  width: 170px;
+  height: 92px;
+}
+
+.sidebar-80m-logo-toggle .animated-80m-logo {
+  width: 170px;
+  height: 92px;
+  --agent-font-size: 30px;
+  --agent-bottom: 8px;
+}
+
+.sidebar-80m-mascot-picker {
+  all: unset;
+  box-sizing: border-box;
+  position: absolute;
+  top: 46px;
+  left: 118px;
+  z-index: 3;
+  width: 144px;
+  height: 154px;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  -webkit-app-region: no-drag;
+}
+
+.sidebar-80m-mascot-picker::before {
+  content: "";
+  position: absolute;
+  inset: 26px 10px 18px;
+  border-radius: 999px;
+  background: rgba(74, 222, 128, 0.08);
+  filter: blur(20px);
+  opacity: 0;
+  transition: opacity 0.16s ease;
+}
+
+.sidebar-80m-mascot-picker:hover::before,
+.sidebar-80m-mascot-picker.open::before {
+  opacity: 1;
+}
+
+.sidebar-80m-mascot-picker:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 4px;
+  border-radius: 8px;
+}
+
+.sidebar-80m-mascot-picker .sidebar-80m-atm-container {
+  width: 118px;
+  height: 138px;
+  min-width: 118px;
+  min-height: 138px;
+  pointer-events: none;
+}
+
+.sidebar-80m-mascot-picker .sidebar-80m-atm-container svg {
+  transform: scale(1.34);
+  filter: drop-shadow(0 16px 18px rgba(0, 0, 0, 0.42));
+}
+
+.sidebar-80m-agent-chip {
+  position: absolute;
+  left: 50%;
+  bottom: 1px;
+  transform: translateX(-50%);
+  max-width: 132px;
+  min-height: 24px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  border: 1px solid rgba(74, 222, 128, 0.22);
+  border-radius: 7px;
+  background: rgba(31, 38, 35, 0.86);
+  color: #d8ffe5;
+  font-family: "Fira Code", monospace;
+  font-size: 9px;
+  font-weight: 800;
+  text-transform: uppercase;
+  white-space: nowrap;
+  overflow: hidden;
+  opacity: 0;
+  transition:
+    opacity 0.15s ease,
+    transform 0.15s ease,
+    border-color 0.15s ease;
+}
+
+.sidebar-80m-agent-chip span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sidebar-80m-mascot-picker:hover .sidebar-80m-agent-chip,
+.sidebar-80m-mascot-picker.open .sidebar-80m-agent-chip {
+  opacity: 1;
+  transform: translateX(-50%) translateY(-2px);
+  border-color: rgba(74, 222, 128, 0.46);
+}
+
+.sidebar-80m-agent-menu {
+  position: absolute;
+  top: 182px;
+  left: 72px;
+  z-index: 20;
+  width: 184px;
+  max-height: 230px;
+  overflow: auto;
+  padding: 6px;
+  border: 1px solid rgba(74, 222, 128, 0.24);
+  border-radius: 8px;
+  background: rgba(27, 34, 30, 0.98);
+  box-shadow:
+    0 18px 50px rgba(0, 0, 0, 0.5),
+    0 0 0 1px rgba(244, 255, 247, 0.04);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+}
+
+.sidebar-80m-agent-menu-item {
+  width: 100%;
+  min-height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 7px 9px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  color: #f4fff7;
+  cursor: pointer;
+  font-family: "Fira Code", monospace;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.03em;
+  text-align: left;
+  text-transform: uppercase;
+}
+
+.sidebar-80m-agent-menu-item:hover,
+.sidebar-80m-agent-menu-item.active {
+  border-color: rgba(74, 222, 128, 0.24);
+  background: rgba(74, 222, 128, 0.1);
+  color: #4ade80;
+}
+
+[data-theme="light"] .sidebar-80m-agent-chip {
+  border-color: rgba(22, 101, 52, 0.18);
+  background: rgba(255, 255, 255, 0.76);
+  color: #142119;
+  box-shadow: 0 12px 28px rgba(56, 74, 60, 0.14);
+}
+
+[data-theme="light"] .sidebar-80m-agent-menu {
+  border-color: rgba(22, 101, 52, 0.16);
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.9), rgba(238, 247, 235, 0.8)),
+    rgba(255, 255, 255, 0.72);
+  box-shadow:
+    0 18px 42px rgba(46, 62, 50, 0.18),
+    0 0 0 1px rgba(255, 255, 255, 0.72) inset;
+}
+
+[data-theme="light"] .sidebar-80m-agent-menu-item {
+  color: #142119;
+}
+
+[data-theme="light"] .sidebar-80m-agent-menu-item:hover,
+[data-theme="light"] .sidebar-80m-agent-menu-item.active {
+  border-color: rgba(22, 101, 52, 0.2);
+  background: rgba(74, 222, 128, 0.16);
+  color: #0f7a38;
+}
+
+.sidebar-80m-nav {
+  flex: 0 0 auto;
+  padding-top: 2px;
+  overflow: visible;
+}
+
+.sidebar-80m-sessions {
+  position: relative;
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-height: 150px;
+  max-height: none;
+  overflow: hidden;
+  padding-bottom: 6px;
+}
+
+.sidebar-80m-session-list {
+  min-height: 0;
+  overflow-y: auto;
+  padding-bottom: 44px;
+  mask-image: linear-gradient(
+    to bottom,
+    #000 0%,
+    #000 calc(100% - 46px),
+    transparent 100%
+  );
+  -webkit-mask-image: linear-gradient(
+    to bottom,
+    #000 0%,
+    #000 calc(100% - 46px),
+    transparent 100%
+  );
+}
+
+.sidebar-80m-session-list::-webkit-scrollbar {
+  width: 5px;
+}
+
+.sidebar-80m-session-list::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.sidebar-80m-session-list::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: rgba(74, 222, 128, 0.24);
+}
+
+.sidebar-80m-sessions::after {
+  content: "";
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  height: 54px;
+  pointer-events: none;
+  background: linear-gradient(
+    to bottom,
+    var(--sidebar-session-fade-start),
+    var(--sidebar-session-fade-mid) 52%,
+    var(--sidebar-session-fade-end)
+  );
+  backdrop-filter: blur(3px);
+  -webkit-backdrop-filter: blur(3px);
+}
+
+.conversation-brain-btn {
+  position: relative;
+  color: #d8ffe5;
+}
+
+.conversation-brain-pulse {
+  position: relative;
+  display: inline-grid;
+  place-items: center;
+}
+
+.conversation-brain-pulse::before {
+  content: "";
+  position: absolute;
+  inset: -6px;
+  border-radius: 999px;
+  border: 1px solid rgba(74, 222, 128, 0.32);
+  animation: brainButtonPulse 2.2s ease-out infinite;
+}
+
+.conversation-brain-pulse svg {
+  filter: drop-shadow(0 0 8px rgba(74, 222, 128, 0.46));
+  animation: brainButtonFloat 3s ease-in-out infinite;
+}
+
+@keyframes brainButtonPulse {
+  0% {
+    opacity: 0.65;
+    transform: scale(0.82);
+  }
+  72%,
+  100% {
+    opacity: 0;
+    transform: scale(1.5);
+  }
+}
+
+@keyframes brainButtonFloat {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-1px);
+  }
+}
+

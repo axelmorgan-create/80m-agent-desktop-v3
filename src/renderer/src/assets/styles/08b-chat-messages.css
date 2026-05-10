@@ -1,0 +1,401 @@
+/* Main chat area */
+/* Chat header */
+.chat-header-80m {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 16px;
+  border-bottom: 1px solid rgba(74, 222, 128, 0.1);
+  background: rgba(15, 15, 15, 0.8);
+  backdrop-filter: blur(10px);
+  flex-shrink: 0;
+  height: 52px;
+}
+
+.chat-header-80m-left {
+  flex: 1;
+  display: flex;
+  align-items: center;
+}
+
+.chat-header-80m-center {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.chat-header-80m-mascot {
+  width: 32px;
+  height: 40px;
+  margin: 0 16px;
+}
+
+.chat-header-80m-mascot .atm-container {
+  width: 32px;
+  height: 40px;
+}
+
+.chat-header-80m-mascot .atm-character {
+  animation: none;
+}
+
+.chat-header-80m-mascot .atm-shadow {
+  display: none;
+}
+
+.chat-header-80m-mascot .wing-left-container,
+.chat-header-80m-mascot .wing-right-container {
+  animation: none;
+}
+
+.chat-header-80m-right {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+}
+
+.chat-header-80m-title {
+  font-family: "Fira Code", monospace;
+  font-size: 13px;
+  font-weight: 700;
+  color: #e8e8e8;
+  letter-spacing: 0.05em;
+}
+
+.chat-header-80m-status {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-family: "Fira Code", monospace;
+  font-size: 10px;
+  color: #e8e8e8;
+}
+
+.status-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #4ade80;
+}
+
+.status-dot.idle {
+  background: #4ade80;
+}
+.status-dot.processing {
+  background: #f59e0b;
+  animation: statusPulse 1s ease-in-out infinite;
+}
+.status-dot.error {
+  background: #f87171;
+}
+
+@keyframes statusPulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.4;
+  }
+}
+
+/* Messages area */
+.messages-80m {
+  flex: 1;
+  overflow-y: auto;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.messages-80m::-webkit-scrollbar {
+  width: 6px;
+}
+.messages-80m::-webkit-scrollbar-track {
+  background: transparent;
+}
+.messages-80m::-webkit-scrollbar-thumb {
+  background: #2a2a2a;
+  border-radius: 3px;
+}
+.messages-80m::-webkit-scrollbar-thumb:hover {
+  background: #3a3a3a;
+}
+
+/* Message bubble */
+.msg-80m {
+  display: flex;
+  flex-direction: column;
+  max-width: 80%;
+  animation: msgFadeIn 0.2s ease-out;
+}
+
+.msg-80m.user {
+  align-self: flex-end;
+  align-items: flex-end;
+}
+.msg-80m.assistant {
+  align-self: flex-start;
+  align-items: flex-start;
+}
+.msg-80m.tool {
+  align-self: flex-start;
+  align-items: flex-start;
+}
+
+@keyframes msgFadeIn {
+  0% {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.msg-80m-role {
+  font-family: "Fira Code", monospace;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: #4ade80;
+  margin-bottom: 4px;
+  padding: 0 4px;
+}
+
+.msg-80m-bubble {
+  padding: 12px 16px;
+  border-radius: 16px;
+  font-family: "Fira Code", monospace;
+  font-size: 13px;
+  line-height: 1.6;
+  word-break: break-word;
+  user-select: text;
+}
+
+.msg-80m.user .msg-80m-bubble {
+  background: #4ade80;
+  color: #0f0f0f;
+  border-bottom-right-radius: 4px;
+}
+
+/* Brutalist message labels */
+.msg-80m-label {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-family: "Fira Code", monospace;
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.15em;
+  color: #e8e8e8;
+  margin-bottom: 2px;
+  padding: 0 4px;
+}
+
+.msg-80m-assistant-label {
+  font-family: "Fira Code", monospace;
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.15em;
+  color: #22c55e;
+  margin-top: 2px;
+  padding: 0 4px;
+}
+
+/* Bot icon in assistant message */
+.msg-80m-bot-icon {
+  position: absolute;
+  top: -10px;
+  left: -10px;
+  width: 24px;
+  height: 24px;
+  background: #22c55e;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #0f0f0f;
+  box-shadow: 0 2px 8px rgba(34, 197, 94, 0.4);
+}
+
+/* Hover action bar for assistant messages */
+.msg-80m {
+  position: relative;
+}
+
+.msg-80m-actions {
+  position: absolute;
+  top: -24px;
+  left: 0;
+  display: flex;
+  gap: 4px;
+  padding: 2px 4px;
+  background: #1a1a1a;
+  border: 1px solid rgba(74, 222, 128, 0.2);
+  border-radius: 6px;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+  z-index: 10;
+}
+
+.msg-80m:hover .msg-80m-actions {
+  opacity: 1;
+}
+
+.msg-80m-action-btn {
+  width: 20px;
+  height: 20px;
+  border: none;
+  background: transparent;
+  color: #e8e8e8;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  transition: all 0.12s ease;
+  padding: 0;
+}
+
+.msg-80m-action-btn:hover {
+  background: rgba(74, 222, 128, 0.1);
+  color: #4ade80;
+}
+
+.msg-80m.assistant .msg-80m-bubble {
+  background: #1a1a1a;
+  color: #e8e8e8;
+  border: 1px solid rgba(74, 222, 128, 0.1);
+  border-bottom-left-radius: 4px;
+}
+
+.msg-80m.tool .msg-80m-bubble {
+  background: transparent;
+  color: #e8e8e8;
+  padding: 0;
+  width: min(760px, 100%);
+}
+
+/* Markdown in assistant bubbles */
+.msg-80m-bubble p {
+  margin: 0 0 8px;
+}
+.msg-80m-bubble p:last-child {
+  margin-bottom: 0;
+}
+.msg-80m-bubble code {
+  background: rgba(52, 65, 57, 0.55);
+  padding: 1px 5px;
+  border-radius: 4px;
+  font-size: 12px;
+}
+.msg-80m-bubble pre {
+  background: #202622;
+  border: 1px solid rgba(74, 222, 128, 0.15);
+  border-radius: 8px;
+  padding: 12px;
+  overflow-x: auto;
+  margin: 8px 0;
+}
+.msg-80m-bubble pre code {
+  background: none;
+  padding: 0;
+}
+.msg-80m-bubble a {
+  color: #4ade80;
+  display: inline;
+  text-decoration: underline;
+  text-decoration-color: rgba(74, 222, 128, 0.35);
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+
+.msg-80m-bubble a svg {
+  margin-left: 4px;
+  vertical-align: -2px;
+}
+
+.msg-link-actions {
+  display: inline;
+  white-space: normal;
+}
+
+.msg-link-preview-btn {
+  width: 18px;
+  height: 18px;
+  border: 1px solid rgba(74, 222, 128, 0.22);
+  background: rgba(74, 222, 128, 0.08);
+  color: #4ade80;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  cursor: pointer;
+  vertical-align: middle;
+}
+
+.msg-link-preview-btn:hover {
+  background: rgba(74, 222, 128, 0.18);
+  border-color: rgba(74, 222, 128, 0.44);
+}
+.msg-80m-bubble ul,
+.msg-80m-bubble ol {
+  margin: 8px 0;
+  padding-left: 20px;
+}
+.msg-80m-bubble li {
+  margin-bottom: 4px;
+}
+
+/* Loading indicator */
+.msg-80m-loading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 16px;
+  color: #e8e8e8;
+  font-family: "Fira Code", monospace;
+  font-size: 11px;
+}
+
+.msg-80m-loading-dots {
+  display: flex;
+  gap: 4px;
+}
+
+.msg-80m-loading-dots span {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: #4ade80;
+  animation: loadingBounce 1s ease-in-out infinite;
+}
+
+.msg-80m-loading-dots span:nth-child(2) {
+  animation-delay: 0.15s;
+}
+.msg-80m-loading-dots span:nth-child(3) {
+  animation-delay: 0.3s;
+}
+
+@keyframes loadingBounce {
+  0%,
+  100% {
+    transform: translateY(0);
+    opacity: 0.4;
+  }
+  50% {
+    transform: translateY(-4px);
+    opacity: 1;
+  }
+}
+

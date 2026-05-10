@@ -1,0 +1,139 @@
+/* QA polish: light-mode readability, preview chrome, and chat edge fades */
+body.agent-preview-resizing .agent-preview-webview {
+  pointer-events: none;
+}
+
+.agent-browser-chrome {
+  min-height: 56px;
+  grid-template-columns: auto auto minmax(0, 1fr) auto auto;
+  align-items: center;
+  padding: 10px 10px 10px 70px;
+  background: #e3e9df;
+  border-bottom: 1px solid rgba(49, 64, 57, 0.2);
+}
+
+.agent-browser-dots {
+  top: 50%;
+  transform: translateY(-50%);
+}
+
+.agent-browser-tab-cap {
+  display: none;
+}
+
+.agent-browser-url-form {
+  background: #f8fbf5;
+  box-shadow:
+    inset 0 0 0 1px rgba(49, 64, 57, 0.14),
+    0 1px 0 rgba(255, 255, 255, 0.6);
+}
+
+[data-theme="light"] .screen-content-80m .skills-subtitle,
+[data-theme="light"] .screen-content-80m .skills-search,
+[data-theme="light"] .screen-content-80m .skills-card-description,
+[data-theme="light"] .screen-content-80m .skills-empty-hint {
+  color: var(--text-secondary) !important;
+}
+
+[data-theme="light"] .screen-content-80m .skills-card-name,
+[data-theme="light"] .screen-content-80m .skills-empty-text,
+[data-theme="light"] .screen-content-80m .skills-detail-name {
+  color: var(--text-primary) !important;
+}
+
+[data-theme="light"] .screen-content-80m .skills-tabs,
+[data-theme="light"] .screen-content-80m .skills-card,
+[data-theme="light"] .screen-content-80m .skills-detail {
+  background: rgba(255, 255, 255, 0.86) !important;
+  border-color: rgba(22, 101, 52, 0.16) !important;
+}
+
+[data-theme="light"] .screen-content-80m .skills-card:hover {
+  background: rgba(255, 255, 255, 0.98) !important;
+  border-color: rgba(22, 101, 52, 0.3) !important;
+}
+
+[data-theme="light"] .screen-content-80m .skills-tab,
+[data-theme="light"] .screen-content-80m .skills-pill {
+  background: rgba(232, 240, 229, 0.88) !important;
+  color: var(--text-primary) !important;
+}
+
+[data-theme="light"] .screen-content-80m .skills-card-category,
+[data-theme="light"] .screen-content-80m .skills-detail-category,
+[data-theme="light"] .screen-content-80m .skills-card-installed-badge {
+  color: #14532d !important;
+}
+
+[data-theme="light"] .assistant-tool-call summary,
+[data-theme="light"] .tool-activity-card summary,
+[data-theme="light"] .generic-tool-visualizer .tool-header,
+[data-theme="light"] .tool-progress-status,
+[data-theme="light"] .terminal-command code::before {
+  color: #14532d !important;
+}
+
+[data-theme="light"] .assistant-tool-call summary,
+[data-theme="light"] .tool-activity-card summary,
+[data-theme="light"] .generic-tool-visualizer .tool-header,
+[data-theme="light"] .tool-progress-status {
+  background: rgba(22, 101, 52, 0.08) !important;
+  border-color: rgba(22, 101, 52, 0.16) !important;
+}
+
+[data-theme="light"] .assistant-tool-call summary::before,
+[data-theme="light"] .tool-activity-card summary::before,
+[data-theme="light"] .assistant-tool-call-id,
+[data-theme="light"] .tool-progress-meta {
+  color: #4b6353 !important;
+}
+
+[data-theme="light"] .msg-80m-bubble a,
+[data-theme="light"] .msg-link-preview-btn,
+[data-theme="light"] .slash-command-name {
+  color: #166534 !important;
+}
+
+[data-theme="light"] .msg-link-preview-btn {
+  background: rgba(22, 101, 52, 0.08) !important;
+  border-color: rgba(22, 101, 52, 0.2) !important;
+}
+
+[data-theme="light"] .slash-commands-popup,
+[data-theme="light"] .chat-model-dropdown,
+[data-theme="light"] .chat-fast-popover,
+[data-theme="light"] .msg-80m-actions,
+[data-theme="light"] .app-notification {
+  background: rgba(255, 255, 255, 0.96) !important;
+  border-color: rgba(22, 101, 52, 0.16) !important;
+  color: var(--text-primary) !important;
+  box-shadow: 0 16px 36px rgba(15, 23, 42, 0.16) !important;
+}
+
+[data-theme="light"] .slash-command-desc,
+[data-theme="light"] .app-notification-body {
+  color: var(--text-secondary) !important;
+}
+
+[data-theme="light"] .app-notification-title,
+[data-theme="light"] .app-notification-close {
+  color: var(--text-primary) !important;
+}
+
+[data-theme="light"] .selection-toolbar {
+  background: rgba(255, 255, 255, 0.96) !important;
+  border-color: rgba(22, 101, 52, 0.22) !important;
+  box-shadow: 0 16px 36px rgba(15, 23, 42, 0.18) !important;
+}
+
+[data-theme="light"] .selection-toolbar button {
+  background: rgba(22, 101, 52, 0.08) !important;
+  color: #14532d !important;
+}
+
+[data-theme="light"] .conversation-workspace--split .conversation-pane,
+[data-theme="light"] .conversation-pane-header {
+  background: rgba(255, 255, 255, 0.68) !important;
+  border-color: rgba(22, 101, 52, 0.16) !important;
+}
+

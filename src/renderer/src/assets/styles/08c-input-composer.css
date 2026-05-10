@@ -1,0 +1,313 @@
+/* Input area */
+.input-80m {
+  padding: 12px 24px 24px 24px;
+  background: transparent;
+  flex-shrink: 0;
+  position: relative;
+  z-index: 10;
+}
+
+.input-80m-busy-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin: 0 2px 8px;
+}
+
+.input-80m-mode-switch {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px;
+  border-radius: 8px;
+  border: 1px solid rgba(74, 222, 128, 0.16);
+  background: rgba(36, 43, 39, 0.9);
+}
+
+.input-80m-mode-switch button,
+.input-80m-stop {
+  height: 30px;
+  border-radius: 7px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: #d8ffe5;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  cursor: pointer;
+  font-family: "Fira Code", monospace;
+  font-size: 10px;
+  font-weight: 800;
+  line-height: 1;
+  transition:
+    background 0.15s ease,
+    border-color 0.15s ease,
+    color 0.15s ease;
+}
+
+.input-80m-mode-switch button {
+  min-width: 62px;
+  padding: 0 9px;
+}
+
+.input-80m-mode-switch button:hover,
+.input-80m-mode-switch button.active {
+  border-color: rgba(74, 222, 128, 0.36);
+  background: rgba(74, 222, 128, 0.14);
+  color: #4ade80;
+}
+
+.input-80m-stop {
+  width: 34px;
+  flex: 0 0 auto;
+  border-color: rgba(248, 113, 113, 0.32);
+  background: rgba(248, 113, 113, 0.1);
+  color: #fecaca;
+}
+
+.input-80m-stop:hover {
+  border-color: rgba(248, 113, 113, 0.58);
+  background: rgba(248, 113, 113, 0.18);
+  color: #ffffff;
+}
+
+.input-80m-form {
+  display: flex;
+  align-items: flex-end;
+  gap: 10px;
+  width: 100%;
+  background: rgba(26, 26, 26, 0.95);
+  border: 1px solid rgba(74, 222, 128, 0.2);
+  border-radius: 20px;
+  padding: 8px 12px;
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(10px);
+  position: relative;
+  overflow: hidden;
+  transition: all 0.3s ease;
+}
+
+.input-80m-form.thinking {
+  border-color: rgba(74, 222, 128, 0.6);
+  box-shadow:
+    0 0 15px rgba(74, 222, 128, 0.2),
+    inset 0 0 10px rgba(74, 222, 128, 0.1);
+  animation: input-thinking-pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+.input-80m-form.thinking::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 50%;
+  height: 100%;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(74, 222, 128, 0.15),
+    transparent
+  );
+  animation: input-thinking-scan 2s linear infinite;
+  pointer-events: none;
+}
+
+@keyframes input-thinking-pulse {
+  0%,
+  100% {
+    border-color: rgba(74, 222, 128, 0.3);
+  }
+  50% {
+    border-color: rgba(74, 222, 128, 0.8);
+  }
+}
+
+@keyframes input-thinking-scan {
+  0% {
+    left: -100%;
+  }
+  100% {
+    left: 200%;
+  }
+}
+
+.input-80m-wrapper {
+  flex: 1;
+  position: relative;
+  display: flex;
+}
+
+.input-80m-textarea {
+  flex: 1;
+  background: transparent;
+  border: none;
+  outline: none;
+  color: #e8e8e8;
+  font-family: "Fira Code", monospace;
+  font-size: 14px;
+  line-height: 1.5;
+  resize: none;
+  max-height: 120px;
+  min-height: 24px;
+  padding: 6px 8px;
+}
+
+.input-80m-textarea:focus {
+  border-color: rgba(74, 222, 128, 0.4);
+}
+
+.input-80m-textarea::placeholder {
+  color: #c7d3cc;
+}
+
+.input-80m-send {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  border: none;
+  background: #4ade80;
+  color: #0f0f0f;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  flex-shrink: 0;
+}
+
+.input-80m-send:hover:not(:disabled) {
+  background: #22c55e;
+  transform: scale(1.05);
+}
+
+.input-80m-send:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+.input-80m-send svg {
+  width: 16px;
+  height: 16px;
+}
+
+/* Mic button with red pulse */
+.input-80m-paste,
+.input-80m-mic {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  border: 1px solid rgba(74, 222, 128, 0.2);
+  background: rgba(74, 222, 128, 0.06);
+  color: #4ade80;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  flex-shrink: 0;
+}
+
+.input-80m-paste:disabled,
+.input-80m-mic:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.input-80m-paste:hover:not(:disabled),
+.input-80m-mic:hover:not(:disabled) {
+  background: rgba(74, 222, 128, 0.12);
+  border-color: rgba(74, 222, 128, 0.4);
+}
+
+.input-80m-mic.recording {
+  background: rgba(239, 68, 68, 0.1);
+  border-color: rgba(239, 68, 68, 0.4);
+  color: #ef4444;
+  animation: micPulse 1.5s ease-in-out infinite;
+}
+
+.input-80m-mic.transcribing {
+  background: rgba(34, 197, 94, 0.1);
+  border-color: rgba(34, 197, 94, 0.4);
+  color: #22c55e;
+  animation: transcribePulse 1s ease-in-out infinite;
+}
+
+@keyframes micPulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.4);
+  }
+  50% {
+    box-shadow: 0 0 0 8px rgba(239, 68, 68, 0);
+  }
+}
+
+@keyframes transcribePulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.4);
+  }
+  50% {
+    box-shadow: 0 0 0 6px rgba(34, 197, 94, 0);
+  }
+}
+
+.transcribe-spin {
+  animation: spinRing 1.2s linear infinite;
+}
+
+@keyframes spinRing {
+  from {
+    stroke-dashoffset: 0;
+  }
+  to {
+    stroke-dashoffset: -60;
+  }
+}
+
+.input-80m-mic svg {
+  width: 16px;
+  height: 16px;
+}
+
+/* Animated mic SVG with sound wave bars */
+.mic-svg {
+  width: 18px;
+  height: 18px;
+}
+
+.mic-svg .sound-bar-left-1,
+.mic-svg .sound-bar-left-2,
+.mic-svg .sound-bar-right-1,
+.mic-svg .sound-bar-right-2 {
+  opacity: 0;
+  transform-origin: center;
+}
+
+.input-80m-mic:hover .mic-svg .sound-bar-left-1,
+.input-80m-mic:hover .mic-svg .sound-bar-right-1 {
+  opacity: 1;
+  animation: bar-scale 0.8s ease-in-out infinite 0ms;
+}
+
+.input-80m-mic:hover .mic-svg .sound-bar-left-2,
+.input-80m-mic:hover .mic-svg .sound-bar-right-2 {
+  opacity: 1;
+  animation: bar-scale 0.8s ease-in-out infinite 100ms;
+}
+
+.input-80m-mic.recording .mic-svg .sound-bar-left-1,
+.input-80m-mic.recording .mic-svg .sound-bar-right-1 {
+  opacity: 1;
+  animation: bar-scale 0.6s ease-in-out infinite 0ms;
+}
+
+.input-80m-mic.recording .mic-svg .sound-bar-left-2,
+.input-80m-mic.recording .mic-svg .sound-bar-right-2 {
+  opacity: 1;
+  animation: bar-scale 0.6s ease-in-out infinite 100ms;
+}
+

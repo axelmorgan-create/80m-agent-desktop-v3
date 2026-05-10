@@ -1,216 +1,42 @@
-import { useState, useEffect, useRef, useCallback, useMemo, memo } from "react";
-import icon from "../../assets/icon.png";
-import { AgentMarkdown } from "../../components/AgentMarkdown";
+import {
+  useState,
+  useEffect,
+  useRef,
+  useCallback,
+  useMemo,
+  type ChangeEvent,
+  type Dispatch,
+  type KeyboardEvent as ReactKeyboardEvent,
+  type SetStateAction,
+} from "react";
 import {
   Trash2 as Trash,
   Send,
   Square as Stop,
   Plus,
-  ChevronDown,
-  Search,
-  Clock,
-  Mail,
-  Code,
-  ChartLine,
-  Bell,
-  Slash,
   Zap,
 } from "lucide-react";
-
-// ── Slash Commands ──────────────────────────────────────
-
-interface SlashCommand {
-  name: string;
-  description: string;
-  category: "chat" | "agent" | "tools" | "info";
-  /** If true, the command is handled locally instead of sent to the backend */
-  local?: boolean;
-}
-
-const SLASH_COMMANDS: SlashCommand[] = [
-  // Chat control
-  {
-    name: "/new",
-    description: "Start a new chat",
-    category: "chat",
-    local: true,
-  },
-  {
-    name: "/clear",
-    description: "Clear conversation history",
-    category: "chat",
-    local: true,
-  },
-  // Agent commands (sent to backend)
-  {
-    name: "/btw",
-    description: "Ask a side question without affecting context",
-    category: "agent",
-  },
-  {
-    name: "/approve",
-    description: "Approve a pending action",
-    category: "agent",
-  },
-  { name: "/deny", description: "Deny a pending action", category: "agent" },
-  {
-    name: "/status",
-    description: "Show current agent status",
-    category: "agent",
-  },
-  {
-    name: "/reset",
-    description: "Reset conversation context",
-    category: "agent",
-  },
-  {
-    name: "/compact",
-    description: "Compact and summarize the conversation",
-    category: "agent",
-  },
-  { name: "/undo", description: "Undo the last action", category: "agent" },
-  {
-    name: "/retry",
-    description: "Retry the last failed action",
-    category: "agent",
-  },
-  {
-    name: "/fast",
-    description: "Toggle priority processing (lower latency)",
-    category: "agent",
-    local: true,
-  },
-  {
-    name: "/compress",
-    description: "Compress conversation with optional focus topic",
-    category: "agent",
-  },
-  {
-    name: "/usage",
-    description: "Show token usage, cost, and rate limits",
-    category: "agent",
-    local: true,
-  },
-  {
-    name: "/debug",
-    description: "Show diagnostics and debug info",
-    category: "agent",
-  },
-  // Tools & capabilities
-  { name: "/web", description: "Search the web", category: "tools" },
-  { name: "/image", description: "Generate an image", category: "tools" },
-  { name: "/browse", description: "Browse a URL", category: "tools" },
-  { name: "/code", description: "Write or execute code", category: "tools" },
-  { name: "/file", description: "Read or write files", category: "tools" },
-  { name: "/shell", description: "Run a shell command", category: "tools" },
-  // Info
-  {
-    name: "/help",
-    description: "Show available commands and help",
-    category: "info",
-  },
-  { name: "/tools", description: "List available tools", category: "info" },
-  { name: "/skills", description: "List installed skills", category: "info" },
-  {
-    name: "/model",
-    description: "Show or switch the current model",
-    category: "info",
-  },
-  { name: "/memory", description: "Show agent memory", category: "info" },
-  { name: "/persona", description: "Show current persona", category: "info" },
-  { name: "/version", description: "Show runtime version", category: "info" },
-];
-
-function HermesAvatar({ size = 30 }: { size?: number }): React.JSX.Element {
-  return (
-    <div className="chat-avatar chat-avatar-agent">
-      <img src={icon} width={size} height={size} alt="" />
-    </div>
-  );
-}
-
-export { AgentMarkdown };
-
-const APPROVAL_RE =
-  /⚠️.*dangerous|requires? (your )?approval|\/approve.*\/deny|do you want (me )?to (proceed|continue|run|execute)/i;
-
-interface MessageRowProps {
-  msg: ChatMessage;
-  isLast: boolean;
-  isLoading: boolean;
-  onApprove: () => void;
-  onDeny: () => void;
-}
-
-const MessageRow = memo(function MessageRow({
-  msg,
-  isLast,
-  isLoading,
-  onApprove,
-  onDeny,
-}: MessageRowProps): React.JSX.Element {
-  const { t } = useI18n();
-  return (
-    <div className={`chat-message chat-message-${msg.role}`}>
-      {msg.role === "user" ? (
-        <div className="chat-avatar chat-avatar-user">U</div>
-      ) : (
-        <HermesAvatar />
-      )}
-      <div className={`chat-bubble chat-bubble-${msg.role}`}>
-        {msg.role === "agent" ? (
-          <AgentMarkdown>{msg.content}</AgentMarkdown>
-        ) : (
-          msg.content
-        )}
-      </div>
-      {msg.role === "agent" &&
-        !isLoading &&
-        isLast &&
-        APPROVAL_RE.test(msg.content) && (
-          <div className="chat-approval-bar">
-            <button
-              className="chat-approval-btn chat-approve"
-              onClick={onApprove}
-            >
-              {t("chat.approve")}
-            </button>
-            <button className="chat-approval-btn chat-deny" onClick={onDeny}>
-              {t("chat.deny")}
-            </button>
-          </div>
-        )}
-    </div>
-  );
-});
-
-export interface ChatMessage {
-  id: string;
-  role: "user" | "agent";
-  content: string;
-}
-
-interface ModelGroup {
-  provider: string;
-  providerLabel: string;
-  models: { provider: string; model: string; label: string; baseUrl: string }[];
-}
-
-interface CatalogModel {
-  provider: string;
-  model: string;
-  name: string;
-  description: string;
-  baseUrl: string;
-  source: "catalog" | "fallback";
-}
-
 import { PROVIDERS } from "../../constants";
 import { useI18n } from "../../components/useI18n";
+import { ChatEmptyState } from "./ChatEmptyState";
+import { ChatModelPicker } from "./ChatModelPicker";
+import { HermesAvatar, MessageRow } from "./ChatMessageRow";
+import { ChatSlashMenu } from "./ChatSlashMenu";
+import { SLASH_COMMANDS } from "./chatCommands";
+import type {
+  CatalogModel,
+  ChatMessage,
+  ChatUsage,
+  ModelGroup,
+  SlashCommand,
+} from "./chatTypes";
+
+export type { ChatMessage } from "./chatTypes";
+export { AgentMarkdown } from "../../components/AgentMarkdown";
 
 interface ChatProps {
   messages: ChatMessage[];
-  setMessages: React.Dispatch<React.SetStateAction<ChatMessage[]>>;
+  setMessages: Dispatch<SetStateAction<ChatMessage[]>>;
   sessionId: string | null;
   profile?: string;
   onSessionStarted?: () => void;
@@ -230,12 +56,7 @@ function Chat({
   const [isLoading, setIsLoading] = useState(false);
   const [hermesSessionId, setHermesSessionId] = useState<string | null>(null);
   const [toolProgress, setToolProgress] = useState<string | null>(null);
-  const [usage, setUsage] = useState<{
-    promptTokens: number;
-    completionTokens: number;
-    totalTokens: number;
-    cost?: number;
-  } | null>(null);
+  const [usage, setUsage] = useState<ChatUsage | null>(null);
   const [fastMode, setFastMode] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
@@ -629,7 +450,7 @@ function Chat({
     }
   }
 
-  function handleKeyDown(e: React.KeyboardEvent): void {
+  function handleKeyDown(e: ReactKeyboardEvent): void {
     // Slash menu keyboard navigation
     if (slashMenuOpen && filteredSlashCommands.length > 0) {
       if (e.key === "ArrowDown") {
@@ -664,7 +485,7 @@ function Chat({
     }
   }
 
-  function handleInputChange(e: React.ChangeEvent<HTMLTextAreaElement>): void {
+  function handleInputChange(e: ChangeEvent<HTMLTextAreaElement>): void {
     const value = e.target.value;
     setInput(value);
 
@@ -1011,79 +832,7 @@ function Chat({
 
       <div className="chat-messages" ref={messagesContainerRef}>
         {messages.length === 0 ? (
-          <div className="chat-empty">
-            <div className="chat-empty-icon">
-              <img src={icon} width={64} height={64} alt="" />
-            </div>
-            <div className="chat-empty-text">{t("chat.emptyTitle")}</div>
-            <div className="chat-empty-hint">{t("chat.emptyHint")}</div>
-            <div className="chat-empty-suggestions">
-              <button
-                className="chat-suggestion"
-                onClick={() => {
-                  setInput("Search the web for today's top tech news");
-                  inputRef.current?.focus();
-                }}
-              >
-                <Search size={16} />
-                {t("chat.suggestionSearch")}
-              </button>
-              <button
-                className="chat-suggestion"
-                onClick={() => {
-                  setInput("Set a reminder to check emails every day at 9 AM");
-                  inputRef.current?.focus();
-                }}
-              >
-                <Bell size={16} />
-                {t("chat.suggestionReminder")}
-              </button>
-              <button
-                className="chat-suggestion"
-                onClick={() => {
-                  setInput("Read my latest emails and summarize them");
-                  inputRef.current?.focus();
-                }}
-              >
-                <Mail size={16} />
-                {t("chat.suggestionEmail")}
-              </button>
-              <button
-                className="chat-suggestion"
-                onClick={() => {
-                  setInput(
-                    "Write a Python script to rename all files in a folder",
-                  );
-                  inputRef.current?.focus();
-                }}
-              >
-                <Code size={16} />
-                {t("chat.suggestionScript")}
-              </button>
-              <button
-                className="chat-suggestion"
-                onClick={() => {
-                  setInput(
-                    "Schedule a cron job to back up my database every night",
-                  );
-                  inputRef.current?.focus();
-                }}
-              >
-                <Clock size={16} />
-                {t("chat.suggestionSchedule")}
-              </button>
-              <button
-                className="chat-suggestion"
-                onClick={() => {
-                  setInput("Analyze this CSV file and show key insights");
-                  inputRef.current?.focus();
-                }}
-              >
-                <ChartLine size={16} />
-                {t("chat.suggestionAnalyze")}
-              </button>
-            </div>
-          </div>
+          <ChatEmptyState inputRef={inputRef} setInput={setInput} />
         ) : (
           visibleMessages.map((msg, i) => (
             <MessageRow
@@ -1123,27 +872,13 @@ function Chat({
 
       <div className="chat-input-area">
         {slashMenuOpen && filteredSlashCommands.length > 0 && (
-          <div className="slash-menu" ref={slashMenuRef}>
-            <div className="slash-menu-header">
-              <Slash size={12} />
-              {t("chat.commandsTitle")}
-            </div>
-            <div className="slash-menu-list">
-              {filteredSlashCommands.map((cmd, i) => (
-                <button
-                  key={cmd.name}
-                  className={`slash-menu-item ${i === slashSelectedIndex ? "slash-menu-item-active" : ""}`}
-                  onMouseEnter={() => setSlashSelectedIndex(i)}
-                  onClick={() => handleSlashSelect(cmd)}
-                >
-                  <span className="slash-menu-item-name">{cmd.name}</span>
-                  <span className="slash-menu-item-desc">
-                    {cmd.description}
-                  </span>
-                </button>
-              ))}
-            </div>
-          </div>
+          <ChatSlashMenu
+            commands={filteredSlashCommands}
+            menuRef={slashMenuRef}
+            selectedIndex={slashSelectedIndex}
+            setSelectedIndex={setSlashSelectedIndex}
+            onSelect={handleSlashSelect}
+          />
         )}
         <div className="chat-input-wrapper">
           <textarea
@@ -1188,58 +923,20 @@ function Chat({
           )}
         </div>
 
-        <div className="chat-model-bar" ref={pickerRef}>
-          <button
-            className="chat-model-trigger"
-            onClick={() => {
-              if (!showModelPicker) loadModelConfig();
-              setShowModelPicker(!showModelPicker);
-            }}
-          >
-            <span className="chat-model-name">{displayModel}</span>
-            <ChevronDown size={12} />
-          </button>
-
-          {showModelPicker && (
-            <div className="chat-model-dropdown">
-              {modelGroups.map((group) => (
-                <div key={group.provider} className="chat-model-group">
-                  <div className="chat-model-group-label">
-                    {t(group.providerLabel)}
-                  </div>
-                  {group.models.map((m) => (
-                    <button
-                      key={`${m.provider}:${m.model}`}
-                      className={`chat-model-option ${currentModel === m.model && currentProvider === m.provider ? "active" : ""}`}
-                      onClick={() =>
-                        selectModel(m.provider, m.model, m.baseUrl)
-                      }
-                    >
-                      <span className="chat-model-option-label">{m.label}</span>
-                      <span className="chat-model-option-id">{m.model}</span>
-                    </button>
-                  ))}
-                </div>
-              ))}
-
-              <div className="chat-model-group">
-                <div className="chat-model-group-label">{t("chat.custom")}</div>
-                <div className="chat-model-custom">
-                  <input
-                    className="chat-model-custom-input"
-                    type="text"
-                    value={customModelInput}
-                    onChange={(e) => setCustomModelInput(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") handleCustomModelSubmit();
-                    }}
-                    placeholder={t("chat.typeModelName")}
-                  />
-                </div>
-              </div>
-            </div>
-          )}
-        </div>
+        <ChatModelPicker
+          pickerRef={pickerRef}
+          displayModel={displayModel}
+          showModelPicker={showModelPicker}
+          setShowModelPicker={setShowModelPicker}
+          loadModelConfig={() => void loadModelConfig()}
+          modelGroups={modelGroups}
+          currentModel={currentModel}
+          currentProvider={currentProvider}
+          customModelInput={customModelInput}
+          setCustomModelInput={setCustomModelInput}
+          selectModel={selectModel}
+          handleCustomModelSubmit={handleCustomModelSubmit}
+        />
       </div>
     </div>
   );

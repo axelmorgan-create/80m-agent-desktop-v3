@@ -1,0 +1,771 @@
+.memory-main {
+  background:
+    radial-gradient(
+      circle at 55% 36%,
+      rgba(74, 222, 128, 0.08),
+      transparent 32%
+    ),
+    transparent;
+}
+
+.memory-screen-header {
+  min-height: 64px;
+  justify-content: space-between;
+  padding: 12px 24px 11px;
+  background: rgba(6, 18, 13, 0.42);
+  border-bottom-color: rgba(74, 222, 128, 0.12);
+}
+
+.memory-screen-title-lockup {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-width: 0;
+}
+
+.memory-screen-title-lockup .memory-subtitle {
+  margin-top: 4px;
+}
+
+.memory-brain-glyph {
+  width: 21px;
+  height: 21px;
+  display: inline-grid;
+  place-items: center;
+  color: #4ade80;
+  filter: drop-shadow(0 0 8px rgba(74, 222, 128, 0.55));
+  animation: memoryBrainGlow 2.8s ease-in-out infinite;
+}
+
+@keyframes memoryBrainGlow {
+  0%,
+  100% {
+    opacity: 0.82;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.08);
+  }
+}
+
+.memory-screen-content {
+  padding: 0 12px 18px;
+}
+
+.memory-tabs-neural {
+  position: sticky;
+  top: 0;
+  z-index: 4;
+  min-height: 44px;
+  align-items: stretch;
+  gap: 0;
+  margin: 0 0 12px;
+  border: 1px solid rgba(74, 222, 128, 0.1);
+  border-radius: 5px;
+  background: rgba(13, 29, 21, 0.54);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  overflow: hidden;
+}
+
+.memory-tabs-neural .memory-tab {
+  min-width: 130px;
+  justify-content: center;
+  border-bottom-width: 0;
+  border-right: 1px solid rgba(74, 222, 128, 0.08);
+  border-radius: 0;
+  color: #aebeb4;
+  font-family: "Fira Code", monospace;
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.memory-tabs-neural .memory-tab.active {
+  position: relative;
+  color: #4ade80;
+  background: rgba(74, 222, 128, 0.1);
+}
+
+.memory-tabs-neural .memory-tab.active::after {
+  content: "";
+  position: absolute;
+  right: 8px;
+  bottom: 0;
+  left: 8px;
+  height: 2px;
+  background: #4ade80;
+  box-shadow: 0 0 10px rgba(74, 222, 128, 0.72);
+}
+
+.memory-neural-dashboard {
+  display: flex;
+  gap: 14px;
+  min-height: calc(100vh - 132px);
+}
+
+/* ── Stacked layout (vertical, default) ── */
+.memory-neural-layout-stacked {
+  flex-direction: column;
+}
+
+.memory-neural-layout-stacked .memory-neural-pane-map {
+  min-width: 0;
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+}
+
+.memory-neural-layout-stacked .memory-neural-pane-preview {
+  min-width: 0;
+  flex: 0 0 auto;
+  max-height: 50vh;
+  overflow-y: auto;
+}
+
+/* ── Side-by-side layout ── */
+.memory-neural-layout-side {
+  flex-direction: row;
+}
+
+.memory-neural-layout-side .memory-neural-pane-map {
+  flex: 1 1 60%;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.memory-neural-layout-side .memory-neural-pane-preview {
+  flex: 1 1 40%;
+  min-width: 280px;
+  max-width: 50%;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+}
+
+.memory-neural-layout-side .memory-neural-pane-preview .memory-neural-card {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+}
+
+.memory-neural-layout-side .memory-neural-pane-preview .memory-neural-preview {
+  flex: 1 1 auto;
+}
+
+.memory-neural-layout-side .memory-neural-pane-preview .memory-neural-preview-body {
+  max-height: none;
+  flex: 1 1 auto;
+}
+
+.memory-neural-layout-side .memory-neural-stage {
+  min-height: 0;
+  flex: 1 1 auto;
+}
+
+.memory-neural-stage {
+  position: relative;
+  min-height: 520px;
+  overflow: hidden;
+  border: 1px solid rgba(74, 222, 128, 0.1);
+  border-radius: 6px;
+  background: #030a06;
+}
+
+.memory-neural-stage canvas {
+  display: block;
+  width: 100% !important;
+  height: 100% !important;
+  border-radius: inherit;
+}
+
+.memory-neural-stage-status {
+  position: absolute;
+  top: 14px;
+  left: 14px;
+  z-index: 10;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  max-width: calc(100% - 28px);
+  padding: 6px 9px;
+  border: 1px solid rgba(74, 222, 128, 0.18);
+  border-radius: 6px;
+  background: rgba(8, 25, 16, 0.82);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  color: #d8ffe5;
+  font-family: "Fira Code", monospace;
+  font-size: 10px;
+  font-weight: 900;
+  text-transform: uppercase;
+  pointer-events: none;
+}
+
+.memory-neural-stage-status span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.memory-neural-stage-status span:last-child {
+  color: #4ade80;
+}
+
+.memory-neural-stage-scanning .memory-neural-stage-status span:last-child {
+  animation: memoryBrainGlow 1.4s ease-in-out infinite;
+}
+
+/* ── Three.js 3D label overlays ── */
+.neural-3d-labels {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.neural-3d-label-clickable {
+  pointer-events: auto;
+  cursor: pointer;
+}
+
+.neural-3d-label-clickable:hover {
+  color: #4ade80;
+  border-color: rgba(74, 222, 128, 0.5);
+  background: rgba(20, 60, 36, 0.85);
+  text-shadow: 0 0 10px rgba(74, 222, 128, 0.5);
+}
+
+.neural-3d-label {
+  position: absolute;
+  top: 0;
+  left: 0;
+  padding: 3px 8px;
+  border-radius: 4px;
+  background: rgba(8, 25, 16, 0.72);
+  border: 1px solid rgba(74, 222, 128, 0.16);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  color: #c9f6d8;
+  font-family: "Fira Code", monospace;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  transition: opacity 0.3s ease, color 0.2s ease, border-color 0.2s ease;
+  will-change: transform;
+}
+
+.neural-3d-label.active {
+  color: #4ade80;
+  border-color: rgba(74, 222, 128, 0.5);
+  background: rgba(20, 60, 36, 0.85);
+  text-shadow: 0 0 12px rgba(74, 222, 128, 0.6);
+}
+
+.neural-3d-label-center {
+  padding: 6px 14px;
+  border: 1px solid rgba(74, 222, 128, 0.4);
+  background: rgba(10, 40, 24, 0.82);
+  color: #4ade80;
+  font-size: 13px;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-align: center;
+  line-height: 1.3;
+  text-shadow: 0 0 18px rgba(74, 222, 128, 0.5);
+}
+
+/* ── Mode toggle + search controls ── */
+.memory-neural-stage-controls {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  -webkit-app-region: no-drag;
+}
+
+.neural-mode-btn {
+  min-width: 0;
+  height: 28px;
+  padding: 0 10px;
+  border: 1px solid rgba(74, 222, 128, 0.18);
+  border-radius: 4px;
+  background: rgba(8, 25, 16, 0.82);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  color: #a9c9b4;
+  cursor: pointer;
+  font-family: "Fira Code", monospace;
+  font-size: 9px;
+  font-weight: 900;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  transition: color 0.2s ease, border-color 0.2s ease, background 0.2s ease;
+}
+
+.neural-mode-btn:hover {
+  color: #d8ffe5;
+  border-color: rgba(74, 222, 128, 0.4);
+}
+
+.neural-mode-btn.active {
+  color: #4ade80;
+  border-color: rgba(74, 222, 128, 0.5);
+  background: rgba(20, 60, 36, 0.85);
+  text-shadow: 0 0 8px rgba(74, 222, 128, 0.4);
+}
+
+.neural-search-input {
+  width: 140px;
+  height: 28px;
+  margin-left: 4px;
+  padding: 0 8px;
+  border: 1px solid rgba(74, 222, 128, 0.18);
+  border-radius: 4px;
+  background: rgba(8, 25, 16, 0.82);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  color: #d8ffe5;
+  font-family: "Fira Code", monospace;
+  font-size: 10px;
+  font-weight: 700;
+  outline: none;
+  transition: border-color 0.2s ease;
+}
+
+.neural-search-input::placeholder {
+  color: #6b8f78;
+}
+
+.neural-search-input:focus {
+  border-color: rgba(74, 222, 128, 0.5);
+}
+
+.memory-stats-neural {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  border-color: rgba(74, 222, 128, 0.12);
+  background: rgba(12, 32, 21, 0.52);
+}
+
+.memory-stats-neural .memory-stat {
+  min-width: 0;
+  min-height: 82px;
+  display: grid;
+  grid-template-columns: 38px minmax(0, 1fr);
+  grid-template-rows: 1fr 1fr;
+  align-items: center;
+  column-gap: 12px;
+  padding: 14px 18px;
+  border-right: 1px solid rgba(74, 222, 128, 0.1);
+}
+
+.memory-stats-neural .memory-stat:last-child {
+  border-right: 0;
+}
+
+.memory-stats-neural .memory-stat svg {
+  grid-row: 1 / span 2;
+  color: #4ade80;
+}
+
+.memory-stats-neural .memory-stat-value {
+  color: #f4fff7;
+  font-size: 18px;
+}
+
+.memory-stats-neural .memory-stat-label {
+  color: #a9c9b4;
+  font-family: "Fira Code", monospace;
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.memory-capacities-neural {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px;
+  margin: 0;
+  padding: 14px 18px 18px;
+  border: 1px solid rgba(74, 222, 128, 0.1);
+  border-radius: 6px;
+  background: rgba(12, 25, 18, 0.44);
+}
+
+.memory-neural-rail {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.memory-neural-card {
+  border: 1px solid rgba(74, 222, 128, 0.16);
+  border-radius: 7px;
+  background:
+    linear-gradient(180deg, rgba(74, 222, 128, 0.06), transparent),
+    rgba(9, 25, 17, 0.66);
+  box-shadow: inset 0 0 32px rgba(74, 222, 128, 0.05);
+  padding: 16px;
+  overflow: hidden;
+}
+
+.memory-neural-card .memory-vault-actions {
+  justify-content: flex-end;
+  margin-top: 22px;
+}
+
+.memory-neural-sync-line {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+  color: #afc8b8;
+  font-family: "Fira Code", monospace;
+  font-size: 10px;
+  font-weight: 800;
+  line-height: 1.45;
+  text-transform: uppercase;
+}
+
+.memory-neural-sync-line span {
+  color: #4ade80;
+}
+
+.memory-neural-index-card {
+  padding: 0;
+  flex: 1 1 auto;
+  min-height: 268px;
+}
+
+.memory-neural-cluster-desc {
+  margin: 0;
+  padding: 11px 14px 0;
+  color: #b9d5c4;
+  font-family: "Fira Code", monospace;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1.5;
+}
+
+.memory-neural-index-list {
+  display: flex;
+  flex-direction: column;
+  padding: 8px 10px 12px;
+}
+
+.memory-neural-index-row,
+.memory-neural-index-more {
+  width: 100%;
+  min-height: 30px;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  border: 0;
+  border-bottom: 1px solid rgba(74, 222, 128, 0.07);
+  background: transparent;
+  color: #cfe8d8;
+  cursor: pointer;
+  font-family: "Fira Code", monospace;
+  font-size: 11px;
+  text-align: left;
+}
+
+.memory-neural-index-row:hover,
+.memory-neural-index-more:hover,
+.memory-neural-index-row.active {
+  color: #4ade80;
+  background: rgba(74, 222, 128, 0.06);
+}
+
+.memory-neural-index-row span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.memory-neural-index-row em {
+  color: #8da997;
+  font-size: 10px;
+  font-style: normal;
+}
+
+.memory-neural-index-more {
+  display: flex;
+  border-bottom: 0;
+  color: #e6ffee;
+  font-weight: 900;
+}
+
+.memory-neural-folder-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  padding: 10px 0 2px;
+}
+
+.memory-neural-folder-chip {
+  min-width: 0;
+  max-width: 100%;
+  min-height: 28px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 8px;
+  border: 1px solid rgba(74, 222, 128, 0.14);
+  border-radius: 6px;
+  background: rgba(74, 222, 128, 0.06);
+  color: #d8ffe5;
+  cursor: pointer;
+  font-family: "Fira Code", monospace;
+  font-size: 10px;
+  font-weight: 800;
+}
+
+.memory-neural-folder-chip:hover {
+  border-color: rgba(74, 222, 128, 0.4);
+  color: #4ade80;
+}
+
+.memory-neural-folder-chip span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.memory-neural-book-card {
+  min-height: 260px;
+  display: flex;
+  flex-direction: column;
+}
+
+.memory-neural-preview-card {
+  min-height: 280px;
+  padding: 0;
+}
+
+.memory-neural-preview {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 12px;
+}
+
+.memory-neural-preview-heading {
+  display: grid;
+  grid-template-columns: 24px minmax(0, 1fr);
+  gap: 9px;
+  align-items: start;
+  color: #d8ffe5;
+}
+
+.memory-neural-preview-heading svg {
+  color: #4ade80;
+}
+
+.memory-neural-preview-heading strong,
+.memory-neural-preview-heading span {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.memory-neural-preview-heading strong {
+  color: #f4fff7;
+  font-size: 12px;
+}
+
+.memory-neural-preview-heading span {
+  margin-top: 3px;
+  color: #8da997;
+  font-family: "Fira Code", monospace;
+  font-size: 10px;
+}
+
+.memory-neural-preview-body {
+  max-height: 420px;
+  overflow: auto;
+  padding: 12px;
+  border: 1px solid rgba(74, 222, 128, 0.1);
+  border-radius: 6px;
+  background: rgba(4, 16, 10, 0.42);
+  color: #dcefe3;
+  font-size: 13px;
+  line-height: 1.65;
+}
+
+.memory-neural-preview-body pre {
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.memory-neural-preview-body .markdown-content {
+  max-width: none;
+}
+
+.memory-neural-book {
+  flex: 1;
+  min-height: 190px;
+  display: grid;
+  place-items: center;
+  align-content: center;
+  gap: 18px;
+  color: #d8ffe5;
+  text-align: center;
+}
+
+.memory-neural-book svg {
+  color: #4ade80;
+  filter: drop-shadow(0 0 13px rgba(74, 222, 128, 0.46));
+}
+
+.memory-neural-book p {
+  max-width: 210px;
+  margin: 0;
+  color: #cfe8d8;
+  font-family: "Fira Code", monospace;
+  font-size: 11px;
+  line-height: 1.55;
+}
+
+/* ── Light theme overrides for neural map ── */
+[data-theme="light"] .memory-neural-card {
+  background: linear-gradient(180deg, rgba(240, 255, 245, 0.95), rgba(245, 252, 248, 0.9));
+  border-color: rgba(22, 101, 52, 0.18);
+  box-shadow: 0 1px 8px rgba(0, 0, 0, 0.06);
+}
+
+[data-theme="light"] .memory-neural-preview-heading {
+  color: #1a3a28;
+}
+
+[data-theme="light"] .memory-neural-preview-heading svg {
+  color: #16a34a;
+}
+
+[data-theme="light"] .memory-neural-preview-heading strong {
+  color: #0f2519;
+}
+
+[data-theme="light"] .memory-neural-preview-heading span {
+  color: #5a7d68;
+}
+
+[data-theme="light"] .memory-neural-preview-body {
+  background: rgba(245, 252, 248, 0.85);
+  border-color: rgba(22, 101, 52, 0.12);
+  color: #1a3a28;
+}
+
+[data-theme="light"] .memory-neural-preview-body pre {
+  color: #1a3a28;
+}
+
+[data-theme="light"] .memory-neural-book {
+  color: #2d5a3e;
+}
+
+[data-theme="light"] .memory-neural-book svg {
+  color: #16a34a;
+  filter: none;
+}
+
+[data-theme="light"] .memory-neural-book p {
+  color: #3a6b4e;
+}
+
+[data-theme="light"] .memory-vault-index-header {
+  color: #1a3a28;
+}
+
+[data-theme="light"] .memory-vault-index-header span:last-child {
+  color: #16a34a;
+}
+
+[data-theme="light"] .memory-neural-stage-status {
+  background: rgba(240, 255, 245, 0.92);
+  border-color: rgba(22, 101, 52, 0.2);
+  color: #1a3a28;
+}
+
+[data-theme="light"] .memory-neural-stage-status span:last-child {
+  color: #16a34a;
+}
+
+[data-theme="light"] .neural-mode-btn {
+  background: rgba(240, 255, 245, 0.92);
+  border-color: rgba(22, 101, 52, 0.2);
+  color: #3a6b4e;
+}
+
+[data-theme="light"] .neural-mode-btn.active {
+  background: rgba(220, 252, 232, 0.95);
+  border-color: rgba(22, 163, 74, 0.5);
+  color: #16a34a;
+  text-shadow: none;
+}
+
+[data-theme="light"] .neural-search-input {
+  background: rgba(240, 255, 245, 0.92);
+  border-color: rgba(22, 101, 52, 0.2);
+  color: #1a3a28;
+}
+
+[data-theme="light"] .neural-search-input::placeholder {
+  color: #7da68e;
+}
+
+.memory-neural-empty {
+  padding: 14px 8px;
+}
+
+@media (max-width: 1040px) {
+  .memory-neural-dashboard {
+    grid-template-columns: 1fr;
+  }
+
+  .memory-neural-rail {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .memory-neural-stage {
+    min-height: 470px;
+  }
+}
+
+@media (max-width: 860px) {
+  .agent-preview-dock {
+    min-width: min(100vw, 420px);
+    width: min(100vw, 520px) !important;
+  }
+
+  .memory-stats-neural,
+  .memory-capacities-neural,
+  .memory-neural-rail {
+    grid-template-columns: 1fr;
+  }
+}
+

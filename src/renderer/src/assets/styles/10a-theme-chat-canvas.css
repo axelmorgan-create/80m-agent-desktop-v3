@@ -1,0 +1,334 @@
+/* Theme-locked chat canvas. Keep this near the end so older hardcoded shell
+   colors cannot punch a light layer through Night mode. */
+[data-theme="dark"] body,
+[data-theme="light"] body {
+  background: var(--window-backing);
+  color: var(--text-primary);
+}
+
+[data-theme="dark"] .app,
+[data-theme="light"] .app {
+  background: var(--canvas-bg);
+  color: var(--text-primary);
+}
+
+[data-theme="dark"] .app-content,
+[data-theme="dark"] .layout-80m,
+[data-theme="dark"] .main-80m,
+[data-theme="dark"] .screen-content-80m,
+[data-theme="dark"] .conversation-workspace,
+[data-theme="dark"] .messages-80m,
+[data-theme="light"] .app-content,
+[data-theme="light"] .layout-80m,
+[data-theme="light"] .main-80m,
+[data-theme="light"] .screen-content-80m,
+[data-theme="light"] .conversation-workspace,
+[data-theme="light"] .messages-80m {
+  background: transparent !important;
+  color: var(--text-primary);
+}
+
+[data-theme="dark"] .conversation-shell,
+[data-theme="light"] .conversation-shell {
+  background: var(--chat-canvas-bg) !important;
+  color: var(--text-primary);
+}
+
+[data-theme="dark"] .chat-header-80m,
+[data-theme="dark"] .conversation-pane-header,
+[data-theme="light"] .chat-header-80m,
+[data-theme="light"] .conversation-pane-header {
+  background: var(--chat-toolbar-bg) !important;
+  border-color: var(--shell-border) !important;
+  color: var(--text-primary);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+[data-theme="dark"] .conversation-tab-wrap,
+[data-theme="dark"] .conversation-view-switcher,
+[data-theme="dark"] .conversation-workspace--split .conversation-pane,
+[data-theme="light"] .conversation-tab-wrap,
+[data-theme="light"] .conversation-view-switcher,
+[data-theme="light"] .conversation-workspace--split .conversation-pane {
+  background: var(--shell-panel-muted) !important;
+  border-color: var(--shell-border) !important;
+  color: var(--text-primary);
+}
+
+[data-theme="dark"] .conversation-tab-wrap:hover,
+[data-theme="dark"] .conversation-workspace--split .conversation-pane.active,
+[data-theme="light"] .conversation-tab-wrap:hover,
+[data-theme="light"] .conversation-workspace--split .conversation-pane.active {
+  background: var(--chat-card-bg) !important;
+  border-color: var(--border-bright) !important;
+}
+
+[data-theme="dark"] .conversation-tab-wrap.active,
+[data-theme="dark"] .conversation-icon-btn.active,
+[data-theme="light"] .conversation-tab-wrap.active,
+[data-theme="light"] .conversation-icon-btn.active {
+  background: var(--accent-subtle) !important;
+  border-color: var(--accent) !important;
+  color: var(--accent-text);
+}
+
+[data-theme="dark"] .sidebar-80m,
+[data-theme="light"] .sidebar-80m {
+  background: var(--shell-sidebar-bg) !important;
+  border-right-color: var(--shell-border) !important;
+  color: var(--text-primary);
+}
+
+[data-theme="dark"] .sidebar-80m-logo-toggle,
+[data-theme="dark"] .sidebar-80m-logo-toggle:hover,
+[data-theme="dark"] .sidebar-80m-logo-toggle:focus,
+[data-theme="light"] .sidebar-80m-logo-toggle,
+[data-theme="light"] .sidebar-80m-logo-toggle:hover,
+[data-theme="light"] .sidebar-80m-logo-toggle:focus {
+  background: transparent !important;
+  background-color: transparent !important;
+  background-image: none !important;
+  border-color: transparent !important;
+  box-shadow: none !important;
+}
+
+[data-theme="dark"] .sidebar-80m-logo-toggle:focus-visible,
+[data-theme="light"] .sidebar-80m-logo-toggle:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+
+[data-theme="dark"] .sidebar-80m-nav-item,
+[data-theme="dark"] .sidebar-80m-sessions-header,
+[data-theme="dark"] .sidebar-80m-sessions-empty,
+[data-theme="dark"] .session-name,
+[data-theme="dark"] .conversation-tab-title,
+[data-theme="dark"] .conversation-pane-title,
+[data-theme="dark"] .chat-header-80m-title,
+[data-theme="dark"] .chat-header-80m-status,
+[data-theme="dark"] .msg-80m-label,
+[data-theme="dark"] .msg-80m-loading,
+[data-theme="dark"] .welcome-empty-80m,
+[data-theme="dark"] .welcome-empty-80m p,
+[data-theme="dark"] .input-80m-textarea,
+[data-theme="dark"] .input-80m-mode-switch button,
+[data-theme="dark"] .tool-progress-detail,
+[data-theme="dark"] .generic-tool-visualizer pre,
+[data-theme="dark"] .tool-file-name,
+[data-theme="dark"] .tool-file-line code {
+  color: var(--text-primary) !important;
+}
+
+[data-theme="light"] .sidebar-80m-nav-item,
+[data-theme="light"] .sidebar-80m-sessions-header,
+[data-theme="light"] .sidebar-80m-sessions-empty,
+[data-theme="light"] .session-name,
+[data-theme="light"] .conversation-tab-title,
+[data-theme="light"] .conversation-pane-title,
+[data-theme="light"] .chat-header-80m-title,
+[data-theme="light"] .chat-header-80m-status,
+[data-theme="light"] .msg-80m-label,
+[data-theme="light"] .msg-80m-loading,
+[data-theme="light"] .welcome-empty-80m,
+[data-theme="light"] .welcome-empty-80m p,
+[data-theme="light"] .input-80m-textarea,
+[data-theme="light"] .input-80m-mode-switch button,
+[data-theme="light"] .tool-progress-detail,
+[data-theme="light"] .generic-tool-visualizer pre,
+[data-theme="light"] .tool-file-name,
+[data-theme="light"] .tool-file-line code {
+  color: var(--text-primary) !important;
+}
+
+[data-theme="dark"] .session-time,
+[data-theme="dark"] .conversation-tab-agent,
+[data-theme="dark"] .conversation-pane-title small,
+[data-theme="dark"] .tool-file-meta,
+[data-theme="dark"] .tool-progress-meta,
+[data-theme="dark"] .tool-file-action-status,
+[data-theme="dark"] .tool-document-preview-empty,
+[data-theme="dark"] .tool-file-empty,
+[data-theme="dark"] .tool-file-line-number,
+[data-theme="light"] .session-time,
+[data-theme="light"] .conversation-tab-agent,
+[data-theme="light"] .conversation-pane-title small,
+[data-theme="light"] .tool-file-meta,
+[data-theme="light"] .tool-progress-meta,
+[data-theme="light"] .tool-file-action-status,
+[data-theme="light"] .tool-document-preview-empty,
+[data-theme="light"] .tool-file-empty,
+[data-theme="light"] .tool-file-line-number {
+  color: var(--text-muted) !important;
+}
+
+[data-theme="dark"] .sidebar-80m-session-item,
+[data-theme="dark"] .sidebar-80m-agent-select,
+[data-theme="dark"] .sidebar-80m-second-brain,
+[data-theme="dark"] .sidebar-80m-new-chat,
+[data-theme="dark"] .conversation-tab-close,
+[data-theme="dark"] .conversation-icon-btn,
+[data-theme="dark"] .input-80m-mode-switch,
+[data-theme="dark"] .input-80m-paste,
+[data-theme="dark"] .input-80m-mic,
+[data-theme="light"] .sidebar-80m-session-item,
+[data-theme="light"] .sidebar-80m-agent-select,
+[data-theme="light"] .sidebar-80m-second-brain,
+[data-theme="light"] .sidebar-80m-new-chat,
+[data-theme="light"] .conversation-tab-close,
+[data-theme="light"] .conversation-icon-btn,
+[data-theme="light"] .input-80m-mode-switch,
+[data-theme="light"] .input-80m-paste,
+[data-theme="light"] .input-80m-mic {
+  background: var(--shell-panel-muted) !important;
+  border-color: var(--shell-border) !important;
+  color: var(--text-primary) !important;
+}
+
+[data-theme="dark"] .sidebar-80m-session-item.active,
+[data-theme="dark"] .sidebar-80m-session-item:hover,
+[data-theme="dark"] .sidebar-80m-nav-item.active,
+[data-theme="dark"] .sidebar-80m-nav-item:hover,
+[data-theme="light"] .sidebar-80m-session-item.active,
+[data-theme="light"] .sidebar-80m-session-item:hover,
+[data-theme="light"] .sidebar-80m-nav-item.active,
+[data-theme="light"] .sidebar-80m-nav-item:hover {
+  background: var(--accent-subtle) !important;
+  color: var(--accent-text) !important;
+  border-color: var(--border-bright) !important;
+}
+
+[data-theme="dark"] .msg-80m-actions,
+[data-theme="dark"] .msg-80m.assistant .msg-80m-bubble,
+[data-theme="dark"] .msg-80m.tool .msg-80m-bubble,
+[data-theme="dark"] .assistant-tool-calls-title,
+[data-theme="dark"] .assistant-tool-call,
+[data-theme="dark"] .msg-80m-tool-block,
+[data-theme="dark"] .tool-activity-card,
+[data-theme="dark"] .tool-file-preview,
+[data-theme="dark"] .generic-tool-visualizer,
+[data-theme="dark"] .terminal-command,
+[data-theme="dark"] .tool-progress-detail,
+[data-theme="light"] .msg-80m-actions,
+[data-theme="light"] .msg-80m.assistant .msg-80m-bubble,
+[data-theme="light"] .msg-80m.tool .msg-80m-bubble,
+[data-theme="light"] .assistant-tool-calls-title,
+[data-theme="light"] .assistant-tool-call,
+[data-theme="light"] .msg-80m-tool-block,
+[data-theme="light"] .tool-activity-card,
+[data-theme="light"] .tool-file-preview,
+[data-theme="light"] .generic-tool-visualizer,
+[data-theme="light"] .terminal-command,
+[data-theme="light"] .tool-progress-detail {
+  background: var(--agent-bubble) !important;
+  border-color: var(--shell-border) !important;
+  color: var(--agent-bubble-text) !important;
+}
+
+[data-theme="dark"] .msg-80m.user .msg-80m-bubble,
+[data-theme="light"] .msg-80m.user .msg-80m-bubble {
+  background: var(--user-bubble) !important;
+  color: var(--user-bubble-text) !important;
+}
+
+[data-theme="dark"] .msg-80m-bubble code,
+[data-theme="dark"] .msg-80m-bubble pre,
+[data-theme="dark"] .assistant-tool-call pre,
+[data-theme="dark"] .tool-file-content,
+[data-theme="dark"] .tool-media-preview,
+[data-theme="light"] .msg-80m-bubble code,
+[data-theme="light"] .msg-80m-bubble pre,
+[data-theme="light"] .assistant-tool-call pre,
+[data-theme="light"] .tool-file-content,
+[data-theme="light"] .tool-media-preview {
+  background: var(--code-bg) !important;
+  border-color: var(--shell-border) !important;
+  color: var(--text-primary) !important;
+}
+
+[data-theme="dark"] .input-80m-form,
+[data-theme="light"] .input-80m-form {
+  background: var(--shell-input-bg) !important;
+  border-color: var(--shell-border) !important;
+  color: var(--text-primary) !important;
+  box-shadow: 0 14px 34px var(--shell-shadow);
+}
+
+[data-theme="dark"] .input-80m-textarea::placeholder,
+[data-theme="light"] .input-80m-textarea::placeholder {
+  color: var(--input-placeholder) !important;
+}
+
+[data-theme="dark"] .input-80m-send,
+[data-theme="light"] .input-80m-send {
+  background: var(--accent) !important;
+  color: var(--user-bubble-text) !important;
+}
+
+[data-theme="dark"] .preview-toggle-btn,
+[data-theme="light"] .preview-toggle-btn {
+  background: var(--shell-panel-bg) !important;
+  border-color: var(--shell-border) !important;
+  color: var(--text-primary) !important;
+  box-shadow: 0 14px 34px var(--shell-shadow);
+}
+
+[data-theme="dark"] .preview-toggle-btn:hover,
+[data-theme="light"] .preview-toggle-btn:hover {
+  background: var(--accent-subtle) !important;
+  border-color: var(--border-bright) !important;
+  color: var(--accent-text) !important;
+}
+
+[data-theme="dark"] .messages-80m::-webkit-scrollbar-thumb,
+[data-theme="dark"] .conversation-tabs::-webkit-scrollbar-thumb,
+[data-theme="dark"] .screen-content-80m::-webkit-scrollbar-thumb,
+[data-theme="light"] .messages-80m::-webkit-scrollbar-thumb,
+[data-theme="light"] .conversation-tabs::-webkit-scrollbar-thumb,
+[data-theme="light"] .screen-content-80m::-webkit-scrollbar-thumb {
+  background: var(--scrollbar-thumb) !important;
+}
+
+[data-theme="dark"] .messages-80m::-webkit-scrollbar-thumb:hover,
+[data-theme="dark"] .conversation-tabs::-webkit-scrollbar-thumb:hover,
+[data-theme="dark"] .screen-content-80m::-webkit-scrollbar-thumb:hover,
+[data-theme="light"] .messages-80m::-webkit-scrollbar-thumb:hover,
+[data-theme="light"] .conversation-tabs::-webkit-scrollbar-thumb:hover,
+[data-theme="light"] .screen-content-80m::-webkit-scrollbar-thumb:hover {
+  background: var(--scrollbar-hover) !important;
+}
+
+[data-theme="dark"] .input-80m-form {
+  background: rgba(36, 43, 39, 0.96) !important;
+  border-color: rgba(74, 222, 128, 0.16) !important;
+  color: #f4fff7 !important;
+  box-shadow: 0 14px 34px rgba(0, 0, 0, 0.42) !important;
+}
+
+[data-theme="light"] .input-80m-form {
+  background: rgba(255, 255, 255, 0.94) !important;
+  border-color: rgba(22, 101, 52, 0.18) !important;
+  color: #111111 !important;
+  box-shadow: 0 14px 34px rgba(15, 23, 42, 0.14) !important;
+}
+
+[data-theme] .conversation-shell,
+[data-theme] .conversation-toolbar,
+[data-theme] .conversation-tab-wrap,
+[data-theme] .conversation-icon-btn,
+[data-theme] .sidebar-80m,
+[data-theme] .sidebar-80m-nav-item,
+[data-theme] .sidebar-80m-session-item,
+[data-theme] .sidebar-80m-second-brain,
+[data-theme] .sidebar-80m-agent-select,
+[data-theme] .input-80m-form,
+[data-theme] .input-80m-paste,
+[data-theme] .input-80m-mic,
+[data-theme] .msg-80m-bubble,
+[data-theme] .assistant-tool-call,
+[data-theme] .preview-toggle-btn {
+  transition-property: filter, opacity, transform !important;
+  transition-duration: 150ms !important;
+  transition-timing-function: ease !important;
+}
+
