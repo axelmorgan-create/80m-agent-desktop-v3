@@ -1,30 +1,25 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
-import { FileUp } from "lucide-react";
 import Messages from "./Messages";
 import InputBar from "./InputBar";
+import { ChatFileDropOverlay } from "./ChatFileDropOverlay";
+import { playDoneSound, playTTS, playTypingSound } from "./chatAreaAudio";
 import type { Message } from "./Messages";
 import type {
   ActiveRequest,
   ChatAreaProps,
   ChatToolProgressPayload,
-  DroppedAttachment,
   QueuedChatTurn,
 } from "./chatAreaTypes";
 import {
-  buildAttachmentDraft,
   buildSteerTurnPrompt,
-  fileUriToPath,
-  hasDraggedFiles,
-  localFileUrl,
   makeAssistantMessage,
   makeToolProgressMessage,
   mergeMessages,
   parseBusyCommand,
-  pathBasename,
-  plainSpeechText,
   requestDisplaySession,
   upsertMessage,
 } from "./chatAreaUtils";
+import { useChatFileDrop } from "./useChatFileDrop";
 
 const ChatArea: React.FC<ChatAreaProps> = ({
   conversationId,
@@ -37,7 +32,6 @@ const ChatArea: React.FC<ChatAreaProps> = ({
 }) => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [loadingRequestId, setLoadingRequestId] = useState<string | null>(null);
-  const [isDraggingFiles, setIsDraggingFiles] = useState(false);
   const [draftInsert, setDraftInsert] = useState<{
     id: string;
     text: string;
@@ -59,7 +53,6 @@ const ChatArea: React.FC<ChatAreaProps> = ({
   const visibleRequestIdRef = useRef<string | null>(null);
   const pendingMessagesRef = useRef<Record<string, Message[]>>({});
   const queuedTurnsRef = useRef<QueuedChatTurn[]>([]);
-  const dragDepthRef = useRef(0);
 
   useEffect(() => {
     messagesRef.current = messages;
@@ -78,25 +71,6 @@ const ChatArea: React.FC<ChatAreaProps> = ({
     setQueuedTurns(next);
   }, []);
 
-  const playDoneSound = useCallback(() => {
-    try {
-      const ctx = new AudioContext();
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-      osc.connect(gain);
-      gain.connect(ctx.destination);
-      osc.type = "sine";
-      osc.frequency.setValueAtTime(660, ctx.currentTime);
-      osc.frequency.setValueAtTime(880, ctx.currentTime + 0.06);
-      gain.gain.setValueAtTime(0.06, ctx.currentTime);
-      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.15);
-      osc.start(ctx.currentTime);
-      osc.stop(ctx.currentTime + 0.15);
-    } catch (_) {
-      // Audio not available.
-    }
-  }, []);
-
   const showToast = useCallback(
     (
       title: string,
@@ -112,78 +86,10 @@ const ChatArea: React.FC<ChatAreaProps> = ({
     [],
   );
 
-  const playBrowserTTS = useCallback((text: string) => {
-    try {
-      if (!window.speechSynthesis) return false;
-      window.speechSynthesis.cancel();
-      const utterance = new SpeechSynthesisUtterance(text);
-      utterance.rate = 1.05;
-      utterance.pitch = 0.95;
-      utterance.onstart = () =>
-        window.dispatchEvent(new CustomEvent("agent-speaking-start"));
-      utterance.onend = () =>
-        window.dispatchEvent(new CustomEvent("agent-speaking-stop"));
-      utterance.onerror = () =>
-        window.dispatchEvent(new CustomEvent("agent-speaking-stop"));
-      window.speechSynthesis.speak(utterance);
-      return true;
-    } catch (err) {
-      console.warn("Browser TTS failed:", err);
-      return false;
-    }
-  }, []);
-
-  const playTTS = useCallback(
-    async (text: string) => {
-      const clean = plainSpeechText(text);
-      if (!clean) return;
-
-      window.dispatchEvent(new CustomEvent("agent-speaking-start"));
-      try {
-        const audioPath = await window.hermesAPI?.ttsSpeak(clean);
-        if (audioPath) {
-          const audio = new Audio(localFileUrl(audioPath));
-          audio.volume = 0.9;
-          audio.onended = () =>
-            window.dispatchEvent(new CustomEvent("agent-speaking-stop"));
-          audio.onerror = () => {
-            window.dispatchEvent(new CustomEvent("agent-speaking-stop"));
-            playBrowserTTS(clean);
-          };
-          await audio.play();
-          return;
-        }
-      } catch (err) {
-        console.warn("Hermes TTS failed:", err);
-      }
-
-      window.dispatchEvent(new CustomEvent("agent-speaking-stop"));
-      playBrowserTTS(clean);
-    },
-    [playBrowserTTS],
-  );
-
-  const playTypingSound = useCallback(() => {
-    try {
-      const ctx = new AudioContext();
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-
-      osc.connect(gain);
-      gain.connect(ctx.destination);
-
-      osc.type = "square";
-      osc.frequency.setValueAtTime(150 + Math.random() * 50, ctx.currentTime);
-
-      gain.gain.setValueAtTime(0.01, ctx.currentTime);
-      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.05);
-
-      osc.start(ctx.currentTime);
-      osc.stop(ctx.currentTime + 0.05);
-    } catch (_) {
-      // Audio not available.
-    }
-  }, []);
+  const { isDraggingFiles, dragHandlers } = useChatFileDrop({
+    setDraftInsert,
+    showToast,
+  });
 
   const findRequestForSession = useCallback((targetSession: string | null) => {
     return Object.values(activeRequestsRef.current).find(
@@ -689,128 +595,17 @@ const ChatArea: React.FC<ChatAreaProps> = ({
     isRequestVisible,
     loadSession,
     onSessionChange,
-    playDoneSound,
-    playTTS,
-    playTypingSound,
     resolveRequest,
     syncVisibleLoading,
   ]);
-
-  const resolveDroppedFilePaths = useCallback(
-    (dataTransfer: DataTransfer): string[] => {
-      const paths = Array.from(dataTransfer.files || [])
-        .map((file) => {
-          return (
-            window.hermesAPI?.getPathForFile?.(file) ||
-            (file as File & { path?: string }).path ||
-            ""
-          );
-        })
-        .filter(Boolean);
-
-      const uriPaths = dataTransfer
-        .getData("text/uri-list")
-        .split(/\r?\n/)
-        .map((line) => line.trim())
-        .filter((line) => line && !line.startsWith("#"))
-        .map(fileUriToPath)
-        .filter(Boolean);
-
-      return [...new Set([...paths, ...uriPaths])];
-    },
-    [],
-  );
-
-  const handleDrop = async (e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    dragDepthRef.current = 0;
-    setIsDraggingFiles(false);
-    if (!window.hermesAPI || !hasDraggedFiles(e.dataTransfer)) return;
-
-    try {
-      const paths = resolveDroppedFilePaths(e.dataTransfer);
-      if (!paths.length) {
-        showToast(
-          "Drop failed",
-          "Electron did not expose a local file path for this drop.",
-          "error",
-        );
-        return;
-      }
-
-      const attachments: DroppedAttachment[] = [];
-      for (const filePath of paths) {
-        const destPath = await window.hermesAPI.copyFileToWorkspace(filePath);
-        if (destPath) {
-          attachments.push({
-            name: pathBasename(destPath),
-            path: destPath,
-          });
-        }
-      }
-
-      if (!attachments.length) {
-        showToast(
-          "Drop failed",
-          "No files could be copied into Hermes.",
-          "error",
-        );
-        return;
-      }
-
-      setDraftInsert({
-        id: `drop-${Date.now()}-${attachments.length}`,
-        text: buildAttachmentDraft(attachments),
-      });
-      showToast(
-        attachments.length === 1 ? "File attached" : "Files attached",
-        "Dropped file paths were added to your draft.",
-        "success",
-      );
-    } catch (err) {
-      console.error("Failed to copy dropped file:", err);
-      showToast("Drop failed", "The file could not be attached.", "error");
-    }
-  };
-
-  const handleDragOver = (e: React.DragEvent) => {
-    if (!hasDraggedFiles(e.dataTransfer)) return;
-    e.preventDefault();
-    e.dataTransfer.dropEffect = "copy";
-  };
-
-  const handleDragEnter = (e: React.DragEvent) => {
-    if (!hasDraggedFiles(e.dataTransfer)) return;
-    e.preventDefault();
-    dragDepthRef.current += 1;
-    setIsDraggingFiles(true);
-  };
-
-  const handleDragLeave = (e: React.DragEvent) => {
-    if (!hasDraggedFiles(e.dataTransfer)) return;
-    e.preventDefault();
-    dragDepthRef.current = Math.max(0, dragDepthRef.current - 1);
-    if (dragDepthRef.current === 0) setIsDraggingFiles(false);
-  };
 
   return (
     <div
       ref={rootRef}
       className={`main-80m ${isDraggingFiles ? "file-drop-active" : ""}`}
-      onDrop={handleDrop}
-      onDragEnter={handleDragEnter}
-      onDragLeave={handleDragLeave}
-      onDragOver={handleDragOver}
+      {...dragHandlers}
     >
-      {isDraggingFiles ? (
-        <div className="file-drop-overlay" aria-hidden="true">
-          <div className="file-drop-target">
-            <FileUp size={28} />
-            <span>Attach files</span>
-          </div>
-        </div>
-      ) : null}
+      {isDraggingFiles ? <ChatFileDropOverlay /> : null}
       <Messages messages={messages} isLoading={Boolean(loadingRequestId)} />
       <InputBar
         onSend={handleSend}

@@ -1,14 +1,12 @@
 import { useState, useEffect, useCallback } from "react";
 import { Refresh } from "../../assets/icons";
 import { useI18n } from "../../components/useI18n";
-import { BookOpen, Brain, Check, Edit3, Eye, Save, X } from "lucide-react";
-import AgentMarkdown from "../../components/AgentMarkdown";
-import NeuralMap3D from "../../components/80m/NeuralMap3D";
-import { MemoryDocumentIcon } from "./MemoryDocumentIcon";
+import { Brain } from "lucide-react";
 import { MemoryEntriesPanel } from "./MemoryEntriesPanel";
+import { MemoryNeuralMapPanel } from "./MemoryNeuralMapPanel";
 import { MemoryProvidersPanel } from "./MemoryProvidersPanel";
 import { MemoryUserProfilePanel } from "./MemoryUserProfilePanel";
-import { MemoryVaultTreeNode } from "./MemoryVaultTreeNode";
+import { MemoryVaultPanel } from "./MemoryVaultPanel";
 import { buildNeuralNodes } from "./memoryNeuralModel";
 import type {
   DocumentPreviewData,
@@ -22,15 +20,8 @@ import type {
 } from "./memoryTypes";
 import {
   buildNeuralVaultIndex,
-  displayFileName,
-  displayLocalPath,
-  documentKindLabel,
   EMPTY_VAULT_INDEX,
-  formatCompact,
   isEditableDocument,
-  isJsonDocument,
-  isMarkdownDocument,
-  readableContent,
   timeAgo,
 } from "./memoryUtils";
 
@@ -107,7 +98,6 @@ function Memory({ profile }: { profile?: string }): React.JSX.Element {
       const index = await buildNeuralVaultIndex(vaultPath);
       setVaultIndex(index);
     } catch (err) {
-      setVaultIndex(EMPTY_VAULT_INDEX);
       setVaultIndex(EMPTY_VAULT_INDEX);
       console.error(
         err instanceof Error ? err.message : "Unable to index this vault.",
@@ -459,411 +449,53 @@ function Memory({ profile }: { profile?: string }): React.JSX.Element {
         {error && <div className="memory-error">{error}</div>}
 
         {tab === "map" && (
-          <div
-            className={`memory-neural-dashboard memory-neural-layout-${neuralLayout}`}
-          >
-            <div className="memory-neural-pane-map">
-              <div
-                className={`memory-neural-stage ${
-                  vaultIndexLoading ? "memory-neural-stage-scanning" : ""
-                }`}
-              >
-                <NeuralMap3D
-                  nodes={neuralNodes.map((n) => ({
-                    id: n.id,
-                    label: n.label,
-                    value: n.value,
-                  }))}
-                  activeId={activeNeuralId}
-                  onSelect={(id) => {
-                    const cluster = neuralNodes.find((n) => n.id === id);
-                    if (cluster) void handleNeuralClusterSelect(cluster);
-                  }}
-                  scanning={vaultIndexLoading}
-                  vaultConnected={!!vault?.exists}
-                  totalNotes={vaultIndex.notes.length || vault?.noteCount || 0}
-                  mode={graphMode}
-                  graphNotes={vaultIndex.graphNotes}
-                  graphEdges={vaultIndex.graphEdges}
-                  graphSearch={graphSearch}
-                  onNoteSelect={(path) => void handleVaultFileClick(path)}
-                />
-
-                <div className="memory-neural-stage-status">
-                  <span>
-                    {vault?.exists
-                      ? `${formatCompact(
-                          vaultIndex.notes.length || vault.noteCount,
-                        )} notes · ${formatCompact(vaultIndex.graphEdges.length)} links`
-                      : "No vault connected"}
-                  </span>
-                  <span>
-                    {vaultIndexLoading
-                      ? "Scanning"
-                      : vaultIndex.truncated
-                        ? "Partial index"
-                        : "Live sync"}
-                  </span>
-                </div>
-
-                <div className="memory-neural-stage-controls">
-                  <button
-                    type="button"
-                    className={`neural-mode-btn ${graphMode === "graph" ? "active" : ""}`}
-                    onClick={() => setGraphMode("graph")}
-                    title="Graph view — individual notes with backlink webs"
-                  >
-                    Graph
-                  </button>
-                  <button
-                    type="button"
-                    className={`neural-mode-btn ${graphMode === "cluster" ? "active" : ""}`}
-                    onClick={() => setGraphMode("cluster")}
-                    title="Cluster view — brain area categories"
-                  >
-                    Cluster
-                  </button>
-                  <button
-                    type="button"
-                    className={`neural-mode-btn ${neuralLayout === "side" ? "active" : ""}`}
-                    onClick={() =>
-                      setNeuralLayout(
-                        neuralLayout === "stacked" ? "side" : "stacked",
-                      )
-                    }
-                    title={
-                      neuralLayout === "stacked"
-                        ? "Switch to side-by-side layout"
-                        : "Switch to stacked layout"
-                    }
-                  >
-                    {neuralLayout === "stacked" ? "⇔" : "⇕"}
-                  </button>
-                  {graphMode === "graph" && (
-                    <input
-                      type="text"
-                      className="neural-search-input"
-                      placeholder="Search notes..."
-                      value={graphSearch}
-                      onChange={(e) => setGraphSearch(e.target.value)}
-                    />
-                  )}
-                </div>
-              </div>
-            </div>
-
-            <div className="memory-neural-pane-preview">
-              <section className="memory-neural-card memory-neural-preview-card">
-                <div className="memory-vault-index-header">
-                  <span>Live Note Preview</span>
-                  {neuralPreviewNote && (
-                    <span>{documentKindLabel(neuralPreviewNote)}</span>
-                  )}
-                </div>
-                {neuralPreviewNote ? (
-                  <div className="memory-neural-preview">
-                    <div className="memory-neural-preview-heading">
-                      <MemoryDocumentIcon note={neuralPreviewNote} />
-                      <div>
-                        <strong>
-                          {displayFileName(neuralPreviewNote.name)}
-                        </strong>
-                        <span>{displayLocalPath(neuralPreviewNote.path)}</span>
-                      </div>
-                    </div>
-                    {neuralPreviewNote.content ? (
-                      <div className="memory-neural-preview-body">
-                        {isMarkdownDocument(neuralPreviewNote) ? (
-                          <AgentMarkdown>
-                            {readableContent(neuralPreviewNote)}
-                          </AgentMarkdown>
-                        ) : (
-                          <pre>{readableContent(neuralPreviewNote)}</pre>
-                        )}
-                      </div>
-                    ) : (
-                      <div className="memory-empty memory-neural-empty">
-                        {neuralPreviewNote.error || "Preview unavailable."}
-                      </div>
-                    )}
-                    <div className="memory-vault-actions">
-                      <button
-                        className="btn btn-secondary btn-sm"
-                        onClick={() =>
-                          void window.hermesAPI.openLocalPath(
-                            neuralPreviewNote.path,
-                          )
-                        }
-                      >
-                        Open
-                      </button>
-                      <button
-                        className="btn btn-secondary btn-sm"
-                        onClick={() =>
-                          void window.hermesAPI.revealLocalPath(
-                            neuralPreviewNote.path,
-                          )
-                        }
-                      >
-                        Reveal
-                      </button>
-                      <button
-                        className="btn btn-primary btn-sm"
-                        onClick={() => setTab("vault")}
-                      >
-                        Read / Edit
-                      </button>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="memory-neural-book">
-                    <BookOpen size={38} />
-                    <p>
-                      Select a brain node to preview the first matching Obsidian
-                      note here.
-                    </p>
-                  </div>
-                )}
-              </section>
-            </div>
-          </div>
+          <MemoryNeuralMapPanel
+            vault={vault}
+            vaultIndex={vaultIndex}
+            vaultIndexLoading={vaultIndexLoading}
+            neuralNodes={neuralNodes}
+            activeNeuralId={activeNeuralId}
+            graphMode={graphMode}
+            graphSearch={graphSearch}
+            neuralLayout={neuralLayout}
+            neuralPreviewNote={neuralPreviewNote}
+            setGraphMode={setGraphMode}
+            setGraphSearch={setGraphSearch}
+            setNeuralLayout={setNeuralLayout}
+            onClusterSelect={(cluster) =>
+              void handleNeuralClusterSelect(cluster)
+            }
+            onNoteSelect={(path) => void handleVaultFileClick(path)}
+            onOpenPath={(path) => void window.hermesAPI.openLocalPath(path)}
+            onRevealPath={(path) => void window.hermesAPI.revealLocalPath(path)}
+            onShowVault={() => setTab("vault")}
+          />
         )}
 
         {tab === "vault" && (
-          <div className="memory-vault">
-            <div className="memory-vault-toolbar">
-              <div>
-                <div className="memory-vault-kicker">Personal Archive</div>
-                <div className="memory-vault-title">
-                  {vault?.exists ? vault.name : "No vault selected"}
-                </div>
-                <div className="memory-vault-path">
-                  {vault?.path ||
-                    "Choose your Obsidian vault to browse notes here."}
-                </div>
-              </div>
-              <div className="memory-vault-actions">
-                {vault?.path && (
-                  <button
-                    className="btn btn-secondary btn-sm"
-                    onClick={() => void handleRevealVault()}
-                  >
-                    Reveal
-                  </button>
-                )}
-                <button
-                  className="btn btn-primary btn-sm"
-                  onClick={() => void handleChooseVault()}
-                >
-                  {vault?.exists ? "Change Vault" : "Choose Vault"}
-                </button>
-              </div>
-            </div>
-
-            {!vault?.exists ? (
-              <div className="memory-empty">
-                <p>Obsidian vault not found.</p>
-                <p className="memory-empty-hint">
-                  The desktop app will remember the folder you choose.
-                </p>
-              </div>
-            ) : (
-              <div className="memory-vault-browser">
-                <div className="memory-vault-tree">
-                  <div className="memory-vault-index-header">
-                    <span>Vault Index</span>
-                    <span>
-                      {vault.noteCount.toLocaleString()} notes /{" "}
-                      {vault.totalFiles.toLocaleString()} files
-                    </span>
-                  </div>
-                  {vaultLoading ? (
-                    <div className="memory-vault-loading">Loading vault...</div>
-                  ) : (
-                    vaultRoot.map((node) => (
-                      <MemoryVaultTreeNode
-                        key={node.path}
-                        node={node}
-                        level={0}
-                        onFileClick={(path) => void handleVaultFileClick(path)}
-                      />
-                    ))
-                  )}
-                </div>
-                <div className="memory-vault-preview">
-                  {selectedNote ? (
-                    <article className="memory-vault-article">
-                      <header className="memory-vault-preview-header">
-                        <div className="memory-vault-preview-heading">
-                          <div className="memory-vault-document-icon">
-                            <MemoryDocumentIcon note={selectedNote} />
-                          </div>
-                          <div>
-                            <div className="memory-vault-kicker">
-                              {documentKindLabel(selectedNote)} /{" "}
-                              {selectedNote.size.toLocaleString()} bytes
-                            </div>
-                            <div className="memory-vault-preview-title">
-                              {displayFileName(selectedNote.name)}
-                            </div>
-                            <div className="memory-vault-preview-path">
-                              {displayLocalPath(selectedNote.path)}
-                            </div>
-                          </div>
-                        </div>
-                        <div className="memory-vault-actions">
-                          {selectedNoteEditable && (
-                            <button
-                              className="btn btn-secondary btn-sm"
-                              onClick={() => {
-                                setNoteEditMode((value) => !value);
-                                setNoteError("");
-                              }}
-                            >
-                              {noteEditMode ? (
-                                <>
-                                  <Eye size={13} />
-                                  Preview
-                                </>
-                              ) : (
-                                <>
-                                  <Edit3 size={13} />
-                                  Edit
-                                </>
-                              )}
-                            </button>
-                          )}
-                          {noteEditMode && selectedNoteEditable && (
-                            <>
-                              <button
-                                className="btn btn-secondary btn-sm"
-                                onClick={() => {
-                                  setNoteEditContent(noteOriginalContent);
-                                  setNoteEditMode(false);
-                                  setNoteError("");
-                                }}
-                                disabled={!selectedNoteDirty}
-                              >
-                                <X size={13} />
-                                Reset
-                              </button>
-                              <button
-                                className="btn btn-primary btn-sm"
-                                onClick={() => void handleSaveVaultNote()}
-                                disabled={
-                                  !selectedNoteDirty ||
-                                  noteSaveStatus === "saving"
-                                }
-                              >
-                                <Save size={13} />
-                                {noteSaveStatus === "saving"
-                                  ? "Saving"
-                                  : "Save"}
-                              </button>
-                            </>
-                          )}
-                          {!noteEditMode && (
-                            <>
-                              <button
-                                className="btn btn-secondary btn-sm"
-                                onClick={() =>
-                                  void window.hermesAPI.openLocalPath(
-                                    selectedNote.path,
-                                  )
-                                }
-                              >
-                                Open
-                              </button>
-                              <button
-                                className="btn btn-secondary btn-sm"
-                                onClick={() =>
-                                  void window.hermesAPI.revealLocalPath(
-                                    selectedNote.path,
-                                  )
-                                }
-                              >
-                                Reveal
-                              </button>
-                            </>
-                          )}
-                        </div>
-                      </header>
-                      {noteSaveStatus === "saved" && (
-                        <div className="memory-vault-save-status">
-                          <Check size={13} /> Saved
-                        </div>
-                      )}
-                      {noteError && (
-                        <div className="memory-error">{noteError}</div>
-                      )}
-                      {noteEditMode && selectedNoteEditable ? (
-                        <textarea
-                          className="memory-vault-editor"
-                          value={noteEditContent}
-                          onChange={(event) => {
-                            setNoteEditContent(event.target.value);
-                            setNoteSaveStatus("idle");
-                            setNoteError("");
-                          }}
-                          spellCheck={isMarkdownDocument(selectedNote)}
-                        />
-                      ) : selectedNote.content ? (
-                        <div className="memory-vault-readable">
-                          {isMarkdownDocument(selectedNote) ? (
-                            <div className="memory-vault-markdown">
-                              <AgentMarkdown>
-                                {readableContent(selectedNote)}
-                              </AgentMarkdown>
-                            </div>
-                          ) : isJsonDocument(selectedNote) ? (
-                            <pre className="memory-vault-json">
-                              {readableContent(selectedNote)}
-                            </pre>
-                          ) : (
-                            <pre className="memory-vault-note">
-                              {readableContent(selectedNote)}
-                            </pre>
-                          )}
-                        </div>
-                      ) : selectedNote.kind === "image" &&
-                        selectedNote.fileUrl ? (
-                        <img
-                          className="memory-vault-image"
-                          src={selectedNote.fileUrl}
-                          alt={selectedNote.name}
-                        />
-                      ) : selectedNote.kind === "pdf" &&
-                        selectedNote.fileUrl ? (
-                        <iframe
-                          className="memory-vault-pdf"
-                          src={selectedNote.fileUrl}
-                          title={selectedNote.name}
-                        />
-                      ) : (
-                        <div className="memory-empty">
-                          <p>{selectedNote.error || "Preview unavailable."}</p>
-                        </div>
-                      )}
-                      {selectedNote.truncated && (
-                        <div className="memory-vault-footnote">
-                          Preview truncated at the desktop safety limit.
-                        </div>
-                      )}
-                    </article>
-                  ) : (
-                    <div className="memory-empty memory-vault-front-page">
-                      <BookOpen size={34} />
-                      <p>Second Brain Index</p>
-                      <p className="memory-empty-hint">
-                        Pick a file from the vault index to read it like a wiki
-                        page.
-                      </p>
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
-          </div>
+          <MemoryVaultPanel
+            vault={vault}
+            vaultRoot={vaultRoot}
+            vaultLoading={vaultLoading}
+            selectedNote={selectedNote}
+            selectedNoteEditable={selectedNoteEditable}
+            selectedNoteDirty={selectedNoteDirty}
+            noteEditMode={noteEditMode}
+            noteEditContent={noteEditContent}
+            noteOriginalContent={noteOriginalContent}
+            noteSaveStatus={noteSaveStatus}
+            noteError={noteError}
+            setNoteEditMode={setNoteEditMode}
+            setNoteEditContent={setNoteEditContent}
+            setNoteSaveStatus={setNoteSaveStatus}
+            setNoteError={setNoteError}
+            onChooseVault={() => void handleChooseVault()}
+            onRevealVault={() => void handleRevealVault()}
+            onFileClick={(path) => void handleVaultFileClick(path)}
+            onSaveVaultNote={() => void handleSaveVaultNote()}
+            onOpenPath={(path) => void window.hermesAPI.openLocalPath(path)}
+            onRevealPath={(path) => void window.hermesAPI.revealLocalPath(path)}
+          />
         )}
 
         {/* Agent Memory Entries */}

@@ -1,18 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import {
-  Archive,
-  Ban,
-  CheckCircle2,
-  GitBranch,
-  MessageSquare,
-  Plus,
-  RefreshCw,
-  Send,
-  UserPlus,
-  X,
-  Zap,
-} from "lucide-react";
-import TaskCard from "./TaskCard";
+import { GitBranch, Plus, RefreshCw, X, Zap } from "lucide-react";
+import { KanbanBoardView } from "./KanbanBoardView";
+import { KanbanCreateModal, type KanbanTaskDraft } from "./KanbanCreateModal";
+import { KanbanDrawer } from "./KanbanDrawer";
 import type {
   KanbanBoardData,
   KanbanCommandResult,
@@ -25,7 +15,6 @@ import {
   COLUMNS,
   EMPTY_COLUMNS,
   formatAge,
-  formatTime,
   parseSkillList,
   summarizeDispatch,
   taskMatches,
@@ -52,7 +41,7 @@ export default function Kanban(): React.JSX.Element {
   const [completionSummary, setCompletionSummary] = useState("");
   const [blockReason, setBlockReason] = useState("");
 
-  const [newTask, setNewTask] = useState({
+  const [newTask, setNewTask] = useState<KanbanTaskDraft>({
     title: "",
     body: "",
     assignee: "",
@@ -300,147 +289,14 @@ export default function Kanban(): React.JSX.Element {
   return (
     <div className="kanban-container">
       {showCreate && (
-        <div
-          className="skills-detail-overlay"
-          onClick={() => setShowCreate(false)}
-        >
-          <div className="kanban-modal" onClick={(e) => e.stopPropagation()}>
-            <div className="kanban-modal-header">
-              <h3>New Kanban Task</h3>
-              <button
-                className="btn-ghost"
-                onClick={() => setShowCreate(false)}
-              >
-                <X size={18} />
-              </button>
-            </div>
-            <div className="kanban-modal-body">
-              <label>
-                Title
-                <input
-                  className="input"
-                  value={newTask.title}
-                  onChange={(e) =>
-                    setNewTask((t) => ({ ...t, title: e.target.value }))
-                  }
-                  placeholder="Design auth schema"
-                />
-              </label>
-              <label>
-                Body
-                <textarea
-                  className="input kanban-textarea"
-                  value={newTask.body}
-                  onChange={(e) =>
-                    setNewTask((t) => ({ ...t, body: e.target.value }))
-                  }
-                  placeholder="Acceptance criteria, handoff notes, constraints"
-                  rows={4}
-                />
-              </label>
-              <div className="kanban-form-grid">
-                <label>
-                  Assignee
-                  <select
-                    className="input"
-                    value={newTask.assignee}
-                    onChange={(e) =>
-                      setNewTask((t) => ({ ...t, assignee: e.target.value }))
-                    }
-                  >
-                    <option value="">Unassigned</option>
-                    {spawnableAssignees.map((assignee) => (
-                      <option key={assignee.name} value={assignee.name}>
-                        {assignee.name}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <label>
-                  Tenant
-                  <input
-                    className="input"
-                    value={newTask.tenant}
-                    onChange={(e) =>
-                      setNewTask((t) => ({ ...t, tenant: e.target.value }))
-                    }
-                    placeholder="content-ops"
-                  />
-                </label>
-                <label>
-                  Priority
-                  <input
-                    className="input"
-                    type="number"
-                    value={newTask.priority}
-                    onChange={(e) =>
-                      setNewTask((t) => ({ ...t, priority: e.target.value }))
-                    }
-                  />
-                </label>
-                <label>
-                  Max runtime
-                  <input
-                    className="input"
-                    value={newTask.maxRuntime}
-                    onChange={(e) =>
-                      setNewTask((t) => ({ ...t, maxRuntime: e.target.value }))
-                    }
-                    placeholder="30m"
-                  />
-                </label>
-              </div>
-              <label>
-                Workspace
-                <input
-                  className="input"
-                  value={newTask.workspace}
-                  onChange={(e) =>
-                    setNewTask((t) => ({ ...t, workspace: e.target.value }))
-                  }
-                  placeholder="scratch | worktree | dir:/absolute/path"
-                />
-              </label>
-              <label>
-                Skills
-                <input
-                  className="input"
-                  value={newTask.skills}
-                  onChange={(e) =>
-                    setNewTask((t) => ({ ...t, skills: e.target.value }))
-                  }
-                  placeholder="github-code-review, translation"
-                />
-              </label>
-              <label className="kanban-checkbox">
-                <input
-                  type="checkbox"
-                  checked={newTask.triage}
-                  onChange={(e) =>
-                    setNewTask((t) => ({ ...t, triage: e.target.checked }))
-                  }
-                />
-                Park in triage
-              </label>
-            </div>
-            <div className="kanban-modal-footer">
-              <button
-                className="btn btn-secondary"
-                onClick={() => setShowCreate(false)}
-              >
-                Cancel
-              </button>
-              <button
-                className="btn btn-primary"
-                onClick={createTask}
-                disabled={!newTask.title.trim() || action === "create"}
-              >
-                <Plus size={14} />
-                Create
-              </button>
-            </div>
-          </div>
-        </div>
+        <KanbanCreateModal
+          action={action}
+          newTask={newTask}
+          setNewTask={setNewTask}
+          spawnableAssignees={spawnableAssignees}
+          onClose={() => setShowCreate(false)}
+          onCreate={() => void createTask()}
+        />
       )}
 
       <div className="kanban-header">
@@ -563,253 +419,35 @@ export default function Kanban(): React.JSX.Element {
         </button>
       </div>
 
-      <div className="kanban-main">
-        <div className="kanban-board">
-          {loading && !boardData ? (
-            <div className="kanban-loading">
-              <div className="loading-spinner" />
-            </div>
-          ) : (
-            COLUMNS.map((column) => {
-              const tasks = filteredColumns[column.id] || [];
-              const runningByProfile =
-                column.id === "running" && lanesByProfile
-                  ? Object.entries(
-                      tasks.reduce(
-                        (acc, task) => {
-                          const key = task.assignee || "unassigned";
-                          acc[key] = [...(acc[key] || []), task];
-                          return acc;
-                        },
-                        {} as Record<string, KanbanTask[]>,
-                      ),
-                    )
-                  : [];
-
-              return (
-                <section
-                  key={column.id}
-                  className={`kanban-column kanban-${column.id}`}
-                >
-                  <div className="kanban-column-header">
-                    <span
-                      className={`kanban-status-dot kanban-status-${column.id}`}
-                    />
-                    <div>
-                      <h3>{column.label}</h3>
-                      <span>{column.short}</span>
-                    </div>
-                    <strong>{tasks.length}</strong>
-                  </div>
-                  <div className="kanban-column-body">
-                    {tasks.length === 0 && (
-                      <div className="kanban-empty">Empty</div>
-                    )}
-                    {runningByProfile.length > 0
-                      ? runningByProfile.map(([profile, laneTasks]) => (
-                          <div key={profile} className="kanban-lane">
-                            <div className="kanban-lane-title">
-                              <span>{profile}</span>
-                              <b>{laneTasks.length}</b>
-                            </div>
-                            {laneTasks.map((task) => (
-                              <TaskCard
-                                key={task.id}
-                                task={task}
-                                active={selected?.task.id === task.id}
-                                onClick={() => openTask(task)}
-                              />
-                            ))}
-                          </div>
-                        ))
-                      : tasks.map((task) => (
-                          <TaskCard
-                            key={task.id}
-                            task={task}
-                            active={selected?.task.id === task.id}
-                            onClick={() => openTask(task)}
-                          />
-                        ))}
-                  </div>
-                </section>
-              );
-            })
-          )}
-        </div>
-      </div>
+      <KanbanBoardView
+        loading={loading}
+        boardData={boardData}
+        filteredColumns={filteredColumns}
+        lanesByProfile={lanesByProfile}
+        selectedTaskId={selected?.task.id}
+        onOpenTask={(task) => void openTask(task)}
+      />
 
       {selected && (
-        <aside className="kanban-drawer">
-          <div className="kanban-drawer-header">
-            <div>
-              <span className="kanban-card-id">{selected.task.id}</span>
-              <h3>{selected.task.title}</h3>
-            </div>
-            <button className="btn-ghost" onClick={() => setSelected(null)}>
-              <X size={16} />
-            </button>
-          </div>
-          <div className="kanban-drawer-body">
-            <div className="kanban-detail-grid">
-              <span>Status</span>
-              <b>{selected.task.status}</b>
-              <span>Assignee</span>
-              <b>{selected.task.assignee || "unassigned"}</b>
-              <span>Tenant</span>
-              <b>{selected.task.tenant || "default"}</b>
-              <span>Created</span>
-              <b>{formatTime(selected.task.created_at)}</b>
-            </div>
-
-            {selected.task.body && (
-              <div className="kanban-detail-section">
-                <h4>Body</h4>
-                <p>{selected.task.body}</p>
-              </div>
-            )}
-
-            <div className="kanban-action-grid">
-              <button
-                className="btn btn-secondary"
-                onClick={() => runTaskAction(selected.task.id, "ready")}
-                disabled={action?.startsWith(selected.task.id)}
-              >
-                <Send size={14} />
-                Ready
-              </button>
-              <button
-                className="btn btn-secondary"
-                onClick={() =>
-                  runTaskAction(selected.task.id, "blocked", {
-                    reason: blockReason || "Needs input from 80m desktop",
-                  })
-                }
-                disabled={action?.startsWith(selected.task.id)}
-              >
-                <Ban size={14} />
-                Block
-              </button>
-              <button
-                className="btn btn-secondary"
-                onClick={() =>
-                  runTaskAction(selected.task.id, "done", {
-                    summary:
-                      completionSummary || "Completed from 80m desktop Kanban.",
-                  })
-                }
-                disabled={action?.startsWith(selected.task.id)}
-              >
-                <CheckCircle2 size={14} />
-                Done
-              </button>
-              <button
-                className="btn btn-secondary"
-                onClick={() => runTaskAction(selected.task.id, "archived")}
-                disabled={action?.startsWith(selected.task.id)}
-              >
-                <Archive size={14} />
-                Archive
-              </button>
-            </div>
-
-            <label>
-              Completion summary
-              <textarea
-                className="input kanban-textarea"
-                value={completionSummary}
-                onChange={(e) => setCompletionSummary(e.target.value)}
-                rows={3}
-              />
-            </label>
-            <label>
-              Block reason
-              <input
-                className="input"
-                value={blockReason}
-                onChange={(e) => setBlockReason(e.target.value)}
-              />
-            </label>
-            <label>
-              Assign profile
-              <div className="kanban-inline-action">
-                <select
-                  className="input"
-                  value={newTask.assignee}
-                  onChange={(e) =>
-                    setNewTask((t) => ({ ...t, assignee: e.target.value }))
-                  }
-                >
-                  <option value="">Unassigned</option>
-                  {spawnableAssignees.map((assignee) => (
-                    <option key={assignee.name} value={assignee.name}>
-                      {assignee.name}
-                    </option>
-                  ))}
-                </select>
-                <button
-                  className="btn btn-secondary"
-                  onClick={() => assignTask(selected.task.id)}
-                  disabled={action === `${selected.task.id}:assign`}
-                >
-                  <UserPlus size={14} />
-                </button>
-              </div>
-            </label>
-
-            <div className="kanban-detail-section">
-              <h4>Comments</h4>
-              <div className="kanban-comment-list">
-                {selected.comments.length === 0 && (
-                  <div className="kanban-empty">No comments</div>
-                )}
-                {selected.comments.map((comment, index) => (
-                  <div
-                    key={`${comment.created_at}-${index}`}
-                    className="kanban-comment"
-                  >
-                    <span>
-                      {comment.author} - {formatTime(comment.created_at)}
-                    </span>
-                    <p>{comment.body}</p>
-                  </div>
-                ))}
-              </div>
-              <div className="kanban-inline-action">
-                <input
-                  className="input"
-                  value={commentText}
-                  onChange={(e) => setCommentText(e.target.value)}
-                  placeholder="Add durable note"
-                />
-                <button
-                  className="btn btn-secondary"
-                  onClick={addComment}
-                  disabled={!commentText.trim() || action === "comment"}
-                >
-                  <MessageSquare size={14} />
-                </button>
-              </div>
-            </div>
-
-            <div className="kanban-detail-section">
-              <h4>Run History</h4>
-              <div className="kanban-run-list">
-                {selected.runs.length === 0 && (
-                  <div className="kanban-empty">No runs yet</div>
-                )}
-                {selected.runs.map((run) => (
-                  <div key={run.id} className="kanban-run">
-                    <div>
-                      <b>{run.outcome || run.status}</b>
-                      <span>{run.profile || "unknown"}</span>
-                    </div>
-                    <p>{run.summary || run.error || "No summary"}</p>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        </aside>
+        <KanbanDrawer
+          action={action}
+          selected={selected}
+          spawnableAssignees={spawnableAssignees}
+          newTask={newTask}
+          commentText={commentText}
+          completionSummary={completionSummary}
+          blockReason={blockReason}
+          setSelected={setSelected}
+          setNewTask={setNewTask}
+          setCommentText={setCommentText}
+          setCompletionSummary={setCompletionSummary}
+          setBlockReason={setBlockReason}
+          onRunTaskAction={(taskId, status, options) => {
+            void runTaskAction(taskId, status, options);
+          }}
+          onAssignTask={(taskId) => void assignTask(taskId)}
+          onAddComment={() => void addComment()}
+        />
       )}
     </div>
   );
