@@ -1,5 +1,6 @@
 import { contextBridge, ipcRenderer, webUtils } from "electron";
 import { electronAPI } from "@electron-toolkit/preload";
+import type { HermesAPI } from "./hermes-api.types";
 
 const hermesAPI = {
   // Installation
@@ -928,7 +929,7 @@ const hermesAPI = {
 if (process.contextIsolated) {
   try {
     contextBridge.exposeInMainWorld("electron", electronAPI);
-    contextBridge.exposeInMainWorld("hermesAPI", hermesAPI);
+    contextBridge.exposeInMainWorld("hermesAPI", hermesAPI as HermesAPI);
   } catch (error) {
     console.error(error);
   }
@@ -936,5 +937,5 @@ if (process.contextIsolated) {
   // @ts-ignore (define in dts)
   window.electron = electronAPI;
   // @ts-ignore (define in dts)
-  window.hermesAPI = hermesAPI;
+  window.hermesAPI = hermesAPI as HermesAPI;
 }
