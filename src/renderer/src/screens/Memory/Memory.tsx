@@ -1,10 +1,10 @@
 import { useState, useEffect, useCallback } from "react";
-import { Refresh } from "../../assets/icons";
 import { useI18n } from "../../components/useI18n";
-import { Brain } from "lucide-react";
 import { MemoryEntriesPanel } from "./MemoryEntriesPanel";
+import { MemoryHeader } from "./MemoryHeader";
 import { MemoryNeuralMapPanel } from "./MemoryNeuralMapPanel";
 import { MemoryProvidersPanel } from "./MemoryProvidersPanel";
+import { MemoryTabs, type MemoryTabId } from "./MemoryTabs";
 import { MemoryUserProfilePanel } from "./MemoryUserProfilePanel";
 import { MemoryVaultPanel } from "./MemoryVaultPanel";
 import { buildNeuralNodes } from "./memoryNeuralModel";
@@ -22,16 +22,13 @@ import {
   buildNeuralVaultIndex,
   EMPTY_VAULT_INDEX,
   isEditableDocument,
-  timeAgo,
 } from "./memoryUtils";
 
 function Memory({ profile }: { profile?: string }): React.JSX.Element {
   const { t } = useI18n();
   const [data, setData] = useState<MemoryData | null>(null);
   const [loading, setLoading] = useState(true);
-  const [tab, setTab] = useState<
-    "map" | "vault" | "entries" | "profile" | "providers"
-  >("map");
+  const [tab, setTab] = useState<MemoryTabId>("map");
   const [error, setError] = useState("");
   const [memoryProvider, setMemoryProvider] = useState<string | null>(null);
   const [providers, setProviders] = useState<MemoryProviderInfo[]>([]);
@@ -348,103 +345,25 @@ function Memory({ profile }: { profile?: string }): React.JSX.Element {
 
   return (
     <div className="main-80m memory-main">
-      <div className="screen-header-80m memory-screen-header">
-        <div className="memory-screen-title-lockup">
-          <span className="memory-brain-glyph">
-            <Brain size={18} />
-          </span>
-          <div>
-            <span className="screen-header-80m-title">
-              SECOND BRAIN {vault?.exists ? `// ${vault.name}` : ""}
-            </span>
-            <p className="memory-subtitle">
-              {vault?.path ||
-                "Obsidian vault, agent memory, and long-term profile context."}
-            </p>
-          </div>
-        </div>
-        <div
-          className="memory-vault-actions"
-          style={{ display: "flex", gap: "8px", alignItems: "center" }}
-        >
-          {vault?.path && (
-            <button
-              className="btn btn-secondary btn-sm"
-              onClick={() => void handleRevealVault()}
-            >
-              Reveal
-            </button>
-          )}
-          {vault?.path && (
-            <button
-              className="btn btn-secondary btn-sm"
-              onClick={() => {
-                void loadData();
-                void handleRefreshVaultIndex();
-              }}
-              disabled={vaultIndexLoading}
-            >
-              <Refresh size={13} />
-              Reindex Vault
-            </button>
-          )}
-          <button
-            className="btn btn-primary btn-sm"
-            onClick={() => void handleChooseVault()}
-          >
-            {vault?.exists ? "Change Vault" : "Choose Vault"}
-          </button>
-        </div>
-      </div>
+      <MemoryHeader
+        title={t("memory.title")}
+        vault={vault}
+        vaultIndexLoading={vaultIndexLoading}
+        onChooseVault={() => void handleChooseVault()}
+        onRefreshVaultIndex={() => {
+          void loadData();
+          void handleRefreshVaultIndex();
+        }}
+        onRevealVault={() => void handleRevealVault()}
+      />
       <div className="screen-content-80m memory-screen-content">
-        <div className="memory-tabs memory-tabs-neural">
-          <button
-            className={`memory-tab ${tab === "map" ? "active" : ""}`}
-            onClick={() => setTab("map")}
-          >
-            Neural Map
-          </button>
-          <button
-            className={`memory-tab ${tab === "vault" ? "active" : ""}`}
-            onClick={() => setTab("vault")}
-          >
-            Vault Index
-            {vault?.exists && (
-              <span className="memory-tab-time">{vault.name}</span>
-            )}
-          </button>
-          <button
-            className={`memory-tab ${tab === "entries" ? "active" : ""}`}
-            onClick={() => setTab("entries")}
-          >
-            {t("memory.agentMemory")}
-            {data.memory.lastModified && (
-              <span className="memory-tab-time">
-                {timeAgo(data.memory.lastModified)}
-              </span>
-            )}
-          </button>
-          <button
-            className={`memory-tab ${tab === "profile" ? "active" : ""}`}
-            onClick={() => setTab("profile")}
-          >
-            {t("memory.userProfile")}
-            {data.user.lastModified && (
-              <span className="memory-tab-time">
-                {timeAgo(data.user.lastModified)}
-              </span>
-            )}
-          </button>
-          <button
-            className={`memory-tab ${tab === "providers" ? "active" : ""}`}
-            onClick={() => setTab("providers")}
-          >
-            {t("memory.providersTitle")}
-            {memoryProvider && (
-              <span className="memory-tab-time">{memoryProvider}</span>
-            )}
-          </button>
-        </div>
+        <MemoryTabs
+          data={data}
+          memoryProvider={memoryProvider}
+          tab={tab}
+          vault={vault}
+          setTab={setTab}
+        />
 
         {error && <div className="memory-error">{error}</div>}
 

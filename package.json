@@ -30,6 +30,7 @@
     "build:release": "electron-vite build && electron-builder --linux AppImage deb snap",
     "smoke:hermes": "node scripts/hermes-smoke.js",
     "smoke:hermes:chat": "node scripts/hermes-smoke.js --chat",
+    "smoke:ui": "node scripts/packaged-ui-smoke.mjs",
     "test:watch": "vitest"
   },
   "dependencies": {

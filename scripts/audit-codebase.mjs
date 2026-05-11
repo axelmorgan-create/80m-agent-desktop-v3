@@ -94,7 +94,10 @@ const requiredModulePaths = [
   "src/renderer/src/components/80m/SettingsFrame.tsx",
   "src/renderer/src/components/80m/SettingsPanelContent.tsx",
   "src/renderer/src/components/80m/useAgentPreviewDock.ts",
+  "src/renderer/src/components/80m/useChatRuntimeEvents.ts",
+  "src/renderer/src/screens/Memory/MemoryHeader.tsx",
   "src/renderer/src/screens/Memory/MemoryNeuralMapPanel.tsx",
+  "src/renderer/src/screens/Memory/MemoryTabs.tsx",
   "src/renderer/src/screens/Memory/MemoryVaultTreeNode.tsx",
   "src/renderer/src/screens/Schedules/SchedulesCreateModal.tsx",
   "src/renderer/src/screens/Schedules/SchedulesDeleteModal.tsx",
@@ -111,6 +114,9 @@ const workspaceSource = readRelativeFile(
 );
 const projectsSource = readRelativeFile(
   "src/renderer/src/components/80m/ProjectsSidebar.tsx",
+);
+const borderlessShellStyles = readRelativeFile(
+  "src/renderer/src/assets/styles/13a-borderless-shell.css",
 );
 
 const rendererContractFailures = [];
@@ -135,6 +141,24 @@ if (
 ) {
   rendererContractFailures.push(
     "Project root folder must close the active project",
+  );
+}
+if (
+  !/\[data-theme\]\s+\.app-titlebar\s*\{[\s\S]*pointer-events:\s*none/.test(
+    borderlessShellStyles,
+  )
+) {
+  rendererContractFailures.push(
+    "Invisible titlebar must not intercept top toolbar controls",
+  );
+}
+if (
+  !/\[data-theme\]\s+\.app-titlebar-controls\s*\{[\s\S]*pointer-events:\s*auto/.test(
+    borderlessShellStyles,
+  )
+) {
+  rendererContractFailures.push(
+    "Window controls must stay clickable when titlebar shell is transparent",
   );
 }
 

@@ -35,8 +35,8 @@
   border: 0 !important;
   background: transparent !important;
   box-shadow: none !important;
-  pointer-events: auto;
-  -webkit-app-region: drag;
+  pointer-events: none;
+  -webkit-app-region: no-drag;
 }
 
 [data-theme] .app-titlebar::after {
@@ -116,13 +116,15 @@
   -webkit-app-region: drag;
 }
 
-[data-theme] .conversation-toolbar :is(
-  button,
-  [role="button"],
-  [role="tab"],
-  .conversation-tabs,
-  .conversation-action-cluster
-) {
+[data-theme]
+  .conversation-toolbar
+  :is(
+    button,
+    [role="button"],
+    [role="tab"],
+    .conversation-tabs,
+    .conversation-action-cluster
+  ) {
   -webkit-app-region: no-drag;
 }
 
@@ -183,11 +185,12 @@
   z-index: 10;
 }
 
-[data-theme] :is(
-  .sidebar-80m-brand-row,
-  .sidebar-80m-logo-toggle,
-  .sidebar-80m-mascot-picker
-) {
+[data-theme]
+  :is(
+    .sidebar-80m-brand-row,
+    .sidebar-80m-logo-toggle,
+    .sidebar-80m-mascot-picker
+  ) {
   z-index: 32;
 }
 
@@ -199,11 +202,8 @@
   z-index: 44;
 }
 
-[data-theme] :is(
-  .sidebar-80m-nav,
-  .sidebar-80m-sessions,
-  .sidebar-80m-session-list
-) {
+[data-theme]
+  :is(.sidebar-80m-nav, .sidebar-80m-sessions, .sidebar-80m-session-list) {
   z-index: 12;
 }
 
@@ -232,7 +232,9 @@
 }
 
 [data-theme="light"] .sidebar-80m-agent-menu .sidebar-80m-agent-menu-item:hover,
-[data-theme="light"] .sidebar-80m-agent-menu .sidebar-80m-agent-menu-item.active {
+[data-theme="light"]
+  .sidebar-80m-agent-menu
+  .sidebar-80m-agent-menu-item.active {
   border-color: rgba(22, 101, 52, 0.2) !important;
   background: rgba(74, 222, 128, 0.16) !important;
   color: #0f7a38 !important;
@@ -243,45 +245,48 @@
   z-index: auto;
 }
 
-[data-theme] :is(
-  .conversation-toolbar,
-  .conversation-shell,
-  .conversation-workspace,
-  .conversation-pane,
-  .main-80m
-) {
+[data-theme]
+  :is(
+    .conversation-toolbar,
+    .conversation-shell,
+    .conversation-workspace,
+    .conversation-pane,
+    .main-80m
+  ) {
   position: relative;
   z-index: auto;
 }
 
-[data-theme] :is(
-  .conversation-toolbar,
-  .conversation-tabs,
-  .conversation-tab-wrap,
-  .conversation-icon-btn,
-  .conversation-action-cluster,
-  .conversation-pane-header,
-  .messages-80m,
-  .msg-80m,
-  .msg-80m-bubble,
-  .welcome-empty-80m,
-  .file-drop-overlay
-) {
+[data-theme]
+  :is(
+    .conversation-toolbar,
+    .conversation-tabs,
+    .conversation-tab-wrap,
+    .conversation-icon-btn,
+    .conversation-action-cluster,
+    .conversation-pane-header,
+    .messages-80m,
+    .msg-80m,
+    .msg-80m-bubble,
+    .welcome-empty-80m,
+    .file-drop-overlay
+  ) {
   position: relative;
   z-index: 32;
 }
 
-[data-theme] :is(
-  .memory-screen-header,
-  .memory-screen-content,
-  .memory-tabs-neural,
-  .memory-neural-dashboard,
-  .memory-vault,
-  .memory-entries,
-  .memory-profile,
-  .memory-providers,
-  .memory-error
-) {
+[data-theme]
+  :is(
+    .memory-screen-header,
+    .memory-screen-content,
+    .memory-tabs-neural,
+    .memory-neural-dashboard,
+    .memory-vault,
+    .memory-entries,
+    .memory-profile,
+    .memory-providers,
+    .memory-error
+  ) {
   position: relative;
   z-index: 32;
 }
@@ -341,4 +346,3 @@
   filter: blur(18px);
   opacity: 0.96;
 }
-
