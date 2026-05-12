@@ -17,6 +17,7 @@ import {
 } from "./installer";
 import { readEnv, setEnvValue, getPlatformEnabled } from "./config";
 import { applyLongHaulEnv, ensureLongHaulConfig } from "./hermes-long-haul";
+import { normalizeProfileName, profileHome } from "./utils";
 import {
   ensureApiServerKey,
   isApiServerReady,
@@ -124,17 +125,10 @@ export async function sendMessage(
     apiServerAvailable = false;
   }
 
-  // Remote mode: always use API, no CLI fallback
-  if (isRemoteMode()) {
-    return sendMessageViaApi(
-      message,
-      cb,
-      profile,
-      resumeSessionId,
-      history,
-      activeProject,
-    );
-  }
+  // Routing: prefer full-agent loop (memory + tools + fabric) over raw LLM.
+  // 1. Runs API (full agent loop via gateway, local or remote)
+  // 2. CLI (full agent loop via hermes.py, local only)
+  // 3. Raw API chat completions (no tools, no memory -- last resort)
 
   // Check API server availability (cache the result, re-check periodically)
   if (apiServerAvailable === null || apiServerAvailable === false) {
@@ -142,6 +136,7 @@ export async function sendMessage(
     if (!apiServerAvailable) runsApiAvailable = false;
   }
 
+  // Route 1: Runs API -- full agent loop with memory, skills, tools
   if (apiServerAvailable) {
     if (runsApiAvailable === null) {
       runsApiAvailable = await isRunsApiReady(profile);
@@ -156,22 +151,26 @@ export async function sendMessage(
         activeProject,
       );
     }
-    return sendMessageViaApi(
+  }
+
+  // Route 2: CLI -- full agent loop (local only, skip in remote mode)
+  if (!isRemoteMode()) {
+    return sendMessageViaCli(
       message,
       cb,
       profile,
       resumeSessionId,
-      history,
       activeProject,
     );
   }
 
-  // Fallback to CLI
-  return sendMessageViaCli(
+  // Route 3: Raw API completions -- last resort when remote + no runs API
+  return sendMessageViaApi(
     message,
     cb,
     profile,
     resumeSessionId,
+    history,
     activeProject,
   );
 }
@@ -214,13 +213,20 @@ export function stopHealthPolling(): void {
 
 let gatewayProcess: ChildProcess | null = null;
 let gatewayStartedByApp = false;
+let gatewayProfile = "default";
 
 export function startGateway(profile?: string): boolean {
   ensureInitialized();
   ensureLongHaulConfig(profile);
-  if (isGatewayRunning()) return false;
+  const profileName = normalizeProfileName(profile);
+  if (isGatewayRunning(profileName)) return false;
+  if (isGatewayRunning()) stopGateway(true);
 
   const apiServerKey = ensureApiServerKey(profile);
+  const gatewayArgs =
+    profileName === "default"
+      ? [HERMES_SCRIPT, "gateway"]
+      : [HERMES_SCRIPT, "-p", profileName, "gateway"];
 
   // Build gateway env with profile API keys
   const gatewayEnv: Record<string, string> = applyLongHaulEnv({
@@ -258,7 +264,7 @@ export function startGateway(profile?: string): boolean {
     }
   }
 
-  gatewayProcess = spawn(HERMES_PYTHON, [HERMES_SCRIPT, "gateway"], {
+  gatewayProcess = spawn(HERMES_PYTHON, gatewayArgs, {
     cwd: HERMES_REPO,
     env: gatewayEnv,
     stdio: "ignore",
@@ -270,12 +276,14 @@ export function startGateway(profile?: string): boolean {
   gatewayProcess.on("close", () => {
     gatewayProcess = null;
     gatewayStartedByApp = false;
+    gatewayProfile = "default";
     apiServerAvailable = false;
     // Restart health polling to detect if gateway comes back
     startHealthPolling();
   });
 
   gatewayStartedByApp = true;
+  gatewayProfile = profileName;
 
   // Wait a bit then check if API server came up
   setTimeout(async () => {
@@ -285,8 +293,8 @@ export function startGateway(profile?: string): boolean {
   return true;
 }
 
-function readPidFile(): number | null {
-  const pidFile = join(HERMES_HOME, "gateway.pid");
+function readPidFile(profile?: string): number | null {
+  const pidFile = join(profileHome(profile), "gateway.pid");
   if (!existsSync(pidFile)) return null;
   try {
     const raw = readFileSync(pidFile, "utf-8").trim();
@@ -300,14 +308,14 @@ function readPidFile(): number | null {
   }
 }
 
-export function stopGateway(force = false): void {
+export function stopGateway(force = false, profile?: string): void {
   if (!force && !gatewayStartedByApp) return;
 
   if (gatewayProcess && !gatewayProcess.killed) {
     gatewayProcess.kill("SIGTERM");
     gatewayProcess = null;
   }
-  const pid = readPidFile();
+  const pid = readPidFile(profile);
   if (pid) {
     try {
       process.kill(pid, "SIGTERM");
@@ -318,7 +326,7 @@ export function stopGateway(force = false): void {
   // Always clear the PID file once we've signalled it. Leaving a stale PID
   // around means the next isGatewayRunning() / stopGateway() call can hit
   // an unrelated process that the OS has since assigned the same PID.
-  const pidFile = join(HERMES_HOME, "gateway.pid");
+  const pidFile = join(profileHome(profile), "gateway.pid");
   if (existsSync(pidFile)) {
     try {
       unlinkSync(pidFile);
@@ -327,12 +335,16 @@ export function stopGateway(force = false): void {
     }
   }
   gatewayStartedByApp = false;
+  gatewayProfile = "default";
   apiServerAvailable = false;
 }
 
-export function isGatewayRunning(): boolean {
-  if (gatewayProcess && !gatewayProcess.killed) return true;
-  const pid = readPidFile();
+export function isGatewayRunning(profile?: string): boolean {
+  const profileName = normalizeProfileName(profile);
+  if (gatewayProcess && !gatewayProcess.killed) {
+    return !profile || gatewayProfile === profileName;
+  }
+  const pid = readPidFile(profile);
   if (!pid) return false;
   try {
     process.kill(pid, 0);
@@ -347,8 +359,8 @@ export function isApiReady(): boolean {
 }
 
 export function restartGateway(profile?: string): void {
-  if (!gatewayStartedByApp && !isGatewayRunning()) return;
-  stopGateway(true);
+  if (!gatewayStartedByApp && !isGatewayRunning(profile)) return;
+  stopGateway(true, profile);
   setTimeout(() => {
     startGateway(profile);
   }, 500);
