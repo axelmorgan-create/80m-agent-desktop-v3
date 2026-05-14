@@ -1,4 +1,5 @@
 import { app, BrowserWindow } from "electron";
+import { existsSync, writeFileSync } from "fs";
 import { join } from "path";
 import { electronApp, is, optimizer } from "@electron-toolkit/utils";
 import icon from "../../resources/icon.png?asset";
@@ -7,6 +8,15 @@ import { registerAutomationIpc } from "./automation-ipc";
 import { registerBrowserIpc } from "./browser-ipc";
 import { abortActiveChats, registerChatIpc } from "./chat-ipc";
 import { stopAll as stopClaw3d } from "./claw3d";
+import {
+  ensureCortexClipperInstall,
+  registerCortexClipperIpc,
+} from "./cortex-clipper-ipc";
+import {
+  closeDesktopBuddyWindow,
+  openDesktopBuddyWindow,
+  registerDesktopBuddyIpc,
+} from "./desktop-buddy-ipc";
 import { stopWorkspaceWatch } from "./desktop-services";
 import { stopGateway, stopHealthPolling } from "./hermes";
 import { HERMES_HOME } from "./installer";
@@ -45,6 +55,7 @@ const profileWatcher = createProfileWatcher(HERMES_HOME, (source) => {
     createdAt: Date.now(),
   });
 });
+const desktopBuddyInstallMarker = "desktop-buddy-installed-v1.json";
 
 function sendAppNotification(payload: AppNotificationPayload): void {
   mainWindow?.webContents.send("app-notification", {
@@ -56,6 +67,33 @@ function sendAppNotification(payload: AppNotificationPayload): void {
 
 function emitProfilesChanged(source: string): void {
   profileWatcher.emit(source);
+}
+
+function maybeAutoInstallDesktopBuddy(): void {
+  const markerPath = join(app.getPath("userData"), desktopBuddyInstallMarker);
+  if (existsSync(markerPath)) return;
+
+  setTimeout(() => {
+    openDesktopBuddyWindow("80M Agent")
+      .then((opened) => {
+        if (!opened) return;
+        writeFileSync(
+          markerPath,
+          JSON.stringify(
+            {
+              installedAt: new Date().toISOString(),
+              version: app.getVersion(),
+            },
+            null,
+            2,
+          ),
+          "utf8",
+        );
+      })
+      .catch((error) => {
+        console.error("Failed to auto-install desktop buddy:", error);
+      });
+  }, 1400);
 }
 
 function createWindow(): void {
@@ -83,6 +121,7 @@ function createWindow(): void {
 
   mainWindow.on("ready-to-show", () => {
     mainWindow?.show();
+    maybeAutoInstallDesktopBuddy();
   });
 
   mainWindow.on("maximize", () => {
@@ -165,6 +204,8 @@ function setupIPC(): void {
       }),
   });
   registerBrowserIpc(getMainWindow);
+  registerDesktopBuddyIpc({ getMainWindow });
+  registerCortexClipperIpc();
 }
 
 function buildMenu(): void {
@@ -185,6 +226,11 @@ app.whenReady().then(() => {
 
   buildMenu();
   setupIPC();
+  try {
+    ensureCortexClipperInstall();
+  } catch (error) {
+    console.error("Failed to prepare Cortex Clipper:", error);
+  }
   bootstrapMobileAccess().catch((error) => {
     console.error("Failed to bootstrap Tailscale mobile access:", error);
   });
@@ -210,6 +256,7 @@ app.on("before-quit", () => {
   abortActiveChats();
   stopWorkspaceWatch();
   profileWatcher.stop();
+  closeDesktopBuddyWindow();
   stopGateway();
   stopClaw3d();
   stopBrowserService();

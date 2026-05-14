@@ -1,0 +1,12 @@
+{
+  "manifest_version": 3,
+  "name": "80M Cortex Clipper",
+  "version": "0.12.0",
+  "description": "Capture the active Chrome page into 80M Cortex through Knowledge Knaight.",
+  "permissions": ["activeTab", "scripting", "storage"],
+  "host_permissions": ["http://127.0.0.1/*", "http://localhost/*"],
+  "action": {
+    "default_title": "Capture to Cortex",
+    "default_popup": "popup.html"
+  }
+}

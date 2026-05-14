@@ -15,7 +15,7 @@
 
 ## Install
 
-Download the latest build from the [Releases](https://github.com/guapdad4000/80m-agent-desktop-v3/releases/) page.
+Download the latest build from the [Releases](https://github.com/guapdad4000/80m-agent-desktop-v3/releases/) page. The Linux release ships the desktop app, the Desktop Buddy assets, the Cortex Chrome Clipper files, and the local companion API that connects them.
 
 | Platform | File                  |
 | -------- | --------------------- |
@@ -31,6 +31,17 @@ Download the latest build from the [Releases](https://github.com/guapdad4000/80m
 >
 > Or right-click the app → **Open** → click **Open** in the confirmation dialog.
 
+### Client Setup
+
+On first launch the app prepares the client-local pieces automatically:
+
+1. **80M runtime check** — verifies the local runtime and guides install/configuration when needed.
+2. **Desktop Buddy install** — opens the small always-on-top buddy once, then keeps it available from the sidebar logo button.
+3. **Cortex Clipper install files** — copies the bundled Chrome extension into the app user-data folder so AppImage mounts and packaged paths do not break the browser extension.
+4. **Companion API** — starts the local `http://127.0.0.1:8780` API used by mobile pairing and the Chrome clipper.
+
+Chrome still requires a user-approved browser install step unless the client is using Chrome Web Store or managed enterprise policy distribution. The app opens the prepared extension folder and `chrome://extensions` from Settings so clients can load the bundled extension cleanly. This follows Chrome's documented extension distribution model: ordinary users install from the Chrome Web Store, while software-associated or organization-wide installs use supported external/enterprise mechanisms such as preferences files, registry entries, or admin policies.[^chrome-install][^chrome-hosting]
+
 ## What You Get
 
 - **Guided first-run install** for the local 80M runtime with progress tracking and dependency resolution
@@ -41,6 +52,9 @@ Download the latest build from the [Releases](https://github.com/guapdad4000/80m
 - **Profile switching** — create, delete, and switch between separate 80M environments with isolated config
 - **14 toolsets** — web, browser, terminal, file, code execution, vision, image gen, TTS, skills, memory, session search, delegation, MoA, and task planning
 - **Memory system** — view/edit memory entries, user profile memory, capacity tracking, and discoverable memory providers
+- **Second Brain navigator** — Obsidian-backed Cortex/Memory view with vault indexing, neural map browsing, and note preview
+- **Desktop Buddy** — packaged 3D buddy with SVG face, stronger idle eye tracking, collapsible controls, mic STT, and Voicebox-aware speech
+- **Cortex Chrome Clipper** — client-friendly browser extension that auto-connects locally, hides pairing codes, and sends pages through Knowledge Knaight into Cortex
 - **Persona editor** — edit and reset your agent's SOUL.md personality
 - **Saved models** — CRUD management for model configurations across providers
 - **Scheduled tasks** — cron job builder with 15 delivery targets
@@ -78,6 +92,28 @@ On first launch, the app:
 5. Launches the main workspace once setup is complete.
 
 Chat requests go through a local API server (`http://127.0.0.1:8642`) with SSE streaming. The desktop app parses the stream in real time, rendering tool progress, markdown content, and token usage as it arrives.
+
+### Desktop Buddy
+
+The Desktop Buddy is built into the release. It runs as a small transparent Electron window, uses the packaged GLB model and SVG face overlay, and exposes compact controls for chat focus, mic/STT, and close. When idle, the SVG eyes track the mouse. When the Cortex clipper saves a page, the buddy moves through `Ingesting`, `Saved`, or `Clip failed` states so clients get visible confirmation.
+
+Voice is routed through the local Voicebox profile when available, then falls back to the existing desktop TTS path. Details live in [docs/DESKTOP_BUDDY_VOICEBOX.md](docs/DESKTOP_BUDDY_VOICEBOX.md).
+
+### Cortex Chrome Clipper
+
+The release bundles `extensions/cortex-clipper` and the app copies it to a stable local install folder on startup. The popup no longer asks clients for a pairing code. Instead, it calls:
+
+```text
+POST http://127.0.0.1:8780/api/clipper/connect
+```
+
+That local-only handshake stores the pairing token inside Chrome extension storage. `Save to Cortex` captures the active tab and posts it to:
+
+```text
+POST http://127.0.0.1:8780/api/cortex/clip
+```
+
+The desktop app sends the page through the Knowledge Knaight synthesis path and writes the resulting Markdown record into the Obsidian-backed Cortex folder. More detail is in [docs/CORTEX_CHROME_CLIPPER.md](docs/CORTEX_CHROME_CLIPPER.md).
 
 ## Screens
 
@@ -142,15 +178,17 @@ npm run dev
 ### Run checks
 
 ```bash
+npm run audit:codebase
 npm run lint
 npm run typecheck
+npm run test
 ```
 
-### Run tests
+### Runtime smoke checks
 
 ```bash
-npm run test
-npm run test:watch
+npm run smoke:hermes
+npm run smoke:hermes:chat
 ```
 
 ### Build the desktop app
@@ -165,6 +203,12 @@ Platform packaging:
 npm run build:mac
 npm run build:win
 npm run build:linux
+```
+
+Release packaging:
+
+```bash
+npm run build:release
 ```
 
 ## First-Time Setup
@@ -190,6 +234,17 @@ Runtime files are managed in:
 - `~/.hermes/state.db` — session history database
 - `~/.hermes/cron/jobs.json` — scheduled tasks
 
+## Release Checklist
+
+Before publishing a public release:
+
+1. Run `npm run audit:codebase`, `npm run lint`, `npm run typecheck`, and `npm run test`.
+2. Run `npm run smoke:hermes` and `npm run smoke:hermes:chat` when runtime services are available.
+3. Run `cargo check --manifest-path src-tauri/Cargo.toml` to keep the Tauri metadata honest.
+4. Build with `npm run build:release`.
+5. Publish AppImage, deb, snap, and `latest-linux.yml` to the GitHub release.
+6. Refresh the local packaged handoff folder and verify the launcher points at the current binary.
+
 ## Tech Stack
 
 - **Electron** 39 — cross-platform desktop shell
@@ -210,3 +265,6 @@ Contributions are welcome! Check out the [Contributing Guide](CONTRIBUTING.md) t
 **80M Agent Desktop** is licensed MIT. It is derived from the MIT-licensed
 [Hermes Desktop](https://github.com/fathah/hermes-desktop) project; upstream
 attribution and 80M modification notices are documented in [NOTICE.md](NOTICE.md).
+
+[^chrome-install]: Chrome for Developers, [Use alternative installation methods](https://developer.chrome.com/docs/extensions/how-to/distribute/install-extensions).
+[^chrome-hosting]: Chrome for Developers, [Distribute your extension](https://developer.chrome.com/docs/extensions/mv3/hosting).

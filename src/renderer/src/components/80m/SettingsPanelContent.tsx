@@ -13,6 +13,7 @@ import { SettingsProfilesPanel } from "./SettingsProfilesPanel";
 import type { SettingsTabId } from "./settingsTabs";
 import type {
   CuratorCommandResult,
+  CortexClipperInstallInfo,
   HermesCapabilities,
   HermesHealth,
   ModelPreset,
@@ -58,6 +59,11 @@ interface SettingsPanelContentProps {
   onRunTailscaleAction: (action: "enable" | "disable" | "rotate") => void;
   onCopyMobileUrl: () => void;
   onOpenMobileUrl: () => void;
+  clipperInfo: CortexClipperInstallInfo | null;
+  clipperStatus: string;
+  onRefreshClipper: () => void;
+  onOpenClipperFolder: () => void;
+  onOpenChromeExtensions: () => void;
   health: HermesHealth | null;
   capabilities: HermesCapabilities | null;
   upgrading: boolean;
@@ -135,6 +141,11 @@ export function SettingsPanelContent({
   onRunTailscaleAction,
   onCopyMobileUrl,
   onOpenMobileUrl,
+  clipperInfo,
+  clipperStatus,
+  onRefreshClipper,
+  onOpenClipperFolder,
+  onOpenChromeExtensions,
   health,
   capabilities,
   upgrading,
@@ -221,6 +232,11 @@ export function SettingsPanelContent({
           onRunAction={onRunTailscaleAction}
           onCopyMobileUrl={onCopyMobileUrl}
           onOpenMobileUrl={onOpenMobileUrl}
+          clipperInfo={clipperInfo}
+          clipperStatus={clipperStatus}
+          onRefreshClipper={onRefreshClipper}
+          onOpenClipperFolder={onOpenClipperFolder}
+          onOpenChromeExtensions={onOpenChromeExtensions}
         />
       )}
 

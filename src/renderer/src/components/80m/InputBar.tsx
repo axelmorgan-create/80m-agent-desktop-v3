@@ -4,9 +4,13 @@ import {
   ClipboardPaste,
   GitBranch,
   ListPlus,
+  Mic,
   Radio,
   Send,
+  Square,
 } from "lucide-react";
+import { formatBytes } from "./messageToolUtils";
+import type { DroppedAttachment } from "./chatAreaTypes";
 
 export type BusySendMode = "queue" | "steer" | "background";
 
@@ -19,6 +23,8 @@ interface Props {
   onBusyModeChange?: (mode: BusySendMode) => void;
   onStop?: () => void;
   draftInsert?: { id: string; text: string } | null;
+  attachments?: DroppedAttachment[];
+  onRemoveAttachment?: (path: string) => void;
   onDraftInsertConsumed?: () => void;
 }
 
@@ -31,6 +37,8 @@ const InputBar: React.FC<Props> = ({
   onBusyModeChange,
   onStop,
   draftInsert,
+  attachments = [],
+  onRemoveAttachment,
   onDraftInsertConsumed,
 }) => {
   const [text, setText] = useState("");
@@ -319,6 +327,56 @@ const InputBar: React.FC<Props> = ({
     }
   }, [isRecording, isTranscribing, startRecording, stopRecording]);
 
+  const hasText = Boolean(text.trim());
+  const primaryActionMode = isRecording ? "stop" : hasText ? "send" : "record";
+  const primaryActionLabel = isRecording
+    ? "Stop voice recording"
+    : hasText
+      ? isBusy
+        ? busyMode === "background"
+          ? "Send background"
+          : busyMode === "steer"
+            ? "Steer"
+            : "Queue"
+        : "Send"
+      : "Start voice recording";
+
+  const handlePrimaryAction = useCallback(() => {
+    if (isRecording) {
+      stopRecording();
+      return;
+    }
+    if (hasText) {
+      handleSubmit();
+      return;
+    }
+    handleMicClick();
+  }, [handleMicClick, handleSubmit, hasText, isRecording, stopRecording]);
+
+  const handleRemoveAttachment = useCallback(
+    (attachment: DroppedAttachment) => {
+      onRemoveAttachment?.(attachment.path);
+      setText((current) => {
+        let next = current
+          .split("\n")
+          .filter((line) => !line.includes(attachment.path))
+          .join("\n")
+          .trimStart();
+        if (attachments.length <= 1) {
+          next = next
+            .replace(/^\[Attached files?\]\s*\n?/i, "")
+            .replace(
+              /\n?Use the file paths above when you need to inspect the dropped content\./i,
+              "",
+            )
+            .trimStart();
+        }
+        return next;
+      });
+    },
+    [attachments.length, onRemoveAttachment],
+  );
+
   // Keyboard shortcut: Cmd/Ctrl+Shift+Space for mic
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -347,6 +405,7 @@ const InputBar: React.FC<Props> = ({
     "input-80m-form",
     isBusy ? "thinking" : "",
     text.trim() ? "has-text" : "",
+    attachments.length ? "has-attachments" : "",
     isRecording ? "recording" : "",
     isTranscribing ? "transcribing" : "",
   ]
@@ -405,6 +464,48 @@ const InputBar: React.FC<Props> = ({
       )}
       <div className={formStateClass}>
         <div className="input-80m-wrapper">
+          {attachments.length > 0 && (
+            <div className="input-attachment-preview-tray">
+              {attachments.map((attachment) => (
+                <div className="input-attachment-preview" key={attachment.path}>
+                  {attachment.kind === "image" && attachment.fileUrl ? (
+                    <img src={attachment.fileUrl} alt="" />
+                  ) : (
+                    <span className="input-attachment-filetype">
+                      {attachment.kind === "pdf"
+                        ? "PDF"
+                        : attachment.kind === "directory"
+                          ? "DIR"
+                          : "FILE"}
+                    </span>
+                  )}
+                  <span className="input-attachment-copy">
+                    <span>{attachment.name}</span>
+                    {typeof attachment.size === "number" && (
+                      <small>{formatBytes(attachment.size)}</small>
+                    )}
+                  </span>
+                  <button
+                    type="button"
+                    aria-label={`Remove ${attachment.name}`}
+                    onClick={() => handleRemoveAttachment(attachment)}
+                  >
+                    x
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+          {(isBusy || isTranscribing) && (
+            <span
+              className="input-80m-inline-spinner"
+              aria-label={isTranscribing ? "Transcribing" : "Agent working"}
+              role="status"
+            >
+              <span className="input-80m-spinner-glyph">⠋</span>
+              <span>80m</span>
+            </span>
+          )}
           {showCommands && filteredCommands.length > 0 && (
             <div className="slash-commands-popup">
               {filteredCommands.map((cmd, idx) => (
@@ -428,7 +529,7 @@ const InputBar: React.FC<Props> = ({
             className="input-80m-textarea"
             placeholder={
               isRecording
-                ? "Recording... click the mic to stop"
+                ? "Recording... click the red stop button"
                 : isTranscribing
                   ? "Transcribing..."
                   : isBusy
@@ -456,89 +557,22 @@ const InputBar: React.FC<Props> = ({
           <ClipboardPaste size={16} />
         </button>
         <button
-          className={`input-80m-mic${isRecording ? " recording" : ""}${isTranscribing ? " transcribing" : ""}`}
-          onClick={handleMicClick}
-          title={
-            isRecording
-              ? "Stop voice recording"
-              : "Start voice recording (Ctrl+Shift+Space)"
-          }
-          type="button"
-          disabled={isTranscribing}
-        >
-          {/* Animated mic SVG with sound wave bars */}
-          <svg
-            viewBox="0 0 36 36"
-            fill="none"
-            xmlns="http://www.w3.org/2000/svg"
-            className={`mic-svg ${isRecording ? "animate-sound-wave" : ""}`}
-          >
-            {/* Mic body */}
-            <rect
-              x="13"
-              y="4"
-              width="10"
-              height="14"
-              rx="5"
-              fill="currentColor"
-              opacity="0.9"
-            />
-            {/* Mic stand arc */}
-            <path
-              d="M9 14a9 9 0 0 0 18 0"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              fill="none"
-            />
-            {/* Stand stem */}
-            <path
-              d="M18 23v5"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-            />
-            {/* Base */}
-            <line
-              x1="12"
-              y1="28"
-              x2="24"
-              y2="28"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-            />
-            {/* Spinning indicator when transcribing */}
-            {isTranscribing && (
-              <circle
-                cx="18"
-                cy="18"
-                r="16"
-                fill="none"
-                stroke="#22c55e"
-                strokeWidth="1.5"
-                strokeDasharray="4 3"
-                className="transcribe-spin"
-              />
-            )}
-          </svg>
-        </button>
-        <button
-          className="input-80m-send"
-          onClick={handleSubmit}
-          disabled={disabled || isRecording || !text.trim()}
-          title={
-            isBusy
-              ? busyMode === "background"
-                ? "Send background"
-                : busyMode === "steer"
-                  ? "Steer"
-                  : "Queue"
-              : "Send"
-          }
+          className={`input-80m-send input-80m-primary-action ${primaryActionMode}-mode${isRecording ? " recording" : ""}${isTranscribing ? " transcribing" : ""}`}
+          onClick={handlePrimaryAction}
+          disabled={(disabled && !isRecording) || isTranscribing}
+          title={primaryActionLabel}
           type="button"
         >
-          <Send size={18} />
+          <span className="input-primary-action-send">
+            <Send size={18} />
+          </span>
+          <span className="input-primary-action-record">
+            <Mic size={18} />
+            <i />
+          </span>
+          <span className="input-primary-action-stop">
+            <Square size={13} fill="currentColor" strokeWidth={1.5} />
+          </span>
         </button>
       </div>
     </div>

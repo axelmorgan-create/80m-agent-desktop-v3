@@ -89,6 +89,17 @@ export interface TailscaleMobileStatus {
   noFunnel: true;
 }
 
+export interface CortexClipperInstallInfo {
+  sourcePath: string;
+  installPath: string;
+  exists: boolean;
+  manifestVersion: string | null;
+  companionUrl: string;
+  chromeExtensionsUrl: string;
+  canSilentInstall: false;
+  installNote: string;
+}
+
 export interface CuratorCommandResult {
   success: boolean;
   supported: boolean;

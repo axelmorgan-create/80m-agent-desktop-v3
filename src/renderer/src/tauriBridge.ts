@@ -788,6 +788,46 @@ export const installTauriBridge = (): void => {
     windowIsMaximized: () => call("window_is_maximized", {}, false),
     onWindowMaximized: (callback) => onEvent("window-maximized", callback),
     onAppNotification: (callback) => onEvent("app-notification", callback),
+    openDesktopBuddy: (profile) =>
+      call("desktop_buddy_open", { profile }, false),
+    closeDesktopBuddy: () => call("desktop_buddy_close", {}, false),
+    toggleDesktopBuddy: (profile) =>
+      call("desktop_buddy_toggle", { profile }, false),
+    setDesktopBuddyState: (payload) => {
+      emitLocal("desktop-buddy-state", payload);
+      return call("desktop_buddy_set_state", { payload }, undefined);
+    },
+    focusDesktopBuddyMain: () => call("desktop_buddy_focus_main", {}, false),
+    getDesktopBuddyCursor: () => Promise.resolve(null),
+    sendDesktopBuddyTranscript: (payload) => {
+      emitLocal("desktop-buddy-transcript", {
+        ...payload,
+        createdAt: payload.createdAt || Date.now(),
+      });
+      return call("desktop_buddy_send_transcript", { payload }, true);
+    },
+    onDesktopBuddyState: (callback) => onEvent("desktop-buddy-state", callback),
+    onDesktopBuddyTranscript: (callback) =>
+      onEvent("desktop-buddy-transcript", callback),
+    getCortexClipperInstallInfo: () =>
+      call(
+        "cortex_clipper_get_install_info",
+        {},
+        {
+          sourcePath: "",
+          installPath: "",
+          exists: false,
+          manifestVersion: null,
+          companionUrl: "http://127.0.0.1:8780",
+          chromeExtensionsUrl: "chrome://extensions",
+          canSilentInstall: false,
+          installNote: fallbackNotice("cortex_clipper_get_install_info"),
+        },
+      ),
+    openCortexClipperFolder: () =>
+      call("cortex_clipper_open_folder", {}, false),
+    openChromeExtensionsPage: () =>
+      call("cortex_clipper_open_chrome_extensions", {}, false),
     runHermesBackup: (profile) =>
       call(
         "run_hermes_backup",

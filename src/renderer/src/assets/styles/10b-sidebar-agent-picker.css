@@ -137,6 +137,37 @@
   border-color: rgba(74, 222, 128, 0.46);
 }
 
+.sidebar-80m-buddy-popout {
+  position: absolute;
+  top: 128px;
+  left: 40px;
+  z-index: 6;
+  width: 30px;
+  height: 30px;
+  display: inline-grid;
+  place-items: center;
+  border: 1px solid rgba(74, 222, 128, 0.24);
+  border-radius: 8px;
+  background: rgba(25, 34, 29, 0.88);
+  color: #dbffe5;
+  cursor: pointer;
+  box-shadow:
+    0 12px 28px rgba(0, 0, 0, 0.26),
+    0 0 0 1px rgba(244, 255, 247, 0.04) inset;
+  -webkit-app-region: no-drag;
+}
+
+.sidebar-80m-buddy-popout:hover {
+  border-color: rgba(74, 222, 128, 0.48);
+  background: rgba(45, 65, 52, 0.92);
+  color: #63ffa0;
+}
+
+.sidebar-80m-buddy-popout:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+
 .sidebar-80m-agent-menu {
   position: absolute;
   top: 182px;
@@ -189,6 +220,18 @@
   background: rgba(255, 255, 255, 0.76);
   color: #142119;
   box-shadow: 0 12px 28px rgba(56, 74, 60, 0.14);
+}
+
+[data-theme="light"] .sidebar-80m-buddy-popout {
+  border-color: rgba(22, 101, 52, 0.16);
+  background: rgba(255, 255, 255, 0.78);
+  color: #0f7a38;
+  box-shadow: 0 12px 28px rgba(56, 74, 60, 0.14);
+}
+
+[data-theme="light"] .sidebar-80m-buddy-popout:hover {
+  border-color: rgba(22, 101, 52, 0.26);
+  background: rgba(234, 250, 238, 0.9);
 }
 
 [data-theme="light"] .sidebar-80m-agent-menu {
@@ -324,4 +367,3 @@
     transform: translateY(-1px);
   }
 }
-

@@ -3,13 +3,17 @@ import { motion } from "framer-motion";
 import {
   Copy,
   ExternalLink,
+  FolderOpen,
   Power,
   QrCode,
   RefreshCw,
   RotateCcw,
   ShieldCheck,
 } from "lucide-react";
-import type { TailscaleMobileStatus } from "./settingsTypes";
+import type {
+  CortexClipperInstallInfo,
+  TailscaleMobileStatus,
+} from "./settingsTypes";
 
 interface SettingsMobilePanelProps {
   tailscale: TailscaleMobileStatus | null;
@@ -20,6 +24,11 @@ interface SettingsMobilePanelProps {
   onRunAction: (action: "enable" | "disable" | "rotate") => void;
   onCopyMobileUrl: () => void;
   onOpenMobileUrl: () => void;
+  clipperInfo: CortexClipperInstallInfo | null;
+  clipperStatus: string;
+  onRefreshClipper: () => void;
+  onOpenClipperFolder: () => void;
+  onOpenChromeExtensions: () => void;
 }
 
 export function SettingsMobilePanel({
@@ -31,6 +40,11 @@ export function SettingsMobilePanel({
   onRunAction,
   onCopyMobileUrl,
   onOpenMobileUrl,
+  clipperInfo,
+  clipperStatus,
+  onRefreshClipper,
+  onOpenClipperFolder,
+  onOpenChromeExtensions,
 }: SettingsMobilePanelProps): React.JSX.Element {
   const pairingUrl = tailscale?.pairUrl || tailscale?.tailnetUrl || "";
 
@@ -113,6 +127,80 @@ export function SettingsMobilePanel({
           <p>{tailscale?.serveTarget || "localhost:8780"}</p>
         </div>
       </div>
+
+      <div className="settings-80m-divider" />
+
+      <div className="settings-80m-health-header">
+        <label className="settings-80m-label">Cortex Chrome Clipper</label>
+        <button
+          type="button"
+          className="settings-80m-profile-btn"
+          onClick={onRefreshClipper}
+        >
+          <RefreshCw size={13} />
+          Refresh
+        </button>
+      </div>
+
+      <div className="settings-80m-health-grid">
+        <div className="settings-80m-health-card">
+          <span className="settings-80m-health-title">Extension Files</span>
+          <span
+            className={`settings-80m-health-pill ${
+              clipperInfo?.exists ? "ok" : "bad"
+            }`}
+          >
+            {clipperInfo?.exists ? "installed" : "missing"}
+          </span>
+          <p>Version: {clipperInfo?.manifestVersion || "unknown"}</p>
+          <p>{clipperInfo?.installPath || "Preparing local install"}</p>
+        </div>
+
+        <div className="settings-80m-health-card">
+          <span className="settings-80m-health-title">Companion API</span>
+          <span
+            className={`settings-80m-health-pill ${
+              tailscale?.mobileServerRunning ? "ok" : "bad"
+            }`}
+          >
+            {tailscale?.mobileServerRunning ? "running" : "stopped"}
+          </span>
+          <p>{clipperInfo?.companionUrl || "http://127.0.0.1:8780"}</p>
+          <p>Auto-connect keeps pairing internal.</p>
+        </div>
+      </div>
+
+      <div className="settings-80m-action-grid">
+        <button
+          type="button"
+          className="settings-80m-save-btn"
+          onClick={onOpenClipperFolder}
+          disabled={!clipperInfo?.exists}
+        >
+          <FolderOpen size={13} />
+          Open Clipper Folder
+        </button>
+        <button
+          type="button"
+          className="settings-80m-profile-btn"
+          onClick={onOpenChromeExtensions}
+        >
+          <ExternalLink size={13} />
+          Open Chrome Extensions
+        </button>
+      </div>
+
+      {clipperStatus && (
+        <div
+          className={`settings-80m-result ${
+            clipperStatus.includes("ready") || clipperStatus.includes("opened")
+              ? "success"
+              : "error"
+          }`}
+        >
+          {clipperStatus}
+        </div>
+      )}
 
       <div className="settings-80m-divider" />
 

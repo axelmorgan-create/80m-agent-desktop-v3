@@ -30,6 +30,7 @@ const ChatArea: React.FC<ChatAreaProps> = ({
   assistantLabel,
   activeProject,
   isAudible = true,
+  acceptsDesktopBuddyInput = false,
 }) => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [loadingRequestId, setLoadingRequestId] = useState<string | null>(null);
@@ -37,6 +38,9 @@ const ChatArea: React.FC<ChatAreaProps> = ({
     id: string;
     text: string;
   } | null>(null);
+  const [draftAttachments, setDraftAttachments] = useState<
+    NonNullable<Message["attachments"]>
+  >([]);
   const [queuedTurns, setQueuedTurns] = useState<QueuedChatTurn[]>([]);
   const [busySendMode, setBusySendMode] = useChatBusySendMode();
   const messagesRef = useRef<Message[]>([]);
@@ -61,6 +65,8 @@ const ChatArea: React.FC<ChatAreaProps> = ({
   const showToast = useDesktopToast();
 
   const { isDraggingFiles, dragHandlers } = useChatFileDrop({
+    onAttachmentsAdded: (attachments) =>
+      setDraftAttachments((current) => [...current, ...attachments]),
     setDraftInsert,
     showToast,
   });
@@ -180,6 +186,7 @@ const ChatArea: React.FC<ChatAreaProps> = ({
     async (
       text: string,
       options: {
+        attachments?: Message["attachments"];
         kind?: "foreground" | "background";
         displayUserMessage?: boolean;
         sessionId?: string | null;
@@ -213,6 +220,9 @@ const ChatArea: React.FC<ChatAreaProps> = ({
         id: `user-${Date.now()}-${Math.random().toString(16).slice(2)}`,
         role: "user",
         content: text,
+        attachments: options.attachments?.length
+          ? options.attachments
+          : undefined,
       };
 
       if (displayUserMessage) {
@@ -333,7 +343,11 @@ const ChatArea: React.FC<ChatAreaProps> = ({
   );
 
   const enqueueBusyTurn = useCallback(
-    (text: string, mode: "queue" | "steer") => {
+    (
+      text: string,
+      mode: "queue" | "steer",
+      attachments?: Message["attachments"],
+    ) => {
       const request = loadingRequestId
         ? activeRequestsRef.current[loadingRequestId]
         : null;
@@ -348,6 +362,7 @@ const ChatArea: React.FC<ChatAreaProps> = ({
         id: messageId,
         role: "user",
         content: text,
+        attachments: attachments?.length ? attachments : undefined,
       };
       pendingMessagesRef.current[localKey] = [
         ...(pendingMessagesRef.current[localKey] || []),
@@ -378,6 +393,7 @@ const ChatArea: React.FC<ChatAreaProps> = ({
 
   const handleSend = useCallback(
     async (text: string) => {
+      const attachments = draftAttachments;
       const parsed = parseBusyCommand(text);
       const command = parsed.command;
       const payload = parsed.command ? parsed.payload : text.trim();
@@ -390,28 +406,43 @@ const ChatArea: React.FC<ChatAreaProps> = ({
       if (isBusy) {
         const effectiveMode = command || busySendMode;
         if (effectiveMode === "background") {
-          await startChatRequest(payload, { kind: "background" });
+          await startChatRequest(payload, { attachments, kind: "background" });
+          setDraftAttachments([]);
           return;
         }
-        enqueueBusyTurn(payload, effectiveMode);
+        enqueueBusyTurn(payload, effectiveMode, attachments);
+        setDraftAttachments([]);
         return;
       }
 
       if (command === "background") {
-        await startChatRequest(payload, { kind: "background" });
+        await startChatRequest(payload, { attachments, kind: "background" });
+        setDraftAttachments([]);
         return;
       }
 
-      await startChatRequest(payload, { kind: "foreground" });
+      await startChatRequest(payload, { attachments, kind: "foreground" });
+      setDraftAttachments([]);
     },
     [
       busySendMode,
+      draftAttachments,
       enqueueBusyTurn,
       loadingRequestId,
       showToast,
       startChatRequest,
     ],
   );
+
+  useEffect(() => {
+    if (!acceptsDesktopBuddyInput) return undefined;
+    const cleanup = window.hermesAPI?.onDesktopBuddyTranscript?.((payload) => {
+      const text = String(payload?.text || "").trim();
+      if (!text) return;
+      void handleSend(text);
+    });
+    return () => cleanup?.();
+  }, [acceptsDesktopBuddyInput, handleSend]);
 
   const handleStopRequest = useCallback(() => {
     if (!loadingRequestId) return;
@@ -454,6 +485,12 @@ const ChatArea: React.FC<ChatAreaProps> = ({
         onBusyModeChange={setBusySendMode}
         onStop={handleStopRequest}
         draftInsert={draftInsert}
+        attachments={draftAttachments}
+        onRemoveAttachment={(path) =>
+          setDraftAttachments((current) =>
+            current.filter((attachment) => attachment.path !== path),
+          )
+        }
         onDraftInsertConsumed={() => setDraftInsert(null)}
       />
     </div>

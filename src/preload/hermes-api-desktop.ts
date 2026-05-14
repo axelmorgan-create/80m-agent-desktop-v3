@@ -1,5 +1,11 @@
 import { ipcRenderer, webUtils } from "electron";
 import type { HermesAPI } from "./hermes-api.types";
+import type {
+  DesktopBuddyCursorPayload,
+  CortexClipperInstallInfo,
+  DesktopBuddyStatePayload,
+  DesktopBuddyTranscriptPayload,
+} from "./hermes-api-desktop.types";
 
 export const hermesDesktopApi = {
   // Shell
@@ -41,6 +47,49 @@ export const hermesDesktopApi = {
     ipcRenderer.on("app-notification", handler);
     return () => ipcRenderer.removeListener("app-notification", handler);
   },
+  openDesktopBuddy: (profile?: string): Promise<boolean> =>
+    ipcRenderer.invoke("desktop-buddy-open", profile),
+  closeDesktopBuddy: (): Promise<boolean> =>
+    ipcRenderer.invoke("desktop-buddy-close"),
+  toggleDesktopBuddy: (profile?: string): Promise<boolean> =>
+    ipcRenderer.invoke("desktop-buddy-toggle", profile),
+  setDesktopBuddyState: (payload: DesktopBuddyStatePayload): Promise<void> =>
+    ipcRenderer.invoke("desktop-buddy-set-state", payload),
+  focusDesktopBuddyMain: (): Promise<boolean> =>
+    ipcRenderer.invoke("desktop-buddy-focus-main"),
+  getDesktopBuddyCursor: (): Promise<DesktopBuddyCursorPayload | null> =>
+    ipcRenderer.invoke("desktop-buddy-cursor"),
+  sendDesktopBuddyTranscript: (
+    payload: DesktopBuddyTranscriptPayload,
+  ): Promise<boolean> =>
+    ipcRenderer.invoke("desktop-buddy-send-transcript", payload),
+  onDesktopBuddyState: (
+    callback: (payload: DesktopBuddyStatePayload) => void,
+  ): (() => void) => {
+    const handler = (
+      _event: Electron.IpcRendererEvent,
+      payload: DesktopBuddyStatePayload,
+    ): void => callback(payload);
+    ipcRenderer.on("desktop-buddy-state", handler);
+    return () => ipcRenderer.removeListener("desktop-buddy-state", handler);
+  },
+  onDesktopBuddyTranscript: (
+    callback: (payload: DesktopBuddyTranscriptPayload) => void,
+  ): (() => void) => {
+    const handler = (
+      _event: Electron.IpcRendererEvent,
+      payload: DesktopBuddyTranscriptPayload,
+    ): void => callback(payload);
+    ipcRenderer.on("desktop-buddy-transcript", handler);
+    return () =>
+      ipcRenderer.removeListener("desktop-buddy-transcript", handler);
+  },
+  getCortexClipperInstallInfo: (): Promise<CortexClipperInstallInfo> =>
+    ipcRenderer.invoke("cortex-clipper-get-install-info"),
+  openCortexClipperFolder: (): Promise<boolean> =>
+    ipcRenderer.invoke("cortex-clipper-open-folder"),
+  openChromeExtensionsPage: (): Promise<boolean> =>
+    ipcRenderer.invoke("cortex-clipper-open-chrome-extensions"),
 
   // Backup / Import
   runHermesBackup: (

@@ -9,6 +9,7 @@ export interface ChatAreaProps {
   assistantLabel?: string;
   activeProject?: string | null;
   isAudible?: boolean;
+  acceptsDesktopBuddyInput?: boolean;
 }
 
 export interface ActiveRequest {
@@ -29,8 +30,19 @@ export interface QueuedChatTurn {
 }
 
 export interface DroppedAttachment {
+  fileUrl?: string;
+  kind?:
+    | "text"
+    | "markdown"
+    | "image"
+    | "pdf"
+    | "office"
+    | "directory"
+    | "binary"
+    | "missing";
   name: string;
   path: string;
+  size?: number;
 }
 
 export type ChatToolProgressPayload =

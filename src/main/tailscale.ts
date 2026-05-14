@@ -275,7 +275,8 @@ export async function rotateTailscaleMobilePairingToken(): Promise<TailscaleMobi
 
 export async function bootstrapMobileAccess(): Promise<void> {
   const config = getMobileAccessConfig();
-  if (!config.enabled) return;
+  // The Chrome Cortex clipper uses the local 127.0.0.1 companion API even
+  // when Tailscale sharing is off.
   await startMobileCompanionServer(config.port);
 }
 

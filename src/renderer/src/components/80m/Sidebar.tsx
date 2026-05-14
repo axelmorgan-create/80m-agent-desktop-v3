@@ -3,7 +3,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import AtmMascot from "./AtmMascot";
 import Animated80MLogo from "../Animated80MLogo";
 import { useTheme } from "../ThemeProvider";
-import { Check, ChevronDown, Plus } from "lucide-react";
+import { Check, ChevronDown, Plus, Sparkles } from "lucide-react";
 import { useProfiles } from "../../hooks/useProfiles";
 import { SidebarSvgIcon } from "./SidebarSvgIcon";
 import { labelForProfile } from "./conversations";
@@ -105,6 +105,27 @@ const Sidebar: React.FC<SidebarProps> = ({
     agentOptions.find((agent) => agent.name === selectedAgent)?.label ||
     selectedAgent;
 
+  const updateDesktopBuddyState = useCallback(
+    (state = mascotState) => {
+      void window.hermesAPI?.setDesktopBuddyState?.({
+        state,
+        profile: selectedAgent,
+        label: selectedAgentLabel,
+      });
+    },
+    [mascotState, selectedAgent, selectedAgentLabel],
+  );
+
+  const handleToggleDesktopBuddy = useCallback(
+    (event: React.MouseEvent<HTMLButtonElement>) => {
+      event.stopPropagation();
+      void window.hermesAPI?.toggleDesktopBuddy?.(selectedAgent).then(() => {
+        updateDesktopBuddyState();
+      });
+    },
+    [selectedAgent, updateDesktopBuddyState],
+  );
+
   const handleAgentSelect = useCallback(
     (agent: string) => {
       setAgentMenuOpen(false);
@@ -114,6 +135,10 @@ const Sidebar: React.FC<SidebarProps> = ({
     },
     [onAgentChange, selectedAgent],
   );
+
+  useEffect(() => {
+    updateDesktopBuddyState();
+  }, [updateDesktopBuddyState]);
 
   useEffect(() => {
     if (!agentMenuOpen) return;
@@ -367,6 +392,15 @@ const Sidebar: React.FC<SidebarProps> = ({
             <ChevronDown size={13} />
           </span>
         </motion.button>
+        <button
+          type="button"
+          className="sidebar-80m-buddy-popout"
+          onClick={handleToggleDesktopBuddy}
+          title="Toggle desktop buddy"
+          aria-label="Toggle desktop buddy"
+        >
+          <Sparkles size={13} />
+        </button>
         <AnimatePresence>
           {agentMenuOpen && (
             <motion.div

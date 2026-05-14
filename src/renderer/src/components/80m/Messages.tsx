@@ -26,11 +26,13 @@ import type {
   FileArtifactData,
   FilePreviewData,
 } from "./messageToolUtils";
+import type { DroppedAttachment } from "./chatAreaTypes";
 
 export interface Message {
   id: string;
   role: "user" | "assistant" | "system" | "tool";
   content: string;
+  attachments?: DroppedAttachment[];
   tool_calls?: string;
   tool_name?: string;
 }
@@ -71,6 +73,44 @@ function ToolCallsBlock({
             <code>{call.argumentsText || call.rawText}</code>
           </pre>
         </details>
+      ))}
+    </div>
+  );
+}
+
+function AttachmentPreviewList({
+  attachments,
+  compact = false,
+}: {
+  attachments?: DroppedAttachment[];
+  compact?: boolean;
+}): React.JSX.Element | null {
+  if (!attachments?.length) return null;
+
+  return (
+    <div className={`attachment-preview-list${compact ? " compact" : ""}`}>
+      {attachments.map((attachment) => (
+        <div className="attachment-preview-item" key={attachment.path}>
+          {attachment.kind === "image" && attachment.fileUrl ? (
+            <img
+              className="attachment-preview-thumb"
+              src={attachment.fileUrl}
+              alt=""
+            />
+          ) : (
+            <span className="attachment-preview-icon" aria-hidden="true">
+              {attachment.kind === "pdf"
+                ? "PDF"
+                : attachment.kind === "directory"
+                  ? "DIR"
+                  : "FILE"}
+            </span>
+          )}
+          <span className="attachment-preview-copy">
+            <span className="attachment-preview-name">{attachment.name}</span>
+            <span className="attachment-preview-path">{attachment.path}</span>
+          </span>
+        </div>
       ))}
     </div>
   );
@@ -588,7 +628,10 @@ const Messages: React.FC<Props> = ({
                   <ToolMessage msg={msg} />
                 </div>
               ) : (
-                msg.content
+                <>
+                  <AttachmentPreviewList attachments={msg.attachments} />
+                  {msg.content}
+                </>
               )}
             </div>
             {msg.role === "assistant" && (

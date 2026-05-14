@@ -11,6 +11,7 @@ import {
 type ToastTone = "info" | "success" | "warning" | "error";
 
 interface UseChatFileDropOptions {
+  onAttachmentsAdded?: (attachments: DroppedAttachment[]) => void;
   setDraftInsert: Dispatch<
     SetStateAction<{
       id: string;
@@ -28,6 +29,7 @@ interface ChatFileDropHandlers {
 }
 
 export function useChatFileDrop({
+  onAttachmentsAdded,
   setDraftInsert,
   showToast,
 }: UseChatFileDropOptions): {
@@ -85,7 +87,31 @@ export function useChatFileDrop({
         for (const filePath of paths) {
           const destPath = await window.hermesAPI.copyFileToWorkspace(filePath);
           if (destPath) {
+            let preview: {
+              fileUrl?: string;
+              kind?: DroppedAttachment["kind"];
+              size?: number;
+            } = {};
+            try {
+              const documentPreview =
+                await window.hermesAPI.readDocumentPreview?.(destPath);
+              if (documentPreview && typeof documentPreview === "object") {
+                const record = documentPreview as {
+                  fileUrl?: string;
+                  kind?: DroppedAttachment["kind"];
+                  size?: number;
+                };
+                preview = {
+                  fileUrl: record.fileUrl,
+                  kind: record.kind,
+                  size: record.size,
+                };
+              }
+            } catch {
+              preview = {};
+            }
             attachments.push({
+              ...preview,
               name: pathBasename(destPath),
               path: destPath,
             });
@@ -105,6 +131,7 @@ export function useChatFileDrop({
           id: `drop-${Date.now()}-${attachments.length}`,
           text: buildAttachmentDraft(attachments),
         });
+        onAttachmentsAdded?.(attachments);
         showToast(
           attachments.length === 1 ? "File attached" : "Files attached",
           "Dropped file paths were added to your draft.",
@@ -115,7 +142,7 @@ export function useChatFileDrop({
         showToast("Drop failed", "The file could not be attached.", "error");
       }
     },
-    [resolveDroppedFilePaths, setDraftInsert, showToast],
+    [onAttachmentsAdded, resolveDroppedFilePaths, setDraftInsert, showToast],
   );
 
   const handleDragOver = useCallback((event: DragEvent) => {

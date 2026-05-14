@@ -4,6 +4,47 @@ import type {
   AppNotificationPayload,
 } from "./hermes-api-common.types";
 
+export type DesktopBuddyMascotState =
+  | "default"
+  | "processing"
+  | "typing"
+  | "sleep"
+  | "error"
+  | "searching"
+  | "jackpot"
+  | "lobster"
+  | "urgent"
+  | "job-done";
+
+export interface DesktopBuddyStatePayload {
+  state?: DesktopBuddyMascotState;
+  profile?: string;
+  label?: string;
+}
+
+export interface DesktopBuddyTranscriptPayload {
+  text: string;
+  profile?: string;
+  label?: string;
+  createdAt?: number;
+}
+
+export interface DesktopBuddyCursorPayload {
+  cursor: { x: number; y: number };
+  bounds: { x: number; y: number; width: number; height: number };
+}
+
+export interface CortexClipperInstallInfo {
+  sourcePath: string;
+  installPath: string;
+  exists: boolean;
+  manifestVersion: string | null;
+  companionUrl: string;
+  chromeExtensionsUrl: string;
+  canSilentInstall: false;
+  installNote: string;
+}
+
 export interface HermesDesktopAPI {
   // Shell
   openExternal: (url: string) => Promise<void>;
@@ -15,6 +56,24 @@ export interface HermesDesktopAPI {
   onAppNotification: (
     callback: (payload: AppNotificationPayload) => void,
   ) => () => void;
+  openDesktopBuddy: (profile?: string) => Promise<boolean>;
+  closeDesktopBuddy: () => Promise<boolean>;
+  toggleDesktopBuddy: (profile?: string) => Promise<boolean>;
+  setDesktopBuddyState: (payload: DesktopBuddyStatePayload) => Promise<void>;
+  focusDesktopBuddyMain: () => Promise<boolean>;
+  getDesktopBuddyCursor: () => Promise<DesktopBuddyCursorPayload | null>;
+  sendDesktopBuddyTranscript: (
+    payload: DesktopBuddyTranscriptPayload,
+  ) => Promise<boolean>;
+  onDesktopBuddyState: (
+    callback: (payload: DesktopBuddyStatePayload) => void,
+  ) => () => void;
+  onDesktopBuddyTranscript: (
+    callback: (payload: DesktopBuddyTranscriptPayload) => void,
+  ) => () => void;
+  getCortexClipperInstallInfo: () => Promise<CortexClipperInstallInfo>;
+  openCortexClipperFolder: () => Promise<boolean>;
+  openChromeExtensionsPage: () => Promise<boolean>;
 
   // Backup / Import
   runHermesBackup: (

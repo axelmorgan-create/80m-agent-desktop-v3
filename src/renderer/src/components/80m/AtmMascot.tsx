@@ -225,14 +225,30 @@ const AtmMascot: React.FC<AtmMascotProps> = ({
               >
                 <g transform="translate(-70, -5)">
                   <g className="eye-anim">
-                    <ellipse rx="16" ry="24" fill="#241400" />
-                    <circle cx="-5" cy="-8" r="6" fill="white" opacity="0.9" />
+                    <g className="eye-follow-target">
+                      <ellipse rx="16" ry="24" fill="#241400" />
+                      <circle
+                        cx="-5"
+                        cy="-8"
+                        r="6"
+                        fill="white"
+                        opacity="0.9"
+                      />
+                    </g>
                   </g>
                 </g>
                 <g transform="translate(70, -5)">
                   <g className="eye-anim">
-                    <ellipse rx="16" ry="24" fill="#241400" />
-                    <circle cx="-5" cy="-8" r="6" fill="white" opacity="0.9" />
+                    <g className="eye-follow-target">
+                      <ellipse rx="16" ry="24" fill="#241400" />
+                      <circle
+                        cx="-5"
+                        cy="-8"
+                        r="6"
+                        fill="white"
+                        opacity="0.9"
+                      />
+                    </g>
                   </g>
                 </g>
                 <path

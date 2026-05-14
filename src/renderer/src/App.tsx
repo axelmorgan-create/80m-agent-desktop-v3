@@ -12,6 +12,7 @@ import FilmGrainCanvas from "./components/FilmGrainCanvas";
 import AppTitleBar from "./components/80m/AppTitleBar";
 import AppNotifications from "./components/80m/AppNotifications";
 import SelectionToolbar from "./components/80m/SelectionToolbar";
+import DesktopBuddyApp from "./components/80m/DesktopBuddyApp";
 
 type Screen = "splash" | "welcome" | "installing" | "setup" | "main";
 
@@ -192,7 +193,13 @@ function triggerSvgIconClickMotion(target: EventTarget | null): void {
   icons.forEach((iconHost, svg) => restartSvgIconClickMotion(svg, iconHost));
 }
 
-function App(): React.JSX.Element {
+function isDesktopBuddyMode(): boolean {
+  return (
+    new URLSearchParams(window.location.search).get("desktopBuddy") === "1"
+  );
+}
+
+function MainApp(): React.JSX.Element {
   const { t } = useI18n();
   const [screen, setScreen] = useState<Screen>("splash");
   const [installError, setInstallError] = useState<string | null>(null);
@@ -349,6 +356,20 @@ function App(): React.JSX.Element {
       </ErrorBoundary>
     </ThemeProvider>
   );
+}
+
+function App(): React.JSX.Element {
+  if (isDesktopBuddyMode()) {
+    return (
+      <ThemeProvider>
+        <ErrorBoundary>
+          <DesktopBuddyApp />
+        </ErrorBoundary>
+      </ThemeProvider>
+    );
+  }
+
+  return <MainApp />;
 }
 
 export default App;

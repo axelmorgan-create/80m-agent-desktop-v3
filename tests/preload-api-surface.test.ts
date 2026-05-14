@@ -48,10 +48,16 @@ function extractPreloadMethods(src: string): string[] {
  */
 function extractTypeMethods(src: string): string[] {
   const methods: string[] = [];
-  const re = /^\s{2}(\w+)\s*[:(]/gm;
-  let m: RegExpExecArray | null;
-  while ((m = re.exec(src)) !== null) {
-    methods.push(m[1]);
+  const interfaceRe =
+    /export interface \w*API\s*(?:extends[\s\S]*?)?\{([\s\S]*?)^\}/gm;
+  let interfaceMatch: RegExpExecArray | null;
+  while ((interfaceMatch = interfaceRe.exec(src)) !== null) {
+    const body = interfaceMatch[1];
+    const methodRe = /^\s{2}(\w+)\s*[:(]/gm;
+    let methodMatch: RegExpExecArray | null;
+    while ((methodMatch = methodRe.exec(body)) !== null) {
+      methods.push(methodMatch[1]);
+    }
   }
   return [...new Set(methods)];
 }

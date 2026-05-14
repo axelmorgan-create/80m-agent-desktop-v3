@@ -39,6 +39,14 @@ the codebase easier to navigate, review, and release.
 - Moved Hermes capabilities and run-status helpers into `src/main/hermes-runs.ts`
   while keeping `src/main/hermes.ts` focused on chat transport and gateway
   lifecycle.
+- Added release-owned Desktop Buddy and Cortex Clipper install boundaries:
+  `src/main/desktop-buddy-ipc.ts` owns the buddy window lifecycle, while
+  `src/main/cortex-clipper-ipc.ts` owns bundled extension copying and the
+  client-safe Chrome install helper.
+- Added the desktop buddy style module to the main CSS manifest so codebase
+  audit tracks it with the rest of the cascade.
+- Tightened preload API surface tests so typed payload object shapes do not look
+  like missing preload methods.
 
 ## Phase 1: Renderer Boundaries
 
@@ -93,3 +101,7 @@ the codebase easier to navigate, review, and release.
   launcher does not show stale UI.
 - Before a public release, confirm version metadata, build Linux assets, publish
   the GitHub release, and verify attached assets.
+- For browser integrations, package extension files with Electron
+  `extraResources`, copy them into a stable user-data folder on startup, and
+  keep Chrome installation user-approved unless the extension is distributed
+  through Chrome Web Store or managed enterprise policy.

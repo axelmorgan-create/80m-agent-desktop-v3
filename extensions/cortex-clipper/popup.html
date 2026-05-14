@@ -1,0 +1,339 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>80M Cortex</title>
+    <style>
+      :root {
+        color-scheme: dark;
+        --bg: #171c19;
+        --panel: #222a25;
+        --panel-2: #2b332e;
+        --line: rgba(138, 255, 177, 0.24);
+        --line-strong: rgba(138, 255, 177, 0.48);
+        --text: #f2fff5;
+        --muted: #aebbb3;
+        --green: #72ffa6;
+        --amber: #ffd978;
+        --red: #ff8f9d;
+        --ink: #0d130f;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        width: 332px;
+        margin: 0;
+        padding: 13px;
+        background:
+          linear-gradient(145deg, rgba(45, 54, 48, 0.96), rgba(18, 23, 20, 1))
+            fixed,
+          var(--bg);
+        color: var(--text);
+        font-family:
+          Inter,
+          ui-sans-serif,
+          system-ui,
+          -apple-system,
+          BlinkMacSystemFont,
+          "Segoe UI",
+          sans-serif;
+      }
+
+      .shell {
+        display: grid;
+        gap: 11px;
+      }
+
+      header,
+      .connection,
+      .advanced-panel {
+        border: 1px solid rgba(238, 255, 243, 0.08);
+        background: rgba(24, 31, 27, 0.7);
+        box-shadow: 0 14px 28px rgba(0, 0, 0, 0.22);
+      }
+
+      header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        padding: 9px;
+        border-radius: 8px;
+      }
+
+      .identity {
+        display: flex;
+        align-items: center;
+        gap: 9px;
+        min-width: 0;
+      }
+
+      .mark {
+        width: 36px;
+        height: 30px;
+        display: grid;
+        place-items: center;
+        border: 1px solid rgba(12, 19, 14, 0.24);
+        border-radius: 7px;
+        background: var(--green);
+        color: var(--ink);
+        clip-path: polygon(14% 0, 100% 0, 86% 100%, 0 100%);
+        font-size: 13px;
+        font-weight: 950;
+        letter-spacing: 0;
+      }
+
+      h1,
+      p {
+        margin: 0;
+      }
+
+      h1 {
+        font-size: 14px;
+        line-height: 1.1;
+        letter-spacing: 0;
+      }
+
+      p {
+        margin-top: 2px;
+        color: var(--muted);
+        font-size: 11px;
+        line-height: 1.25;
+      }
+
+      .status-chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        min-width: 91px;
+        height: 28px;
+        justify-content: center;
+        padding: 0 9px;
+        border: 1px solid var(--line);
+        border-radius: 7px;
+        color: #c8ffd8;
+        background: rgba(33, 43, 37, 0.8);
+        font-size: 10px;
+        font-weight: 900;
+        text-transform: uppercase;
+      }
+
+      .dot {
+        width: 7px;
+        height: 7px;
+        border-radius: 999px;
+        background: var(--amber);
+        box-shadow: 0 0 12px rgba(255, 217, 120, 0.3);
+      }
+
+      body[data-connection="connected"] .dot {
+        background: var(--green);
+        box-shadow: 0 0 14px rgba(114, 255, 166, 0.42);
+      }
+
+      body[data-connection="offline"] .dot,
+      body[data-connection="error"] .dot {
+        background: var(--red);
+        box-shadow: 0 0 14px rgba(255, 143, 157, 0.36);
+      }
+
+      .connection {
+        display: grid;
+        grid-template-columns: 1fr auto;
+        gap: 10px;
+        align-items: center;
+        padding: 10px;
+        border-radius: 8px;
+      }
+
+      .connection-title {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        min-width: 0;
+        font-size: 12px;
+        font-weight: 900;
+      }
+
+      .connection-copy {
+        min-width: 0;
+      }
+
+      .connection-copy p {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      button {
+        height: 36px;
+        border: 1px solid var(--line-strong);
+        border-radius: 7px;
+        background: var(--panel-2);
+        color: var(--text);
+        clip-path: polygon(8% 0, 100% 0, 92% 100%, 0 100%);
+        cursor: pointer;
+        font: inherit;
+        font-size: 12px;
+        font-weight: 950;
+        letter-spacing: 0;
+      }
+
+      button:disabled {
+        cursor: progress;
+        opacity: 0.68;
+      }
+
+      button:not(:disabled):hover {
+        border-color: rgba(114, 255, 166, 0.72);
+        color: var(--green);
+      }
+
+      .secondary {
+        width: 83px;
+        background: rgba(31, 42, 35, 0.86);
+      }
+
+      .primary {
+        width: 100%;
+        height: 44px;
+        border-color: rgba(114, 255, 166, 0.76);
+        background: var(--green);
+        color: var(--ink);
+        font-size: 13px;
+        box-shadow: 0 16px 30px rgba(0, 0, 0, 0.22);
+      }
+
+      .primary:not(:disabled):hover {
+        color: var(--ink);
+        filter: brightness(1.05);
+      }
+
+      .status {
+        min-height: 18px;
+        color: var(--muted);
+        font-size: 11px;
+        line-height: 1.4;
+        overflow-wrap: anywhere;
+      }
+
+      .status.error {
+        color: var(--red);
+      }
+
+      .status.success {
+        color: var(--green);
+      }
+
+      details {
+        border-radius: 8px;
+      }
+
+      summary {
+        cursor: pointer;
+        color: var(--muted);
+        font-size: 11px;
+        font-weight: 900;
+        list-style: none;
+      }
+
+      summary::-webkit-details-marker {
+        display: none;
+      }
+
+      .advanced-panel {
+        display: grid;
+        gap: 9px;
+        margin-top: 8px;
+        padding: 9px;
+        border-radius: 8px;
+      }
+
+      label {
+        display: grid;
+        gap: 5px;
+        color: var(--muted);
+        font-size: 10px;
+        font-weight: 900;
+        text-transform: uppercase;
+      }
+
+      input {
+        width: 100%;
+        height: 34px;
+        border: 1px solid var(--line);
+        border-radius: 7px;
+        background: rgba(18, 24, 21, 0.86);
+        color: var(--text);
+        padding: 0 9px;
+        font: inherit;
+        font-size: 12px;
+        outline: none;
+      }
+
+      input:focus {
+        border-color: var(--green);
+      }
+
+      .advanced-actions {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 7px;
+      }
+    </style>
+  </head>
+  <body data-connection="connecting">
+    <main class="shell">
+      <header>
+        <div class="identity">
+          <div class="mark">80</div>
+          <div>
+            <h1>Cortex</h1>
+            <p>Knowledge Knaight</p>
+          </div>
+        </div>
+        <div class="status-chip">
+          <span class="dot"></span>
+          <span id="connectionChip">Linking</span>
+        </div>
+      </header>
+
+      <section class="connection" aria-live="polite">
+        <div class="connection-copy">
+          <div class="connection-title">
+            <span class="dot"></span>
+            <span id="connectionLabel">Connecting</span>
+          </div>
+          <p id="connectionSub">Looking for 80M Desktop</p>
+        </div>
+        <button id="connectButton" class="secondary" type="button">
+          Connect
+        </button>
+      </section>
+
+      <button id="captureButton" class="primary" type="button">
+        Save to Cortex
+      </button>
+      <div id="status" class="status"></div>
+
+      <details>
+        <summary>Advanced</summary>
+        <div class="advanced-panel">
+          <label>
+            Companion URL
+            <input id="companionUrl" spellcheck="false" />
+          </label>
+          <div class="advanced-actions">
+            <button id="saveEndpointButton" type="button">Save</button>
+            <button id="resetConnectionButton" type="button">Reset</button>
+          </div>
+        </div>
+      </details>
+    </main>
+    <script src="popup.js"></script>
+  </body>
+</html>

@@ -12,6 +12,7 @@ import {
 import type {
   CredentialPool,
   CuratorCommandResult,
+  CortexClipperInstallInfo,
   HermesCapabilities,
   HermesHealth,
   SettingsAudit,
@@ -87,6 +88,9 @@ const Settings80m: React.FC<Props> = ({ onBack, profile }) => {
     "enable" | "disable" | "rotate" | null
   >(null);
   const [tailscaleError, setTailscaleError] = useState("");
+  const [clipperInfo, setClipperInfo] =
+    useState<CortexClipperInstallInfo | null>(null);
+  const [clipperStatus, setClipperStatus] = useState("");
   const tailscaleQr = useTailscaleQr(tailscale);
 
   const activeModelPresets = buildActiveModelPresets(env, credentialPool);
@@ -160,6 +164,40 @@ const Settings80m: React.FC<Props> = ({ onBack, profile }) => {
       setTailscaleError(status.error || "");
     } catch (err) {
       setTailscaleError(err instanceof Error ? err.message : String(err));
+    }
+  }, []);
+
+  const refreshClipper = useCallback(async () => {
+    if (!window.hermesAPI?.getCortexClipperInstallInfo) return;
+    try {
+      const info = await window.hermesAPI.getCortexClipperInstallInfo();
+      setClipperInfo(info);
+      setClipperStatus(
+        info.exists ? "Cortex Clipper ready." : info.installNote,
+      );
+    } catch (err) {
+      setClipperStatus(err instanceof Error ? err.message : String(err));
+    }
+  }, []);
+
+  const openClipperFolder = useCallback(async () => {
+    try {
+      const opened = await window.hermesAPI?.openCortexClipperFolder?.();
+      setClipperStatus(
+        opened ? "Clipper folder opened." : "Clipper folder is not ready.",
+      );
+      await refreshClipper();
+    } catch (err) {
+      setClipperStatus(err instanceof Error ? err.message : String(err));
+    }
+  }, [refreshClipper]);
+
+  const openChromeExtensions = useCallback(async () => {
+    try {
+      await window.hermesAPI?.openChromeExtensionsPage?.();
+      setClipperStatus("Chrome extensions page opened.");
+    } catch (err) {
+      setClipperStatus(err instanceof Error ? err.message : String(err));
     }
   }, []);
 
@@ -311,6 +349,7 @@ const Settings80m: React.FC<Props> = ({ onBack, profile }) => {
       void refreshCapabilities();
       void refreshAudit();
       void refreshTailscale();
+      void refreshClipper();
       void runCuratorAction("status");
 
       // Load versions
@@ -331,6 +370,7 @@ const Settings80m: React.FC<Props> = ({ onBack, profile }) => {
     refreshCapabilities,
     refreshAudit,
     refreshTailscale,
+    refreshClipper,
     runCuratorAction,
   ]);
 
@@ -549,6 +589,11 @@ const Settings80m: React.FC<Props> = ({ onBack, profile }) => {
         onRunTailscaleAction={(action) => void runTailscaleAction(action)}
         onCopyMobileUrl={() => void copyMobileUrl()}
         onOpenMobileUrl={openMobileUrl}
+        clipperInfo={clipperInfo}
+        clipperStatus={clipperStatus}
+        onRefreshClipper={() => void refreshClipper()}
+        onOpenClipperFolder={() => void openClipperFolder()}
+        onOpenChromeExtensions={() => void openChromeExtensions()}
         health={health}
         capabilities={capabilities}
         upgrading={upgrading}

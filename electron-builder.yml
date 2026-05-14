@@ -16,6 +16,8 @@ extraResources:
     to: hermes-kanban/medium
   - from: vendor/hermes-kanban
     to: hermes-kanban/vendor
+  - from: extensions/cortex-clipper
+    to: extensions/cortex-clipper
 asarUnpack:
   - resources/**
 win:
