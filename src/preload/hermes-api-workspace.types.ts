@@ -10,11 +10,14 @@ export interface HermesWorkspaceAPI {
   listSessions: (
     limit?: number,
     offset?: number,
+    profile?: string,
   ) => Promise<
     Array<{
       id: string;
+      profile: string;
       source: string;
       startedAt: number;
+      updatedAt: number;
       endedAt: number | null;
       messageCount: number;
       model: string;
@@ -22,7 +25,10 @@ export interface HermesWorkspaceAPI {
       preview: string;
     }>
   >;
-  getSessionMessages: (sessionId: string) => Promise<
+  getSessionMessages: (
+    sessionId: string,
+    profile?: string,
+  ) => Promise<
     Array<{
       id: number;
       role: "user" | "assistant" | "tool";
@@ -135,43 +141,58 @@ export interface HermesWorkspaceAPI {
   listCachedSessions: (
     limit?: number,
     offset?: number,
+    profile?: string,
   ) => Promise<
     Array<{
       id: string;
+      profile: string;
       title: string;
       startedAt: number;
+      updatedAt: number;
       source: string;
       messageCount: number;
       model: string;
     }>
   >;
-  syncSessionCache: () => Promise<
+  syncSessionCache: (profile?: string) => Promise<
     Array<{
       id: string;
+      profile: string;
       title: string;
       startedAt: number;
+      updatedAt: number;
       source: string;
       messageCount: number;
       model: string;
     }>
   >;
-  updateSessionTitle: (sessionId: string, title: string) => Promise<void>;
+  updateSessionTitle: (
+    sessionId: string,
+    title: string,
+    profile?: string,
+  ) => Promise<void>;
 
   // Session search
   searchSessions: (
     query: string,
     limit?: number,
+    profile?: string,
   ) => Promise<
     Array<{
       sessionId: string;
+      profile: string;
       title: string | null;
       startedAt: number;
+      updatedAt: number;
       source: string;
       messageCount: number;
       model: string;
       snippet: string;
     }>
   >;
+
+  // Session profile mapping
+  getSessionProfiles: () => Promise<Record<string, string>>;
 
   // Credential Pool
   getCredentialPool: () => Promise<

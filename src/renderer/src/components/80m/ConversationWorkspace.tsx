@@ -254,6 +254,7 @@ const ConversationWorkspace: React.FC<ConversationWorkspaceProps> = ({
                     onConversationSessionChange(tab.id, sessionId || null)
                   }
                   profile={tab.profile !== "default" ? tab.profile : undefined}
+                  assistantLabel={labelForProfile(tab.profile)}
                   activeProject={activeProject}
                   isAudible={
                     conversationViewMode === "split" ||

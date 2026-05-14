@@ -7,6 +7,7 @@ import {
   HERMES_SCRIPT,
   getEnhancedPath,
 } from "./installer";
+import { buildAgentIdentityInstructions } from "./agent-personas";
 import { getModelConfig, readEnv } from "./config";
 import { applyLongHaulEnv, ensureLongHaulConfig } from "./hermes-long-haul";
 import { stripAnsi } from "./utils";
@@ -45,9 +46,16 @@ export function sendMessageViaCli(
     args.push("-p", profile);
   }
 
+  const systemLines = [
+    buildAgentIdentityInstructions(profile),
+    activeProject
+      ? `The user has set the workspace directory to: ${activeProject}. All terminal and file commands should operate in or relative to this directory.`
+      : "",
+  ].filter(Boolean);
+
   let finalMessage = message;
-  if (activeProject && !resumeSessionId) {
-    finalMessage = `[System: The user has set the workspace directory to: ${activeProject}]\n\n${message}`;
+  if (systemLines.length > 0 && !resumeSessionId) {
+    finalMessage = `[System: ${systemLines.join("\n\n")}]\n\n${message}`;
   }
 
   args.push("chat", "-q", finalMessage, "-Q", "--source", "desktop");

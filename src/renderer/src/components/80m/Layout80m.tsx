@@ -385,6 +385,7 @@ const Layout80m: React.FC<Layout80mProps> = ({ playSplashLanding = false }) => {
             onResumeSession={(id) => openConversation(id, selectedAgent)}
             onNewChat={handleNewSession}
             currentSessionId={currentSession}
+            profile={selectedAgent}
           />
         );
         break;
@@ -461,6 +462,7 @@ const Layout80m: React.FC<Layout80mProps> = ({ playSplashLanding = false }) => {
   const handleAgentChange = useCallback(
     (agent: string) => {
       setActiveConversationProfile(agent);
+      void window.hermesAPI?.setActiveProfile?.(agent);
     },
     [setActiveConversationProfile],
   );

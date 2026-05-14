@@ -353,8 +353,15 @@ const InputBar: React.FC<Props> = ({
     .filter(Boolean)
     .join(" ");
 
+  const inputShellClass = ["input-80m", isBusy ? "agent-working" : ""]
+    .filter(Boolean)
+    .join(" ");
+
   return (
-    <div className="input-80m">
+    <div
+      className={inputShellClass}
+      data-busy-mode={isBusy ? busyMode : undefined}
+    >
       {isBusy && (
         <div className="input-80m-busy-row">
           <div className="input-80m-mode-switch" aria-label="Busy send mode">

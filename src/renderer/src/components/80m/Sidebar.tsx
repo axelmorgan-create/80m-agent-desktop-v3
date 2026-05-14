@@ -5,12 +5,13 @@ import Animated80MLogo from "../Animated80MLogo";
 import { useTheme } from "../ThemeProvider";
 import { Check, ChevronDown, Plus } from "lucide-react";
 import { useProfiles } from "../../hooks/useProfiles";
-import { Generated80mIcon } from "./Generated80mIcon";
+import { SidebarSvgIcon } from "./SidebarSvgIcon";
+import { labelForProfile } from "./conversations";
 
 interface Session {
   id: string;
   name: string;
-  agent: string;
+  source: string;
   updatedAt: number;
 }
 
@@ -98,7 +99,7 @@ const Sidebar: React.FC<SidebarProps> = ({
     { name: "default", label: "80M Agent" },
     ...profiles
       .filter((p) => p.name !== "default")
-      .map((p) => ({ name: p.name, label: p.name })),
+      .map((p) => ({ name: p.name, label: labelForProfile(p.name) })),
   ];
   const selectedAgentLabel =
     agentOptions.find((agent) => agent.name === selectedAgent)?.label ||
@@ -252,14 +253,20 @@ const Sidebar: React.FC<SidebarProps> = ({
   const loadSessions = useCallback(async () => {
     if (!window.hermesAPI) return;
     try {
-      const list = await window.hermesAPI.listSessions();
+      const list = await window.hermesAPI.listSessions(12, 0, selectedAgent);
       setSessions(
         (list || []).map(
-          (s: { id: string; title?: string | null; startedAt?: number }) => ({
+          (s: {
+            id: string;
+            title?: string | null;
+            startedAt?: number;
+            updatedAt?: number;
+            source?: string;
+          }) => ({
             id: s.id,
             name: s.title || `Session ${s.id.slice(0, 6)}`,
-            agent: selectedAgent,
-            updatedAt: s.startedAt || Date.now() / 1000,
+            source: s.source || selectedAgent,
+            updatedAt: s.updatedAt || s.startedAt || Date.now() / 1000,
           }),
         ),
       );
@@ -283,42 +290,42 @@ const Sidebar: React.FC<SidebarProps> = ({
     {
       id: "chat",
       label: "Chat",
-      icon: <Generated80mIcon name="chat" />,
+      icon: <SidebarSvgIcon name="chat" />,
     },
     {
       id: "sessions",
       label: "History",
-      icon: <Generated80mIcon name="history" />,
+      icon: <SidebarSvgIcon name="history" />,
     },
     {
       id: "kanban",
       label: "Kanban",
-      icon: <Generated80mIcon name="kanban" />,
+      icon: <SidebarSvgIcon name="kanban" />,
     },
     {
       id: "skills",
       label: "Skills",
-      icon: <Generated80mIcon name="skills" />,
+      icon: <SidebarSvgIcon name="skills" />,
     },
     {
       id: "tools",
       label: "Tools",
-      icon: <Generated80mIcon name="tools" />,
+      icon: <SidebarSvgIcon name="tools" />,
     },
     {
       id: "soul",
       label: "Soul",
-      icon: <Generated80mIcon name="soul" />,
+      icon: <SidebarSvgIcon name="soul" />,
     },
     {
       id: "gateway",
       label: "Gateway",
-      icon: <Generated80mIcon name="gateway" />,
+      icon: <SidebarSvgIcon name="gateway" />,
     },
     {
       id: "settings",
       label: "Settings",
-      icon: <Generated80mIcon name="settings" />,
+      icon: <SidebarSvgIcon name="settings" />,
     },
   ];
 

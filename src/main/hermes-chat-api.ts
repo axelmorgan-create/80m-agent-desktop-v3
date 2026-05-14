@@ -1,5 +1,6 @@
 import http from "http";
 import https from "https";
+import { buildAgentIdentityInstructions } from "./agent-personas";
 import { getModelConfig } from "./config";
 import { getApiServerAuthHeader, getApiUrl } from "./hermes-api-client";
 import type { ChatCallbacks, ChatHandle } from "./hermes-types";
@@ -15,6 +16,14 @@ export function sendMessageViaApi(
   const mc = getModelConfig(profile);
   const controller = new AbortController();
   const messages: Array<{ role: string; content: string }> = [];
+  const identityInstructions = buildAgentIdentityInstructions(profile);
+
+  if (identityInstructions) {
+    messages.push({
+      role: "system",
+      content: identityInstructions,
+    });
+  }
 
   if (activeProject) {
     messages.push({
@@ -33,11 +42,16 @@ export function sendMessageViaApi(
   }
   messages.push({ role: "user", content: message });
 
-  const body = JSON.stringify({
+  const apiBody: Record<string, unknown> = {
     model: mc.model || "hermes-agent",
     messages,
     stream: true,
-  });
+  };
+  if (identityInstructions) {
+    apiBody.instructions = identityInstructions;
+  }
+
+  const body = JSON.stringify(apiBody);
 
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
@@ -69,7 +83,12 @@ export function sendMessageViaApi(
   function probeRealError(): void {
     const probeBody = JSON.stringify({
       model: mc.model || "hermes-agent",
-      messages: [{ role: "user", content: message }],
+      messages: [
+        ...(identityInstructions
+          ? [{ role: "system", content: identityInstructions }]
+          : []),
+        { role: "user", content: message },
+      ],
       stream: false,
     });
     const probeUrl = `${getApiUrl()}/v1/chat/completions`;

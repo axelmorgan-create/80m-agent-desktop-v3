@@ -66,4 +66,5 @@ export interface HermesChatAPI {
   onChatError: (
     callback: (error: string, requestId?: string) => void,
   ) => () => void;
+  getSessionProfiles: () => Promise<Record<string, string>>;
 }

@@ -3,6 +3,7 @@ import {
   getApiServerAuthHeader,
   getApiUrl,
 } from "./hermes-api-client";
+import { buildAgentIdentityInstructions } from "./agent-personas";
 import { getModelConfig } from "./config";
 import type {
   ChatCallbacks,
@@ -233,14 +234,19 @@ export function sendMessageViaRunsApi(
 
   void (async () => {
     try {
-      const instructions = activeProject
-        ? `The user has set the workspace directory to: ${activeProject}. All terminal and file commands should operate in or relative to this directory.`
-        : undefined;
+      const instructions = [
+        buildAgentIdentityInstructions(profile),
+        activeProject
+          ? `The user has set the workspace directory to: ${activeProject}. All terminal and file commands should operate in or relative to this directory.`
+          : "",
+      ]
+        .filter(Boolean)
+        .join("\n\n");
       const body = {
         model: mc.model || "hermes-agent",
         input: message,
         session_id: sessionId || undefined,
-        instructions,
+        instructions: instructions || undefined,
         conversation_history: normalizeConversationHistory(history),
       };
       const startUrl = new URL("/v1/runs", getApiUrl());

@@ -151,4 +151,8 @@ export const hermesChatApi = {
     ipcRenderer.on("chat-error", handler);
     return () => ipcRenderer.removeListener("chat-error", handler);
   },
+
+  getSessionProfiles: async (): Promise<Record<string, string>> => {
+    return ipcRenderer.invoke("get-session-profiles");
+  },
 } as Partial<HermesAPI>;

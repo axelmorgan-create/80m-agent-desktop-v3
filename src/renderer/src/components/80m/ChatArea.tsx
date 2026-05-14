@@ -27,6 +27,7 @@ const ChatArea: React.FC<ChatAreaProps> = ({
   onNewSession,
   onSessionChange,
   profile,
+  assistantLabel,
   activeProject,
   isAudible = true,
 }) => {
@@ -131,7 +132,10 @@ const ChatArea: React.FC<ChatAreaProps> = ({
     async (id: string) => {
       if (!window.hermesAPI) return;
       try {
-        const msgs = await window.hermesAPI.getSessionMessages(id);
+        const msgs = await window.hermesAPI.getSessionMessages(
+          id,
+          profile || "default",
+        );
         const loaded = (msgs || []).map((m, i) => ({
           id: `${id}-${m.id || i}`,
           role: m.role as "user" | "assistant" | "system" | "tool",
@@ -145,7 +149,7 @@ const ChatArea: React.FC<ChatAreaProps> = ({
         // Session load failures leave the current view unchanged.
       }
     },
-    [buildOverlayMessages],
+    [buildOverlayMessages, profile],
   );
 
   useEffect(() => {
@@ -437,7 +441,11 @@ const ChatArea: React.FC<ChatAreaProps> = ({
       {...dragHandlers}
     >
       {isDraggingFiles ? <ChatFileDropOverlay /> : null}
-      <Messages messages={messages} isLoading={Boolean(loadingRequestId)} />
+      <Messages
+        messages={messages}
+        isLoading={Boolean(loadingRequestId)}
+        assistantLabel={assistantLabel || profile || "80M Agent"}
+      />
       <InputBar
         onSend={handleSend}
         isBusy={Boolean(loadingRequestId)}

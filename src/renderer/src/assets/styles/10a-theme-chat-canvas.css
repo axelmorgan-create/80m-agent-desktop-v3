@@ -203,6 +203,7 @@
 [data-theme="dark"] .msg-80m.tool .msg-80m-bubble,
 [data-theme="dark"] .assistant-tool-calls-title,
 [data-theme="dark"] .assistant-tool-call,
+[data-theme="dark"] .tool-activity-pill,
 [data-theme="dark"] .msg-80m-tool-block,
 [data-theme="dark"] .tool-activity-card,
 [data-theme="dark"] .tool-file-preview,
@@ -214,6 +215,7 @@
 [data-theme="light"] .msg-80m.tool .msg-80m-bubble,
 [data-theme="light"] .assistant-tool-calls-title,
 [data-theme="light"] .assistant-tool-call,
+[data-theme="light"] .tool-activity-pill,
 [data-theme="light"] .msg-80m-tool-block,
 [data-theme="light"] .tool-activity-card,
 [data-theme="light"] .tool-file-preview,
@@ -223,6 +225,16 @@
   background: var(--agent-bubble) !important;
   border-color: var(--shell-border) !important;
   color: var(--agent-bubble-text) !important;
+}
+
+[data-theme="dark"] .tool-activity-pill {
+  background: rgba(35, 43, 39, 0.82) !important;
+  box-shadow: 0 8px 18px rgba(0, 0, 0, 0.16);
+}
+
+[data-theme="light"] .tool-activity-pill {
+  background: rgba(244, 250, 246, 0.82) !important;
+  box-shadow: 0 8px 18px rgba(18, 85, 51, 0.06);
 }
 
 [data-theme="dark"] .msg-80m.user .msg-80m-bubble,
@@ -331,4 +343,3 @@
   transition-duration: 150ms !important;
   transition-timing-function: ease !important;
 }
-

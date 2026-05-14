@@ -108,6 +108,7 @@ function ensureApiServerConfig(): void {
 
 let apiServerAvailable: boolean | null = null; // cached after first check
 let runsApiAvailable: boolean | null = null; // cached after first capabilities check
+let apiServerProfile = "default";
 
 export async function sendMessage(
   message: string,
@@ -118,9 +119,15 @@ export async function sendMessage(
   activeProject?: string | null,
 ): Promise<ChatHandle> {
   ensureInitialized();
+  const profileName = normalizeProfileName(profile);
+  if (apiServerProfile !== profileName) {
+    apiServerProfile = profileName;
+    apiServerAvailable = null;
+    runsApiAvailable = null;
+  }
   const longHaulChanged = ensureLongHaulConfig(profile);
-  if (!isRemoteMode() && longHaulChanged && isGatewayRunning()) {
-    stopGateway(true);
+  if (!isRemoteMode() && longHaulChanged && isGatewayRunning(profileName)) {
+    stopGateway(true, profileName);
     startGateway(profile);
     apiServerAvailable = false;
   }
@@ -191,7 +198,7 @@ function ensureInitialized(): void {
 function startHealthPolling(): void {
   if (_healthCheckInterval) return;
   _healthCheckInterval = setInterval(async () => {
-    apiServerAvailable = await isApiServerReady();
+    apiServerAvailable = await isApiServerReady(apiServerProfile);
     // Stop polling once API is confirmed available — only re-check on demand
     if (apiServerAvailable && _healthCheckInterval) {
       clearInterval(_healthCheckInterval);
@@ -277,13 +284,16 @@ export function startGateway(profile?: string): boolean {
     gatewayProcess = null;
     gatewayStartedByApp = false;
     gatewayProfile = "default";
+    apiServerProfile = "default";
     apiServerAvailable = false;
+    runsApiAvailable = null;
     // Restart health polling to detect if gateway comes back
     startHealthPolling();
   });
 
   gatewayStartedByApp = true;
   gatewayProfile = profileName;
+  apiServerProfile = profileName;
 
   // Wait a bit then check if API server came up
   setTimeout(async () => {
@@ -336,7 +346,9 @@ export function stopGateway(force = false, profile?: string): void {
   }
   gatewayStartedByApp = false;
   gatewayProfile = "default";
+  apiServerProfile = "default";
   apiServerAvailable = false;
+  runsApiAvailable = null;
 }
 
 export function isGatewayRunning(profile?: string): boolean {

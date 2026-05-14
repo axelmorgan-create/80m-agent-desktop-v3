@@ -5,6 +5,7 @@ import {
   sendMessage,
   startGateway,
 } from "./hermes";
+import { recordSessionProfile } from "./session-profiles";
 
 interface AppNotificationPayload {
   title: string;
@@ -14,6 +15,8 @@ interface AppNotificationPayload {
 }
 
 const activeChatAborts = new Map<string, () => void>();
+// Track profile per active chat request so we can record session->profile on done
+const activeChatProfiles = new Map<string, string>();
 
 function sendAppNotification(
   getMainWindow: () => BrowserWindow | null,
@@ -60,13 +63,16 @@ export function registerChatIpc(
       activeProject?: string | null,
       requestId?: string,
     ) => {
-      if (!isRemoteMode() && !isGatewayRunning()) {
+      if (!isRemoteMode() && !isGatewayRunning(profile)) {
         startGateway(profile);
       }
 
       const runId =
         requestId ||
         `chat-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+
+      activeChatProfiles.set(runId, profile || "default");
+
       let fullResponse = "";
       const chatStartTime = Date.now();
       let resolveChat: (v: { response: string; sessionId?: string }) => void;
@@ -87,6 +93,11 @@ export function registerChatIpc(
           },
           onDone: (sessionId) => {
             activeChatAborts.delete(runId);
+            const activeProfile = activeChatProfiles.get(runId);
+            if (sessionId && activeProfile) {
+              recordSessionProfile(sessionId, activeProfile);
+            }
+            activeChatProfiles.delete(runId);
             event.sender.send("chat-done", sessionId || "", runId);
             resolveChat({ response: fullResponse, sessionId });
             const mainWindow = getMainWindow();
@@ -112,6 +123,7 @@ export function registerChatIpc(
           },
           onError: (error) => {
             activeChatAborts.delete(runId);
+            activeChatProfiles.delete(runId);
             event.sender.send("chat-error", error, runId);
             rejectChat(new Error(error));
             const mainWindow = getMainWindow();

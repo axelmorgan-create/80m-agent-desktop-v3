@@ -6,21 +6,25 @@ export const hermesWorkspaceApi = {
   listSessions: (
     limit?: number,
     offset?: number,
+    profile?: string,
   ): Promise<
     Array<{
       id: string;
+      profile: string;
       source: string;
       startedAt: number;
+      updatedAt: number;
       endedAt: number | null;
       messageCount: number;
       model: string;
       title: string | null;
       preview: string;
     }>
-  > => ipcRenderer.invoke("list-sessions", limit, offset),
+  > => ipcRenderer.invoke("list-sessions", limit, offset, profile),
 
   getSessionMessages: (
     sessionId: string,
+    profile?: string,
   ): Promise<
     Array<{
       id: number;
@@ -30,7 +34,7 @@ export const hermesWorkspaceApi = {
       tool_calls?: string;
       tool_name?: string;
     }>
-  > => ipcRenderer.invoke("get-session-messages", sessionId),
+  > => ipcRenderer.invoke("get-session-messages", sessionId, profile),
 
   // Profiles
   listProfiles: (): Promise<
@@ -169,46 +173,64 @@ export const hermesWorkspaceApi = {
   listCachedSessions: (
     limit?: number,
     offset?: number,
+    profile?: string,
   ): Promise<
     Array<{
       id: string;
+      profile: string;
       title: string;
       startedAt: number;
+      updatedAt: number;
       source: string;
       messageCount: number;
       model: string;
     }>
-  > => ipcRenderer.invoke("list-cached-sessions", limit, offset),
+  > => ipcRenderer.invoke("list-cached-sessions", limit, offset, profile),
 
-  syncSessionCache: (): Promise<
+  syncSessionCache: (
+    profile?: string,
+  ): Promise<
     Array<{
       id: string;
+      profile: string;
       title: string;
       startedAt: number;
+      updatedAt: number;
       source: string;
       messageCount: number;
       model: string;
     }>
-  > => ipcRenderer.invoke("sync-session-cache"),
+  > => ipcRenderer.invoke("sync-session-cache", profile),
 
-  updateSessionTitle: (sessionId: string, title: string): Promise<void> =>
-    ipcRenderer.invoke("update-session-title", sessionId, title),
+  updateSessionTitle: (
+    sessionId: string,
+    title: string,
+    profile?: string,
+  ): Promise<void> =>
+    ipcRenderer.invoke("update-session-title", sessionId, title, profile),
 
   // Session search
   searchSessions: (
     query: string,
     limit?: number,
+    profile?: string,
   ): Promise<
     Array<{
       sessionId: string;
+      profile: string;
       title: string | null;
       startedAt: number;
+      updatedAt: number;
       source: string;
       messageCount: number;
       model: string;
       snippet: string;
     }>
-  > => ipcRenderer.invoke("search-sessions", query, limit),
+  > => ipcRenderer.invoke("search-sessions", query, limit, profile),
+
+  // Session profile mapping
+  getSessionProfiles: (): Promise<Record<string, string>> =>
+    ipcRenderer.invoke("get-session-profiles"),
 
   // Credential Pool
   getCredentialPool: (): Promise<

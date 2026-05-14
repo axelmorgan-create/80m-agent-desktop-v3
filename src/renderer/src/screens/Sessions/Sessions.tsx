@@ -4,8 +4,10 @@ import { useI18n } from "../../components/useI18n";
 
 interface CachedSession {
   id: string;
+  profile: string;
   title: string;
   startedAt: number;
+  updatedAt: number;
   source: string;
   messageCount: number;
   model: string;
@@ -13,8 +15,10 @@ interface CachedSession {
 
 interface SearchResult {
   sessionId: string;
+  profile: string;
   title: string | null;
   startedAt: number;
+  updatedAt: number;
   source: string;
   messageCount: number;
   model: string;
@@ -25,6 +29,7 @@ interface SessionsProps {
   onResumeSession: (sessionId: string) => void;
   onNewChat: () => void;
   currentSessionId: string | null;
+  profile: string;
 }
 
 function formatTime(ts: number): string {
@@ -73,7 +78,7 @@ function groupSessions(
 ): Array<{ label: DateGroup; sessions: CachedSession[] }> {
   const groups = new Map<DateGroup, CachedSession[]>();
   for (const s of sessions) {
-    const group = getDateGroup(s.startedAt);
+    const group = getDateGroup(s.updatedAt || s.startedAt);
     if (!groups.has(group)) groups.set(group, []);
     groups.get(group)!.push(s);
   }
@@ -126,8 +131,8 @@ const SessionCard = memo(function SessionCard({
         </span>
         <span className="sessions-card-time">
           {showFullDate
-            ? formatFullDate(session.startedAt)
-            : formatTime(session.startedAt)}
+            ? formatFullDate(session.updatedAt || session.startedAt)
+            : formatTime(session.updatedAt || session.startedAt)}
         </span>
       </div>
       <div className="sessions-card-tags">
@@ -151,6 +156,7 @@ function Sessions({
   onResumeSession,
   onNewChat,
   currentSessionId,
+  profile,
 }: SessionsProps): React.JSX.Element {
   const { t } = useI18n();
   const [sessions, setSessions] = useState<CachedSession[]>([]);
@@ -160,21 +166,42 @@ function Sessions({
   const [isSearching, setIsSearching] = useState(false);
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const searchRef = useRef<HTMLInputElement>(null);
+  const loadSeqRef = useRef(0);
 
   const loadSessions = useCallback(async (): Promise<void> => {
+    const loadSeq = (loadSeqRef.current += 1);
     setLoading(true);
-    const cached = await window.hermesAPI.listCachedSessions(50);
+    const cached = await window.hermesAPI.listCachedSessions(50, 0, profile);
+    if (loadSeq !== loadSeqRef.current) return;
     if (cached.length > 0) {
       setSessions(cached);
       setLoading(false);
     }
-    const synced = await window.hermesAPI.syncSessionCache();
+    const synced = await window.hermesAPI.syncSessionCache(profile);
+    if (loadSeq !== loadSeqRef.current) return;
     setSessions(synced.slice(0, 50));
     setLoading(false);
-  }, []);
+  }, [profile]);
 
   useEffect(() => {
     loadSessions();
+  }, [loadSessions]);
+
+  useEffect(() => {
+    const refresh = () => {
+      void loadSessions();
+    };
+    const refreshOnVisible = () => {
+      if (!document.hidden) refresh();
+    };
+    window.addEventListener("sessions-updated", refresh);
+    window.addEventListener("focus", refresh);
+    document.addEventListener("visibilitychange", refreshOnVisible);
+    return () => {
+      window.removeEventListener("sessions-updated", refresh);
+      window.removeEventListener("focus", refresh);
+      document.removeEventListener("visibilitychange", refreshOnVisible);
+    };
   }, [loadSessions]);
 
   useEffect(() => {
@@ -186,14 +213,18 @@ function Sessions({
     }
     setIsSearching(true);
     searchTimer.current = setTimeout(async () => {
-      const results = await window.hermesAPI.searchSessions(searchQuery);
+      const results = await window.hermesAPI.searchSessions(
+        searchQuery,
+        20,
+        profile,
+      );
       setSearchResults(results);
       setIsSearching(false);
     }, 300);
     return () => {
       if (searchTimer.current) clearTimeout(searchTimer.current);
     };
-  }, [searchQuery]);
+  }, [profile, searchQuery]);
 
   const isShowingSearch = searchQuery.trim().length > 0;
   const grouped = groupSessions(sessions);
@@ -268,7 +299,7 @@ function Sessions({
                         `${t("sessions.title")} ${r.sessionId.slice(-6)}`}
                     </span>
                     <span className="sessions-card-time">
-                      {formatFullDate(r.startedAt)}
+                      {formatFullDate(r.updatedAt || r.startedAt)}
                     </span>
                   </div>
                   {r.snippet && (

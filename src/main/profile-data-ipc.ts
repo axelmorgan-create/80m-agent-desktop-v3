@@ -12,6 +12,7 @@ import {
   syncSessionCache,
   updateSessionTitle,
 } from "./session-cache";
+import { getSessionProfiles } from "./session-profiles";
 import {
   addMemoryEntry,
   readMemory,
@@ -32,11 +33,15 @@ import { getToolsets, setToolsetEnabled } from "./tools";
 export function registerProfileDataIpc(
   emitProfilesChanged: (source: string) => void,
 ): void {
-  ipcMain.handle("list-sessions", (_event, limit?: number, offset?: number) =>
-    listSessions(limit, offset),
+  ipcMain.handle(
+    "list-sessions",
+    (_event, limit?: number, offset?: number, profile?: string) =>
+      listSessions(limit, offset, profile),
   );
-  ipcMain.handle("get-session-messages", (_event, sessionId: string) =>
-    getSessionMessages(sessionId),
+  ipcMain.handle(
+    "get-session-messages",
+    (_event, sessionId: string, profile?: string) =>
+      getSessionMessages(sessionId, profile),
   );
 
   ipcMain.handle("list-profiles", async () => listProfiles());
@@ -118,16 +123,21 @@ export function registerProfileDataIpc(
 
   ipcMain.handle(
     "list-cached-sessions",
-    (_event, limit?: number, offset?: number) =>
-      listCachedSessions(limit, offset),
+    (_event, limit?: number, offset?: number, profile?: string) =>
+      listCachedSessions(limit, offset, profile),
   );
-  ipcMain.handle("sync-session-cache", () => syncSessionCache());
+  ipcMain.handle("sync-session-cache", (_event, profile?: string) =>
+    syncSessionCache(profile),
+  );
   ipcMain.handle(
     "update-session-title",
-    (_event, sessionId: string, title: string) =>
-      updateSessionTitle(sessionId, title),
+    (_event, sessionId: string, title: string, profile?: string) =>
+      updateSessionTitle(sessionId, title, profile),
   );
-  ipcMain.handle("search-sessions", (_event, query: string, limit?: number) =>
-    searchSessions(query, limit),
+  ipcMain.handle(
+    "search-sessions",
+    (_event, query: string, limit?: number, profile?: string) =>
+      searchSessions(query, limit, profile),
   );
+  ipcMain.handle("get-session-profiles", () => getSessionProfiles());
 }

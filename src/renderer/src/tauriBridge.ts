@@ -406,10 +406,10 @@ export const installTauriBridge = (): void => {
     setPlatformEnabled: (platform, enabled, profile) =>
       call("set_platform_enabled", { platform, enabled, profile }, false),
 
-    listSessions: (limit, offset) =>
-      call("list_sessions", { limit, offset }, []),
-    getSessionMessages: (sessionId) =>
-      call("get_session_messages", { sessionId }, []),
+    listSessions: (limit, offset, profile) =>
+      call("list_sessions", { limit, offset, profile }, []),
+    getSessionMessages: (sessionId, profile) =>
+      call("get_session_messages", { sessionId, profile }, []),
 
     listProfiles: () => call("list_profiles", {}, []),
     createProfile: async (name, options) => {
@@ -557,13 +557,14 @@ export const installTauriBridge = (): void => {
         },
       ),
 
-    listCachedSessions: (limit, offset) =>
-      call("list_cached_sessions", { limit, offset }, []),
-    syncSessionCache: () => call("sync_session_cache", {}, []),
-    updateSessionTitle: (sessionId, title) =>
-      call("update_session_title", { sessionId, title }, undefined),
-    searchSessions: (query, limit) =>
-      call("search_sessions", { query, limit }, []),
+    listCachedSessions: (limit, offset, profile) =>
+      call("list_cached_sessions", { limit, offset, profile }, []),
+    syncSessionCache: (profile) => call("sync_session_cache", { profile }, []),
+    updateSessionTitle: (sessionId, title, profile) =>
+      call("update_session_title", { sessionId, title, profile }, undefined),
+    searchSessions: (query, limit, profile) =>
+      call("search_sessions", { query, limit, profile }, []),
+    getSessionProfiles: () => call("get_session_profiles", {}, {}),
 
     getCredentialPool: () => call("get_credential_pool", {}, {}),
     setCredentialPool: (provider, entries) =>

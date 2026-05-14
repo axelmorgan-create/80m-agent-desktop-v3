@@ -1,19 +1,20 @@
 import { existsSync, readFileSync } from "fs";
 import { join } from "path";
 import { HERMES_HOME } from "./installer";
-import { safeWriteFile } from "./utils";
+import { normalizeProfileName, profileHome, safeWriteFile } from "./utils";
 import Database from "better-sqlite3";
 import { t } from "../shared/i18n";
 import { getAppLocale } from "./locale";
 
 const CACHE_DIR = join(HERMES_HOME, "desktop");
-const CACHE_FILE = join(CACHE_DIR, "sessions.json");
-const DB_PATH = join(HERMES_HOME, "state.db");
+const DEFAULT_CACHE_FILE = join(CACHE_DIR, "sessions.json");
 
 export interface CachedSession {
   id: string;
+  profile: string;
   title: string;
   startedAt: number;
+  updatedAt: number;
   source: string;
   messageCount: number;
   model: string;
@@ -22,6 +23,17 @@ export interface CachedSession {
 interface CacheData {
   sessions: CachedSession[];
   lastSync: number;
+}
+
+function cacheFileForProfile(profile?: string): string {
+  const profileName = normalizeProfileName(profile);
+  return profileName === "default"
+    ? DEFAULT_CACHE_FILE
+    : join(CACHE_DIR, `sessions-${profileName}.json`);
+}
+
+function dbPathForProfile(profile?: string): string {
+  return join(profileHome(profile), "state.db");
 }
 
 // Generate a short, readable title from the first user message (like ChatGPT/Claude)
@@ -55,65 +67,71 @@ function generateTitle(message: string): string {
   return title || text.slice(0, 45) + "...";
 }
 
-function readCache(): CacheData {
+function readCache(profile?: string): CacheData {
   try {
-    if (!existsSync(CACHE_FILE)) return { sessions: [], lastSync: 0 };
-    return JSON.parse(readFileSync(CACHE_FILE, "utf-8"));
+    const cacheFile = cacheFileForProfile(profile);
+    if (!existsSync(cacheFile)) return { sessions: [], lastSync: 0 };
+    return JSON.parse(readFileSync(cacheFile, "utf-8"));
   } catch {
     return { sessions: [], lastSync: 0 };
   }
 }
 
-function writeCache(data: CacheData): void {
+function writeCache(data: CacheData, profile?: string): void {
   try {
-    safeWriteFile(CACHE_FILE, JSON.stringify(data));
+    safeWriteFile(cacheFileForProfile(profile), JSON.stringify(data));
   } catch {
     // non-fatal
   }
 }
 
-function getDb(): Database.Database | null {
-  if (!existsSync(DB_PATH)) return null;
-  return new Database(DB_PATH, { readonly: true });
+function getDb(profile?: string): Database.Database | null {
+  const dbPath = dbPathForProfile(profile);
+  if (!existsSync(dbPath)) return null;
+  return new Database(dbPath, { readonly: true });
 }
 
-// Sync from hermes DB to local cache — only fetches new/updated sessions
-export function syncSessionCache(): CachedSession[] {
-  const cache = readCache();
-  const db = getDb();
+// Sync from the selected Hermes profile DB to local cache.
+// We re-read the latest session set because resumed sessions can receive new
+// messages long after their started_at timestamp.
+export function syncSessionCache(profile?: string): CachedSession[] {
+  const profileName = normalizeProfileName(profile);
+  const cache = readCache(profileName);
+  const db = getDb(profileName);
   if (!db) return cache.sessions;
 
   try {
-    // Fetch sessions newer than last sync, or all if first sync
     const rows = db
       .prepare(
-        `SELECT s.id, s.started_at, s.source, s.message_count, s.model, s.title
+        `SELECT
+          s.id,
+          s.started_at,
+          s.source,
+          s.message_count,
+          s.model,
+          s.title,
+          COALESCE(
+            (SELECT MAX(m.timestamp) FROM messages m WHERE m.session_id = s.id),
+            s.ended_at,
+            s.started_at
+          ) AS updated_at
          FROM sessions s
-         WHERE s.started_at > ?
-         ORDER BY s.started_at DESC`,
+         ORDER BY updated_at DESC, s.started_at DESC
+         LIMIT 500`,
       )
-      .all(cache.lastSync > 0 ? cache.lastSync - 300 : 0) as Array<{
+      .all() as Array<{
       id: string;
       started_at: number;
       source: string;
       message_count: number;
       model: string;
       title: string | null;
+      updated_at: number;
     }>;
 
-    const existingIds = new Set(cache.sessions.map((s) => s.id));
-    const newSessions: CachedSession[] = [];
+    const syncedSessions: CachedSession[] = [];
 
     for (const row of rows) {
-      if (existingIds.has(row.id)) {
-        // Update existing entry (message count may have changed)
-        const idx = cache.sessions.findIndex((s) => s.id === row.id);
-        if (idx >= 0) {
-          cache.sessions[idx].messageCount = row.message_count;
-        }
-        continue;
-      }
-
       // Generate title from first user message
       let title = row.title || "";
       if (!title) {
@@ -133,26 +151,27 @@ export function syncSessionCache(): CachedSession[] {
         }
       }
 
-      newSessions.push({
+      syncedSessions.push({
         id: row.id,
+        profile: profileName,
         title,
         startedAt: row.started_at,
+        updatedAt: row.updated_at || row.started_at,
         source: row.source,
         messageCount: row.message_count,
         model: row.model || "",
       });
     }
 
-    // Merge: new sessions first (most recent), then existing
-    const allSessions = [...newSessions, ...cache.sessions];
-    // Sort by startedAt descending
-    allSessions.sort((a, b) => b.startedAt - a.startedAt);
+    syncedSessions.sort(
+      (a, b) => b.updatedAt - a.updatedAt || b.startedAt - a.startedAt,
+    );
 
     const updated: CacheData = {
-      sessions: allSessions,
+      sessions: syncedSessions,
       lastSync: Math.floor(Date.now() / 1000),
     };
-    writeCache(updated);
+    writeCache(updated, profileName);
     return updated.sessions;
   } catch {
     return cache.sessions;
@@ -162,17 +181,25 @@ export function syncSessionCache(): CachedSession[] {
 }
 
 // Fast read from cache only (no DB access)
-export function listCachedSessions(limit = 50, offset = 0): CachedSession[] {
-  const cache = readCache();
+export function listCachedSessions(
+  limit = 50,
+  offset = 0,
+  profile?: string,
+): CachedSession[] {
+  const cache = readCache(profile);
   return cache.sessions.slice(offset, offset + limit);
 }
 
 // Update title for a specific session
-export function updateSessionTitle(sessionId: string, title: string): void {
-  const cache = readCache();
+export function updateSessionTitle(
+  sessionId: string,
+  title: string,
+  profile?: string,
+): void {
+  const cache = readCache(profile);
   const idx = cache.sessions.findIndex((s) => s.id === sessionId);
   if (idx >= 0) {
     cache.sessions[idx].title = title;
-    writeCache(cache);
+    writeCache(cache, profile);
   }
 }

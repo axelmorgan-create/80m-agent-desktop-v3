@@ -1,7 +1,14 @@
 import React from "react";
 import { motion } from "framer-motion";
 
-type AgentId = "prawnius" | "claudnelius" | "knowledge_knaight" | "clawdette";
+type AgentId =
+  | "prawnius"
+  | "claudnelius"
+  | "knowledge_knaight"
+  | "knaight_of_affairs"
+  | "sirclawthchilds"
+  | "labrina"
+  | "clawdette";
 
 interface AgentConfig {
   id: AgentId;
@@ -15,30 +22,51 @@ const AGENTS: AgentConfig[] = [
   {
     id: "prawnius",
     name: "Prawnius",
-    color: "#22c55e",
+    color: "#00d4ff",
     icon: "Bot",
     role: "Quick Tasks",
   },
   {
     id: "claudnelius",
     name: "Claudnelius",
-    color: "#4ade80",
+    color: "#06b6d4",
     icon: "PenTool",
     role: "Code & Design",
   },
   {
     id: "knowledge_knaight",
-    name: "Knowledge",
-    color: "#f59e0b",
+    name: "Knowledge Knaight",
+    color: "#22d3ee",
     icon: "Search",
-    role: "Research",
+    role: "Cortex Keeper",
+  },
+  {
+    id: "knaight_of_affairs",
+    name: "Knaight of Affairs",
+    color: "#38bdf8",
+    icon: "CheckCircle2",
+    role: "Scheduling",
+  },
+  {
+    id: "sirclawthchilds",
+    name: "Sir Clawthchilds",
+    color: "#0ea5e9",
+    icon: "CheckCircle2",
+    role: "Finance",
+  },
+  {
+    id: "labrina",
+    name: "Labrina",
+    color: "#14b8a6",
+    icon: "PenTool",
+    role: "Analytical",
   },
   {
     id: "clawdette",
     name: "Clawdette",
-    color: "#ef4444",
+    color: "#0891b2",
     icon: "CheckCircle2",
-    role: "Operations",
+    role: "Creative Ops",
   },
 ];
 

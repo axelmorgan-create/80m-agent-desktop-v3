@@ -319,6 +319,7 @@
 .msg-80m.assistant .msg-80m-bubble,
 .msg-80m.tool .msg-80m-bubble,
 .assistant-tool-call,
+.tool-activity-pill,
 .tool-file-preview,
 .terminal-command,
 .tool-progress-detail {

@@ -1,0 +1,62 @@
+.msg-80m.tool.tool-flat-message {
+  margin: 0 0 2px;
+}
+
+[data-theme] .msg-80m.tool.tool-flat-message .msg-80m-bubble {
+  width: fit-content !important;
+  max-width: min(100%, 520px) !important;
+  padding: 0 !important;
+  border: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+[data-theme] .msg-80m-tool-block.tool-flat-inline-block {
+  display: inline-flex !important;
+  width: fit-content !important;
+  max-width: 100% !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  overflow: visible !important;
+  border: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+[data-theme] .tool-flat-inline-block .tool-activity-pill {
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 6px !important;
+  width: fit-content !important;
+  max-width: min(100%, 520px) !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  color: var(--muted-text) !important;
+}
+
+[data-theme] .tool-flat-inline-block .tool-activity-pill-icon {
+  width: 15px !important;
+  height: 15px !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  color: var(--accent) !important;
+}
+
+[data-theme] .tool-flat-inline-block .tool-activity-pill-status,
+[data-theme] .tool-flat-inline-block .tool-activity-pill-label,
+[data-theme] .tool-flat-inline-block .tool-activity-pill-meta {
+  color: inherit !important;
+}
+
+[data-theme] .tool-flat-inline-block .tool-activity-pill-status,
+[data-theme] .tool-flat-inline-block .tool-activity-pill-label {
+  font-weight: 700 !important;
+}
+
+[data-theme] .tool-flat-inline-block .tool-result-line .tool-activity-pill-label {
+  max-width: min(420px, 64vw);
+}

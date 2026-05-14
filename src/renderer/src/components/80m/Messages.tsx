@@ -19,7 +19,6 @@ import {
   normalizeExternalHref,
   parseJsonRecord,
   parseToolCalls,
-  prettyJson,
   stripHermesLineNumbers,
 } from "./messageToolUtils";
 import type {
@@ -39,6 +38,7 @@ export interface Message {
 interface Props {
   messages: Message[];
   isLoading: boolean;
+  assistantLabel?: string;
 }
 
 function ToolCallsBlock({
@@ -281,6 +281,42 @@ function ToolFileArtifact({
   );
 }
 
+function compactToolText(value: unknown): string {
+  if (typeof value === "string") {
+    const text = value
+      .split("\n")
+      .map((line) => line.trim())
+      .find(Boolean);
+    return text || "No output";
+  }
+  if (value === null || value === undefined) return "No output";
+  try {
+    return JSON.stringify(value);
+  } catch {
+    return String(value);
+  }
+}
+
+function ToolResultLine({
+  detail,
+  status = "Result",
+  title,
+}: {
+  detail: string;
+  status?: string;
+  title: string;
+}): React.JSX.Element {
+  return (
+    <div className="tool-activity-pill tool-result-line" title={title}>
+      <span className="tool-activity-pill-icon" aria-hidden="true">
+        <Check size={11} />
+      </span>
+      <span className="tool-activity-pill-status">{status}</span>
+      <span className="tool-activity-pill-label">{detail}</span>
+    </div>
+  );
+}
+
 function ToolMessage({ msg }: { msg: Message }): React.JSX.Element {
   const filePreview = extractFilePreview(msg);
   const fileArtifact = filePreview ? null : extractFileArtifact(msg);
@@ -308,72 +344,77 @@ function ToolMessage({ msg }: { msg: Message }): React.JSX.Element {
                   : "File result"
           : `Tool result${msg.tool_name ? `: ${msg.tool_name}` : ""}`;
 
-  if (msg.tool_name === "terminal" && !activity) {
+  if (activity) {
+    const statusLabel =
+      activityStatus === "completed"
+        ? "Done"
+        : activityStatus === "error"
+          ? "Error"
+          : activityStatus === "reasoning"
+            ? "Thinking"
+            : "Running";
+    const label = activity.label || activity.preview || activity.tool || title;
+
     return (
-      <details className="tool-activity-card" open>
-        <summary>{title}</summary>
-        <div className="terminal-visualizer">
-          <div className="terminal-header">
-            <span className="terminal-dot"></span>
-            <span className="terminal-dot"></span>
-            <span className="terminal-dot"></span>
-            <span className="terminal-title">TERMINAL EXECUTION</span>
-          </div>
-          {toolCalls && typeof toolCalls.command === "string" && (
-            <pre className="terminal-command">
-              <code>{toolCalls.command}</code>
-            </pre>
+      <div className={`tool-activity-pill ${activityStatus || "running"}`}>
+        <span className="tool-activity-pill-icon" aria-hidden="true">
+          {activityStatus === "completed" ? (
+            <Check size={11} />
+          ) : (
+            <Wrench size={11} />
           )}
-          <pre className="terminal-output">
-            <code>{msg.content}</code>
-          </pre>
-        </div>
-      </details>
+        </span>
+        <span className="tool-activity-pill-status">{statusLabel}</span>
+        <span className="tool-activity-pill-label">{label}</span>
+        {typeof activity.duration === "number" && (
+          <span className="tool-activity-pill-meta">
+            {activity.duration.toFixed(1)}s
+          </span>
+        )}
+      </div>
+    );
+  }
+
+  if (!filePreview && !fileArtifact) {
+    const command =
+      toolCalls && typeof toolCalls.command === "string"
+        ? toolCalls.command
+        : undefined;
+    const detail = compactToolText(command || msg.content);
+
+    return (
+      <ToolResultLine
+        detail={detail}
+        status={msg.tool_name === "terminal" ? "Terminal" : "Result"}
+        title={title}
+      />
     );
   }
 
   return (
-    <details className="tool-activity-card" open>
-      <summary>{title}</summary>
-      <div className="generic-tool-visualizer">
-        <div className="tool-header">Tool: {msg.tool_name || "result"}</div>
-        {filePreview ? (
-          <ToolFilePreview file={filePreview} />
-        ) : fileArtifact ? (
-          <ToolFileArtifact file={fileArtifact} />
-        ) : activity ? (
-          <div className="tool-progress-detail">
-            <div
-              className={`tool-progress-status ${activityStatus || "running"}`}
-            >
-              {activityStatus === "completed"
-                ? "Completed"
-                : activityStatus === "error"
-                  ? "Error"
-                  : activityStatus === "reasoning"
-                    ? "Reasoning"
-                    : "Running"}
-            </div>
-            <div className="tool-progress-label">
-              {activity.label || activity.preview || activity.tool}
-            </div>
-            {typeof activity.duration === "number" && (
-              <div className="tool-progress-meta">
-                {activity.duration.toFixed(1)}s
-              </div>
-            )}
-          </div>
-        ) : (
-          <pre>
-            <code>{prettyJson(msg.content)}</code>
-          </pre>
-        )}
-      </div>
-    </details>
+    <div className="tool-preview-result">
+      {filePreview ? (
+        <ToolFilePreview file={filePreview} />
+      ) : fileArtifact ? (
+        <ToolFileArtifact file={fileArtifact} />
+      ) : (
+        <ToolResultLine detail="No output" title={title} />
+      )}
+    </div>
   );
 }
 
-const Messages: React.FC<Props> = ({ messages, isLoading }) => {
+function isFlatToolMessage(msg: Message): boolean {
+  if (msg.role !== "tool") return false;
+  if (extractFilePreview(msg) || extractFileArtifact(msg)) return false;
+  return true;
+}
+
+const Messages: React.FC<Props> = ({
+  messages,
+  isLoading,
+  assistantLabel = "80M Agent",
+}) => {
   const [hoveredMsg, setHoveredMsg] = useState<string | null>(null);
   const [copiedMsg, setCopiedMsg] = useState<string | null>(null);
 
@@ -466,89 +507,96 @@ const Messages: React.FC<Props> = ({ messages, isLoading }) => {
           <p>Send a message to start a session with your agent.</p>
         </div>
       )}
-      {messages.map((msg, index) => (
-        <div
-          key={`${msg.id}-${index}`}
-          className={`msg-80m ${msg.role}`}
-          onMouseEnter={() => setHoveredMsg(msg.id)}
-          onMouseLeave={() => setHoveredMsg(null)}
-        >
-          {msg.role === "user" && (
-            <div className="msg-80m-label">
-              <svg
-                width="10"
-                height="10"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="3"
-              >
-                <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
-                <circle cx="12" cy="7" r="4" />
-              </svg>
-              USER_ID:SVR
-            </div>
-          )}
-          <div className="msg-80m-bubble">
-            {msg.role !== "tool" && hoveredMsg === msg.id && (
-              <div className="msg-80m-actions">
-                <button
-                  className="msg-80m-action-btn"
-                  title="Copy message"
-                  type="button"
-                  onClick={() => void copyMessage(msg)}
-                >
-                  {copiedMsg === msg.id ? (
-                    <Check size={12} />
-                  ) : (
-                    <Copy size={12} />
-                  )}
-                </button>
-              </div>
-            )}
-            {msg.role === "assistant" && (
-              <div className="msg-80m-bot-icon">
+      {messages.map((msg, index) => {
+        const flatToolMessage = isFlatToolMessage(msg);
+        return (
+          <div
+            key={`${msg.id}-${index}`}
+            className={`msg-80m ${msg.role}${flatToolMessage ? " tool-flat-message" : ""}`}
+            onMouseEnter={() => setHoveredMsg(msg.id)}
+            onMouseLeave={() => setHoveredMsg(null)}
+          >
+            {msg.role === "user" && (
+              <div className="msg-80m-label">
                 <svg
-                  width="18"
-                  height="18"
+                  width="10"
+                  height="10"
                   viewBox="0 0 24 24"
                   fill="none"
                   stroke="currentColor"
-                  strokeWidth="2"
+                  strokeWidth="3"
                 >
-                  <path d="M12 8V4H8" />
-                  <rect x="4" y="8" width="16" height="12" rx="2" />
-                  <path d="M2 14h2M20 14h2M15 13v2M9 13v2" />
+                  <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+                  <circle cx="12" cy="7" r="4" />
                 </svg>
+                USER_ID:SVR
               </div>
             )}
-            {msg.role === "assistant" ? (
-              <div className="msg-80m-assistant-content">
-                <ToolCallsBlock value={msg.tool_calls} />
-                {(msg.content.trim() ||
-                  (isLoading && index === messages.length - 1)) && (
-                  <ReactMarkdown
-                    remarkPlugins={[remarkGfm]}
-                    components={markdownComponents}
+            <div className="msg-80m-bubble">
+              {msg.role !== "tool" && hoveredMsg === msg.id && (
+                <div className="msg-80m-actions">
+                  <button
+                    className="msg-80m-action-btn"
+                    title="Copy message"
+                    type="button"
+                    onClick={() => void copyMessage(msg)}
                   >
-                    {msg.content +
-                      (isLoading && index === messages.length - 1 ? " █" : "")}
-                  </ReactMarkdown>
-                )}
-              </div>
-            ) : msg.role === "tool" ? (
-              <div className="msg-80m-tool-block">
-                <ToolMessage msg={msg} />
-              </div>
-            ) : (
-              msg.content
+                    {copiedMsg === msg.id ? (
+                      <Check size={12} />
+                    ) : (
+                      <Copy size={12} />
+                    )}
+                  </button>
+                </div>
+              )}
+              {msg.role === "assistant" && (
+                <div className="msg-80m-bot-icon">
+                  <svg
+                    width="18"
+                    height="18"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                  >
+                    <path d="M12 8V4H8" />
+                    <rect x="4" y="8" width="16" height="12" rx="2" />
+                    <path d="M2 14h2M20 14h2M15 13v2M9 13v2" />
+                  </svg>
+                </div>
+              )}
+              {msg.role === "assistant" ? (
+                <div className="msg-80m-assistant-content">
+                  <ToolCallsBlock value={msg.tool_calls} />
+                  {(msg.content.trim() ||
+                    (isLoading && index === messages.length - 1)) && (
+                    <ReactMarkdown
+                      remarkPlugins={[remarkGfm]}
+                      components={markdownComponents}
+                    >
+                      {msg.content +
+                        (isLoading && index === messages.length - 1
+                          ? " █"
+                          : "")}
+                    </ReactMarkdown>
+                  )}
+                </div>
+              ) : msg.role === "tool" ? (
+                <div
+                  className={`msg-80m-tool-block${flatToolMessage ? " tool-flat-inline-block" : ""}`}
+                >
+                  <ToolMessage msg={msg} />
+                </div>
+              ) : (
+                msg.content
+              )}
+            </div>
+            {msg.role === "assistant" && (
+              <div className="msg-80m-assistant-label">{assistantLabel}</div>
             )}
           </div>
-          {msg.role === "assistant" && (
-            <div className="msg-80m-assistant-label">prawnius_V4</div>
-          )}
-        </div>
-      ))}
+        );
+      })}
       {/* Thinking state is now handled by the animated ATM mascot in the sidebar */}
     </div>
   );

@@ -28,7 +28,26 @@ export function createConversationTab(
 }
 
 export function labelForProfile(profile: string): string {
-  return profile === "default" ? "Default Agent" : profile;
+  const labels: Record<string, string> = {
+    default: "80M Agent",
+    prawnius: "Prawnius",
+    sirclawthchilds: "Sir Clawthchilds",
+    sir_clawthchilds: "Sir Clawthchilds",
+    claudnelius: "Claudnelius",
+    caludnelius: "Claudnelius",
+    knowledge_knaight: "Knowledge Knaight",
+    knaight_of_affairs: "Knaight of Affairs",
+    labrina: "Labrina",
+    clawdette: "Clawdette",
+  };
+  return (
+    labels[profile] ||
+    profile
+      .split(/[_-]+/)
+      .filter(Boolean)
+      .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+      .join(" ")
+  );
 }
 
 export function labelForConversation(tab: ConversationTab): string {
@@ -60,7 +79,7 @@ export function useConversationTabs() {
     (sessionId: string | null = null, profile = selectedAgent) => {
       if (sessionId) {
         const existing = conversations.find(
-          (tab) => tab.sessionId === sessionId,
+          (tab) => tab.sessionId === sessionId && tab.profile === profile,
         );
         if (existing) {
           setActiveConversationId(existing.id);

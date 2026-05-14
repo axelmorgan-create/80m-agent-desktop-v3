@@ -1,4 +1,10 @@
 /* Premium interaction layer: composer glass, agent-reactive borders, sidebar tabs */
+@property --agent-input-angle {
+  syntax: "<angle>";
+  inherits: false;
+  initial-value: 0deg;
+}
+
 [data-theme="dark"] {
   --premium-input-bg: linear-gradient(
     135deg,
@@ -55,6 +61,86 @@
 
 .input-80m {
   overflow: visible;
+  isolation: isolate;
+}
+
+.input-80m.agent-working::before,
+.input-80m.agent-working::after {
+  content: "";
+  position: absolute;
+  pointer-events: none;
+  border-radius: 24px;
+}
+
+.input-80m.agent-working::before {
+  inset: 0 18px 14px;
+  z-index: -1;
+  padding: 1px;
+  background:
+    conic-gradient(
+      from var(--agent-input-angle, 0deg),
+      transparent 0deg,
+      transparent 38deg,
+      var(--premium-border-b) 72deg,
+      var(--premium-border-a) 116deg,
+      var(--premium-border-c) 158deg,
+      transparent 208deg,
+      transparent 360deg
+    )
+    border-box;
+  filter: drop-shadow(0 0 18px rgba(74, 222, 128, 0.18));
+  opacity: 0.86;
+  -webkit-mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  animation: agentInputOrbit 3.8s linear infinite !important;
+}
+
+.input-80m.agent-working::after {
+  inset: 4px 22px 18px;
+  z-index: -2;
+  background:
+    radial-gradient(
+      circle at 12% 76%,
+      rgba(74, 222, 128, 0.22),
+      transparent 32%
+    ),
+    radial-gradient(
+      circle at 88% 42%,
+      rgba(125, 211, 252, 0.14),
+      transparent 34%
+    ),
+    linear-gradient(90deg, transparent, rgba(250, 204, 21, 0.08), transparent);
+  filter: blur(14px);
+  opacity: 0.72;
+  transform: translateZ(0);
+  animation: agentInputAura 2.8s ease-in-out infinite !important;
+}
+
+[data-theme="light"] .input-80m.agent-working::after {
+  background:
+    radial-gradient(
+      circle at 12% 76%,
+      rgba(22, 101, 52, 0.16),
+      transparent 32%
+    ),
+    radial-gradient(
+      circle at 88% 42%,
+      rgba(14, 116, 144, 0.11),
+      transparent 34%
+    ),
+    linear-gradient(90deg, transparent, rgba(202, 138, 4, 0.07), transparent);
+}
+
+.input-80m.agent-working[data-busy-mode="steer"]::before {
+  animation-duration: 3s !important;
+}
+
+.input-80m.agent-working[data-busy-mode="background"]::before {
+  opacity: 0.68;
+  animation-duration: 5.2s !important;
 }
 
 [data-theme] .input-80m-form {
@@ -190,6 +276,14 @@
   padding: 1px;
   z-index: 1;
   background:
+    conic-gradient(
+      from var(--agent-input-angle, 0deg),
+      var(--premium-border-a),
+      var(--premium-border-b),
+      var(--premium-border-c),
+      var(--premium-border-a)
+    )
+    border-box,
     linear-gradient(
       115deg,
       transparent 0%,
@@ -208,7 +302,9 @@
   -webkit-mask-composite: xor;
   mask-composite: exclude;
   opacity: 1;
-  animation: inputBorderDrift 2.8s linear infinite !important;
+  animation:
+    inputBorderDrift 2.8s linear infinite,
+    agentInputOrbit 3.8s linear infinite !important;
 }
 
 .input-80m-form.thinking::after {
@@ -493,6 +589,27 @@
   }
 }
 
+@keyframes agentInputOrbit {
+  0% {
+    --agent-input-angle: 0deg;
+  }
+  100% {
+    --agent-input-angle: 360deg;
+  }
+}
+
+@keyframes agentInputAura {
+  0%,
+  100% {
+    opacity: 0.58;
+    transform: scale(0.992);
+  }
+  50% {
+    opacity: 0.88;
+    transform: scale(1.012);
+  }
+}
+
 @keyframes sidebarTabGlow {
   0%,
   100% {
@@ -509,6 +626,8 @@
   .input-80m-form,
   .input-80m-form::before,
   .input-80m-form::after,
+  .input-80m.agent-working::before,
+  .input-80m.agent-working::after,
   .sidebar-80m-nav-item,
   .sidebar-80m-nav-item::before,
   .sidebar-80m-nav-item::after {
@@ -516,4 +635,3 @@
     transition-duration: 1ms !important;
   }
 }
-

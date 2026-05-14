@@ -6,6 +6,7 @@ export interface ChatAreaProps {
   onNewSession?: () => void;
   onSessionChange?: (sessionId: string | null) => void;
   profile?: string;
+  assistantLabel?: string;
   activeProject?: string | null;
   isAudible?: boolean;
 }
