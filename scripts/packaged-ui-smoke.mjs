@@ -7,9 +7,14 @@ import path from "node:path";
 import process from "node:process";
 import { _electron as electron } from "playwright";
 
-const defaultPackagedApp =
-  "/home/falcon/Apps/80m-agent-desktop/80mAgentControl-linux-x64/80m-agent-desktop";
-const executablePath = process.env.PACKAGED_APP ?? defaultPackagedApp;
+function defaultPackagedApp() {
+  if (process.platform === "darwin") {
+    return path.join(os.homedir(), "Applications/Foleybot.app/Contents/MacOS/Foleybot");
+  }
+  return "/home/falcon/Apps/80m-agent-desktop/80mAgentControl-linux-x64/80m-agent-desktop";
+}
+
+const executablePath = process.env.PACKAGED_APP ?? defaultPackagedApp();
 const projectPath = process.env.UI_SMOKE_PROJECT ?? process.cwd();
 const screenshotPath =
   process.env.UI_SMOKE_SCREENSHOT ??
