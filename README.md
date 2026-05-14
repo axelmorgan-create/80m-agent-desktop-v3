@@ -6,7 +6,7 @@
   <a href="https://github.com/guapdad4000/80m-agent-desktop-v3/blob/main/LICENSE"><img src="https://img.shields.io/badge/License-MIT-green?style=for-the-badge" alt="License: MIT"></a>
 </p>
 
-> **80M Agent Desktop** is the native desktop command center for your local 80M AI workspace: chat, profiles, memory, tools, schedules, Kanban, and gateway automations in one branded app. Download the latest release for macOS, Linux, or Windows below.
+> **80M Agent Desktop** is the local-first command center for the 80M AI workspace: multi-agent chat, profiles, Second Brain memory, Desktop Buddy, Cortex Chrome Clipper, tools, schedules, Kanban, and gateway automations in one branded desktop app.
 
 ## Languages
 
@@ -15,15 +15,21 @@
 
 ## Install
 
-Download the latest build from the [Releases](https://github.com/guapdad4000/80m-agent-desktop-v3/releases/) page. The Linux release ships the desktop app, the Desktop Buddy assets, the Cortex Chrome Clipper files, and the local companion API that connects them.
+Download the latest build from the [Releases](https://github.com/guapdad4000/80m-agent-desktop-v3/releases/) page. The current public release is **v0.12.1**, a Linux packaging fix that keeps the client download small while still shipping the desktop app, Desktop Buddy assets, Cortex Chrome Clipper files, and the local companion API that connects them.
 
-| Platform | File                  |
-| -------- | --------------------- |
-| Windows  | `.exe`                |
-| macOS    | `.dmg`                |
-| Linux    | `.AppImage` or `.deb` |
+| Platform | File                      | Current size |
+| -------- | ------------------------- | ------------ |
+| Linux    | `.deb`                    | ~120 MB      |
+| Linux    | `.snap`                   | ~129 MB      |
+| Linux    | `.AppImage`               | ~151 MB      |
+| macOS    | Build from source for now | TBD          |
+| Windows  | Build from source for now | TBD          |
 
-> **macOS users:** The app is not code-signed or notarized. macOS will block it on first launch. To fix this, run the following after installing:
+### Release Footprint
+
+The repo can be several gigabytes while actively building because local-only caches such as `node_modules`, `src-tauri/target`, and generated release output are intentionally heavy. Clients do **not** download those caches. Release packaging now allowlists only the Electron build output, production runtime resources, and production dependencies. `npm run build:release` also clears stale generated installers before producing fresh Linux assets.
+
+> **macOS local builds:** The app is not code-signed or notarized. macOS will block it on first launch. To fix this, run the following after installing a local build:
 >
 > ```bash
 > xattr -cr "/Applications/80m Agent Desktop.app"
@@ -36,7 +42,7 @@ Download the latest build from the [Releases](https://github.com/guapdad4000/80m
 On first launch the app prepares the client-local pieces automatically:
 
 1. **80M runtime check** — verifies the local runtime and guides install/configuration when needed.
-2. **Desktop Buddy install** — opens the small always-on-top buddy once, then keeps it available from the sidebar logo button.
+2. **Desktop Buddy install** — opens the small always-on-top buddy once, then keeps it available from the sidebar buddy button.
 3. **Cortex Clipper install files** — copies the bundled Chrome extension into the app user-data folder so AppImage mounts and packaged paths do not break the browser extension.
 4. **Companion API** — starts the local `http://127.0.0.1:8780` API used by mobile pairing and the Chrome clipper.
 
@@ -46,15 +52,17 @@ Chrome still requires a user-approved browser install step unless the client is 
 
 - **Guided first-run install** for the local 80M runtime with progress tracking and dependency resolution
 - **Multi-provider support** — OpenRouter, Anthropic, OpenAI, Google (Gemini), xAI (Grok), Qwen, MiniMax, Hugging Face, Groq, and local OpenAI-compatible endpoints (LM Studio, Ollama, vLLM, llama.cpp)
-- **Streaming chat UI** with SSE streaming, tool progress indicators, markdown rendering, and syntax highlighting
+- **Streaming multi-chat UI** with SSE streaming, split/tabbed conversations, tool progress indicators, markdown rendering, and syntax highlighting
 - **Token usage tracking** — live prompt/completion token counts and cost display in the chat footer
 - **Session management** — full-text search (SQLite FTS5), date-grouped history, resume and search across conversations
 - **Profile switching** — create, delete, and switch between separate 80M environments with isolated config
 - **14 toolsets** — web, browser, terminal, file, code execution, vision, image gen, TTS, skills, memory, session search, delegation, MoA, and task planning
 - **Memory system** — view/edit memory entries, user profile memory, capacity tracking, and discoverable memory providers
 - **Second Brain navigator** — Obsidian-backed Cortex/Memory view with vault indexing, neural map browsing, and note preview
-- **Desktop Buddy** — packaged 3D buddy with SVG face, stronger idle eye tracking, collapsible controls, mic STT, and Voicebox-aware speech
+- **Desktop Buddy** — packaged 3D buddy with SVG face, idle eye tracking, collapsible controls, mic STT, and Voicebox-aware speech
 - **Cortex Chrome Clipper** — client-friendly browser extension that auto-connects locally, hides pairing codes, and sends pages through Knowledge Knaight into Cortex
+- **Live file preview** — watch the active project and preview files as agent work changes them
+- **Slim client releases** — current Linux builds are ~120-151 MB instead of bundling local build caches
 - **Persona editor** — edit and reset your agent's SOUL.md personality
 - **Saved models** — CRUD management for model configurations across providers
 - **Scheduled tasks** — cron job builder with 15 delivery targets
@@ -66,18 +74,26 @@ Chrome still requires a user-approved browser install step unless the client is 
 
 ## Preview
 
+<img width="100%" alt="80M Agent Desktop current workflow preview" src="docs/assets/80m-agent-preview.png" />
+
+<br/>
+
 <table>
 <tr>
 <td width="50%" align="center"><b>Chat</b><br/><img width="100%" alt="80M fresh chat screenshot" src="docs/assets/screenshots/chat.png" /></td>
 <td width="50%" align="center"><b>Kanban</b><br/><img width="100%" alt="80M Kanban board screenshot" src="docs/assets/screenshots/kanban.png" /></td>
 </tr>
 <tr>
-<td width="50%" align="center"><b>Skills</b><br/><img width="100%" alt="80M skills screenshot" src="docs/assets/screenshots/skills.png" /></td>
-<td width="50%" align="center"><b>Settings</b><br/><img width="100%" alt="80M settings screenshot" src="docs/assets/screenshots/settings.png" /></td>
-</tr>
-<tr>
 <td width="50%" align="center"><b>Second Brain</b><br/><img width="100%" alt="80M second brain screenshot" src="docs/assets/screenshots/memory.png" /></td>
 <td width="50%" align="center"><b>Agent Control</b><br/><img width="100%" alt="80M agent control screenshot" src="docs/assets/screenshots/agent-control.png" /></td>
+</tr>
+<tr>
+<td width="50%" align="center"><b>Desktop Buddy</b><br/><img width="100%" alt="80M Desktop Buddy screenshot" src="docs/assets/screenshots/desktop-buddy.png" /></td>
+<td width="50%" align="center"><b>Cortex Chrome Clipper</b><br/><img width="100%" alt="80M Cortex Chrome Clipper screenshot" src="docs/assets/screenshots/cortex-clipper.png" /></td>
+</tr>
+<tr>
+<td width="50%" align="center"><b>Skills</b><br/><img width="100%" alt="80M skills screenshot" src="docs/assets/screenshots/skills.png" /></td>
+<td width="50%" align="center"><b>Settings</b><br/><img width="100%" alt="80M settings screenshot" src="docs/assets/screenshots/settings.png" /></td>
 </tr>
 </table>
 
@@ -113,41 +129,41 @@ That local-only handshake stores the pairing token inside Chrome extension stora
 POST http://127.0.0.1:8780/api/cortex/clip
 ```
 
-The desktop app sends the page through the Knowledge Knaight synthesis path and writes the resulting Markdown record into the Obsidian-backed Cortex folder. More detail is in [docs/CORTEX_CHROME_CLIPPER.md](docs/CORTEX_CHROME_CLIPPER.md).
+The desktop app sends the page through the Knowledge Knaight synthesis path and writes the resulting Markdown record into the Obsidian-backed Cortex folder. The buddy also reacts while clipping so clients see `Ingesting`, `Saved`, or `Clip failed` without reading logs. More detail is in [docs/CORTEX_CHROME_CLIPPER.md](docs/CORTEX_CHROME_CLIPPER.md).
 
 ## Screens
 
-| Screen | Description |
-|--------|-------------|
-| **Chat** | Streaming conversation UI with tool progress and token tracking |
-| **Sessions** | Browse, search, and resume past conversations |
-| **Agents** | Create, delete, and switch between 80M profiles |
-| **Skills** | Browse, install, and manage bundled and installed skills |
-| **Models** | Manage saved model configurations per provider |
-| **Memory** | View/edit memory entries, user profile, and configure memory providers |
-| **Soul** | Edit the active profile's persona (SOUL.md) |
-| **Tools** | Enable or disable individual toolsets |
-| **Schedules** | Create and manage cron jobs with delivery targets |
-| **Kanban** | Create, assign, block, complete, and inspect 80M multi-agent tasks |
-| **Gateway** | Configure and control messaging platform integrations |
-| **Settings** | Provider config, credential pools, backup/import, log viewer, network settings, theme |
+| Screen        | Description                                                                           |
+| ------------- | ------------------------------------------------------------------------------------- |
+| **Chat**      | Streaming conversation UI with tool progress and token tracking                       |
+| **Sessions**  | Browse, search, and resume past conversations                                         |
+| **Agents**    | Create, delete, and switch between 80M profiles                                       |
+| **Skills**    | Browse, install, and manage bundled and installed skills                              |
+| **Models**    | Manage saved model configurations per provider                                        |
+| **Memory**    | View/edit memory entries, user profile, and configure memory providers                |
+| **Soul**      | Edit the active profile's persona (SOUL.md)                                           |
+| **Tools**     | Enable or disable individual toolsets                                                 |
+| **Schedules** | Create and manage cron jobs with delivery targets                                     |
+| **Kanban**    | Create, assign, block, complete, and inspect 80M multi-agent tasks                    |
+| **Gateway**   | Configure and control messaging platform integrations                                 |
+| **Settings**  | Provider config, credential pools, backup/import, log viewer, network settings, theme |
 
 ## Supported Providers
 
 ### LLM Providers
 
-| Provider | Notes |
-|----------|-------|
-| **OpenRouter** | 200+ models via single API (recommended) |
-| **Anthropic** | Direct Claude access |
-| **OpenAI** | Direct GPT access |
-| **Google (Gemini)** | Google AI Studio |
-| **xAI (Grok)** | Grok models |
-| **Qwen** | QwenAI models |
-| **MiniMax** | Global and China endpoints |
-| **Hugging Face** | 20+ open models via HF Inference |
-| **Groq** | Fast inference |
-| **Local/Custom** | Any OpenAI-compatible endpoint |
+| Provider            | Notes                                    |
+| ------------------- | ---------------------------------------- |
+| **OpenRouter**      | 200+ models via single API (recommended) |
+| **Anthropic**       | Direct Claude access                     |
+| **OpenAI**          | Direct GPT access                        |
+| **Google (Gemini)** | Google AI Studio                         |
+| **xAI (Grok)**      | Grok models                              |
+| **Qwen**            | QwenAI models                            |
+| **MiniMax**         | Global and China endpoints               |
+| **Hugging Face**    | 20+ open models via HF Inference         |
+| **Groq**            | Fast inference                           |
+| **Local/Custom**    | Any OpenAI-compatible endpoint           |
 
 Local presets are included for LM Studio, Ollama, vLLM, and llama.cpp.
 
@@ -211,6 +227,8 @@ Release packaging:
 npm run build:release
 ```
 
+Release builds automatically remove stale generated artifacts from `dist` before packaging. Expected Linux asset sizes are roughly 120-151 MB. If an installer suddenly grows past a few hundred megabytes, inspect `dist/linux-unpacked/resources/app.asar` and make sure it does not contain unexpected source/build folders like `src-tauri` or `dist`, or local state databases.
+
 ## First-Time Setup
 
 When the app opens for the first time, it will either detect an existing local runtime installation or offer to install it for you.
@@ -248,6 +266,7 @@ Before publishing a public release:
 ## Tech Stack
 
 - **Electron** 39 — cross-platform desktop shell
+- **Tauri** 2 — native shell parity layer and metadata for the local native build path
 - **React** 19 — UI framework
 - **TypeScript** 5.9 — type safety across main and renderer processes
 - **Tailwind CSS** 4 — utility-first styling
@@ -267,4 +286,5 @@ Contributions are welcome! Check out the [Contributing Guide](CONTRIBUTING.md) t
 attribution and 80M modification notices are documented in [NOTICE.md](NOTICE.md).
 
 [^chrome-install]: Chrome for Developers, [Use alternative installation methods](https://developer.chrome.com/docs/extensions/how-to/distribute/install-extensions).
+
 [^chrome-hosting]: Chrome for Developers, [Distribute your extension](https://developer.chrome.com/docs/extensions/mv3/hosting).
