@@ -97,8 +97,10 @@
 
 .animated-80m-logo {
   --logo-mask: none;
-  --agent-font-size: 24px;
-  --agent-bottom: 2px;
+  --agent-mask: none;
+  --logo-mask-size: 132% 132%;
+  --agent-x-offset: 14px;
+  --agent-y-offset: 28px;
   position: relative;
   display: block;
   width: 176px;
@@ -110,46 +112,53 @@
 .animated-80m-logo-loading {
   width: 220px;
   height: 94px;
-  --agent-font-size: 30px;
-  --agent-bottom: 4px;
+  --logo-mask-size: 126% 126%;
+  --agent-x-offset: 16px;
+  --agent-y-offset: 30px;
 }
 
 .animated-80m-logo-splash {
   width: 260px;
   height: 110px;
   margin: 0 auto;
-  --agent-font-size: 34px;
-  --agent-bottom: 5px;
+  --logo-mask-size: 126% 126%;
+  --agent-x-offset: 18px;
+  --agent-y-offset: 34px;
 }
 
 .animated-80m-logo-welcome {
   width: 268px;
   height: 114px;
   margin-bottom: 4px;
-  --agent-font-size: 36px;
-  --agent-bottom: 5px;
+  --logo-mask-size: 126% 126%;
+  --agent-x-offset: 18px;
+  --agent-y-offset: 34px;
 }
 
 .animated-80m-logo-about {
   width: 268px;
   height: 114px;
-  --agent-font-size: 36px;
-  --agent-bottom: 5px;
+  --logo-mask-size: 126% 126%;
+  --agent-x-offset: 18px;
+  --agent-y-offset: 34px;
 }
 
 .animated-80m-logo-main,
-.animated-80m-logo-dot {
+.animated-80m-logo-agent {
   position: absolute;
   inset: 0;
   display: block;
-  mask-image: var(--logo-mask);
-  -webkit-mask-image: var(--logo-mask);
   mask-repeat: no-repeat;
   -webkit-mask-repeat: no-repeat;
   mask-position: center;
   -webkit-mask-position: center;
-  mask-size: 100% 100%;
-  -webkit-mask-size: 100% 100%;
+  mask-size: var(--logo-mask-size);
+  -webkit-mask-size: var(--logo-mask-size);
+}
+
+.animated-80m-logo-main {
+  mask-image: var(--logo-mask);
+  -webkit-mask-image: var(--logo-mask);
 }
 
 .animated-80m-logo-main {
@@ -158,38 +167,23 @@
   z-index: 1;
 }
 
-.animated-80m-logo-dot {
-  background: #4ade80;
-  clip-path: inset(65% 2% 29% 90%);
-  filter: drop-shadow(0 0 8px rgba(74, 222, 128, 0.9));
-  z-index: 2;
-}
-
 .animated-80m-logo-agent {
-  position: absolute;
-  left: 50%;
-  bottom: var(--agent-bottom);
+  mask-image: var(--agent-mask);
+  -webkit-mask-image: var(--agent-mask);
+  mask-position:
+    calc(50% + var(--agent-x-offset, 0px))
+    calc(50% + var(--agent-y-offset, 0px));
+  -webkit-mask-position:
+    calc(50% + var(--agent-x-offset, 0px))
+    calc(50% + var(--agent-y-offset, 0px));
   z-index: 3;
-  transform: translateX(-50%) rotate(-9deg);
-  transform-origin: center;
-  color: #ff2147;
-  font-family:
-    "Yellowtail", "Segoe Script", "Bradley Hand", "Brush Script MT",
-    "Snell Roundhand", "Z003", cursive;
-  font-size: var(--agent-font-size);
-  font-style: normal;
-  font-weight: 400;
-  letter-spacing: 0;
-  line-height: 0.88;
+  background: #e70b27;
+  filter:
+    drop-shadow(0 0 2px rgba(255, 245, 247, 0.9))
+    drop-shadow(0 0 10px rgba(231, 11, 39, 0.9))
+    drop-shadow(0 0 22px rgba(231, 11, 39, 0.55));
+  opacity: 0.98;
   pointer-events: none;
-  text-transform: none;
-  -webkit-text-stroke: 0.35px rgba(255, 236, 240, 0.8);
-  text-shadow:
-    0 0 2px rgba(255, 245, 247, 0.96),
-    0 0 7px rgba(255, 33, 71, 0.9),
-    0 0 15px rgba(255, 33, 71, 0.72),
-    0 0 28px rgba(239, 68, 68, 0.54),
-    0 0 44px rgba(185, 28, 28, 0.36);
 }
 
 @keyframes logoGlowBreath {
@@ -512,4 +506,3 @@
     transform: scale(0.8);
   }
 }
-

@@ -1,3 +1,7 @@
+<p align="center">
+  <img width="180" alt="80M" src="docs/assets/80m-logo.png" />
+</p>
+
 <img width="100%" alt="80M Agent Desktop" src="docs/assets/80m-agent-hero.png" />
 
 <br/>
@@ -7,6 +11,15 @@
 </p>
 
 > **80M Agent Desktop** is the local-first command center for the 80M AI workspace: multi-agent chat, profiles, Second Brain memory, Desktop Buddy, Cortex Chrome Clipper, tools, schedules, Kanban, and gateway automations in one branded desktop app.
+
+## Brand
+
+80M Agent Desktop uses the May 2026 dithered 80M identity kit. Use the white
+80M mark on dark, colored, animated, or image-backed app surfaces. Use the
+black mark only on white or light surfaces like this GitHub README. The red
+`Agent` wordmark and 80M Agent lockups are reserved for Agent Desktop and
+Agent-specific UI; the ATM mascot is a separate character asset and should not
+be replaced by logo updates.
 
 ## Languages
 

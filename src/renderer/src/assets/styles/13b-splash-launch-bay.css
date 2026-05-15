@@ -180,6 +180,14 @@
     drop-shadow(0 0 26px rgba(34, 211, 238, 0.12));
 }
 
+.splash-screen .animated-80m-logo-splash .animated-80m-logo-main {
+  animation: splashLogoStamp 0.72s cubic-bezier(0.18, 1, 0.3, 1) 1.74s both;
+}
+
+.splash-screen .animated-80m-logo-splash .animated-80m-logo-agent {
+  animation: splashAgentBurnIn 0.82s steps(5, end) 2.02s both;
+}
+
 .splash-screen .splash-80m-branding-tagline {
   color: #d8ffe5;
   text-shadow: 0 0 12px rgba(74, 222, 128, 0.36);
@@ -212,6 +220,40 @@
   }
 }
 
+@keyframes splashLogoStamp {
+  0% {
+    opacity: 0;
+    transform: translateY(12px) scale(0.92);
+  }
+  64% {
+    opacity: 1;
+    transform: translateY(-2px) scale(1.03);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes splashAgentBurnIn {
+  0% {
+    opacity: 0;
+    transform: translateX(-8px) skewX(-10deg);
+  }
+  35% {
+    opacity: 0.72;
+    transform: translateX(5px) skewX(7deg);
+  }
+  58% {
+    opacity: 0.38;
+    transform: translateX(-2px) skewX(-4deg);
+  }
+  100% {
+    opacity: 0.98;
+    transform: translateX(0) skewX(0);
+  }
+}
+
 @keyframes splashBeamSweep {
   0%,
   100% {
@@ -237,4 +279,3 @@
     transform: translateX(-50%) translateY(0) scale(1);
   }
 }
-

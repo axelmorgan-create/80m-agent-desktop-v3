@@ -43,8 +43,9 @@
 .sidebar-80m-logo-toggle .animated-80m-logo {
   width: 170px;
   height: 92px;
-  --agent-font-size: 30px;
-  --agent-bottom: 8px;
+  --logo-mask-size: 128% 128%;
+  --agent-x-offset: 12px;
+  --agent-y-offset: 26px;
 }
 
 .sidebar-80m-mascot-picker {
