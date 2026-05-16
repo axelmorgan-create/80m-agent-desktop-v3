@@ -600,6 +600,7 @@ async function handleApi(
       getRuntimeStatus(),
       listKanbanBoard(),
     ]);
+    const vault = getObsidianVaultInfo();
     const kanban =
       board.status === "fulfilled"
         ? {
@@ -620,6 +621,11 @@ async function handleApi(
       },
       runtime: runtime.status === "fulfilled" ? runtime.value : runtime.reason,
       model: getModelConfig(),
+      vault: {
+        exists: vault.exists,
+        name: vault.name,
+        path: vault.path,
+      },
       kanban,
       now: Date.now(),
     });

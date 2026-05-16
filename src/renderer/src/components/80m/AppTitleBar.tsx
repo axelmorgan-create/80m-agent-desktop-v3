@@ -132,7 +132,10 @@ const AppTitleBar: React.FC = () => {
       </div>
 
       {/* Window controls — individual floating buttons */}
-      <div className="app-titlebar-controls">
+      <div
+        className="app-titlebar-controls"
+        onDoubleClick={(event) => event.stopPropagation()}
+      >
         <button
           type="button"
           className="app-titlebar-control"

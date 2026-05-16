@@ -148,7 +148,9 @@ export async function openDesktopBuddyWindow(
     backgroundColor: "#00000000",
     alwaysOnTop: true,
     skipTaskbar: true,
-    hasShadow: true,
+    hasShadow: false,
+    // Keep GNOME rounded-corner/shadow extensions from decorating this helper.
+    type: "toolbar",
     autoHideMenuBar: true,
     title: "80m Desktop Buddy",
     webPreferences: {
@@ -158,6 +160,7 @@ export async function openDesktopBuddyWindow(
     },
   });
 
+  buddyWindow.setHasShadow(false);
   buddyWindow.setAlwaysOnTop(true, "floating");
   try {
     buddyWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
@@ -170,6 +173,7 @@ export async function openDesktopBuddyWindow(
   });
 
   buddyWindow.once("ready-to-show", () => {
+    buddyWindow?.setHasShadow(false);
     buddyWindow?.show();
     sendBuddyState();
   });

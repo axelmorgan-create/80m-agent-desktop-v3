@@ -320,38 +320,31 @@ const InputBar: React.FC<Props> = ({
   }, [appendTranscriptToDraft, showToast]);
 
   const handleMicClick = useCallback(() => {
-    if (isRecording || isTranscribing) {
-      stopRecording();
-    } else {
-      startRecording();
-    }
-  }, [isRecording, isTranscribing, startRecording, stopRecording]);
-
-  const hasText = Boolean(text.trim());
-  const primaryActionMode = isRecording ? "stop" : hasText ? "send" : "record";
-  const primaryActionLabel = isRecording
-    ? "Stop voice recording"
-    : hasText
-      ? isBusy
-        ? busyMode === "background"
-          ? "Send background"
-          : busyMode === "steer"
-            ? "Steer"
-            : "Queue"
-        : "Send"
-      : "Start voice recording";
-
-  const handlePrimaryAction = useCallback(() => {
     if (isRecording) {
       stopRecording();
       return;
     }
-    if (hasText) {
-      handleSubmit();
-      return;
-    }
-    handleMicClick();
-  }, [handleMicClick, handleSubmit, hasText, isRecording, stopRecording]);
+    if (isTranscribing) return;
+    startRecording();
+  }, [isRecording, isTranscribing, startRecording, stopRecording]);
+
+  const hasText = Boolean(text.trim());
+  const primaryActionLabel = isBusy
+    ? busyMode === "background"
+      ? "Send background"
+      : busyMode === "steer"
+        ? "Steer"
+        : "Queue"
+    : "Send";
+  const micActionLabel = isRecording
+    ? "Stop voice recording"
+    : isTranscribing
+      ? "Transcribing voice"
+      : "Start voice recording";
+
+  const handlePrimaryAction = useCallback(() => {
+    handleSubmit();
+  }, [handleSubmit]);
 
   const handleRemoveAttachment = useCallback(
     (attachment: DroppedAttachment) => {
@@ -529,7 +522,7 @@ const InputBar: React.FC<Props> = ({
             className="input-80m-textarea"
             placeholder={
               isRecording
-                ? "Recording... click the red stop button"
+                ? "Recording... click the mic to stop"
                 : isTranscribing
                   ? "Transcribing..."
                   : isBusy
@@ -557,21 +550,29 @@ const InputBar: React.FC<Props> = ({
           <ClipboardPaste size={16} />
         </button>
         <button
-          className={`input-80m-send input-80m-primary-action ${primaryActionMode}-mode${isRecording ? " recording" : ""}${isTranscribing ? " transcribing" : ""}`}
-          onClick={handlePrimaryAction}
+          className={`input-80m-mic${isRecording ? " recording" : ""}${isTranscribing ? " transcribing" : ""}`}
+          onClick={handleMicClick}
           disabled={(disabled && !isRecording) || isTranscribing}
+          title={micActionLabel}
+          aria-label={micActionLabel}
+          aria-pressed={isRecording}
+          type="button"
+        >
+          {isRecording ? (
+            <Square size={13} fill="currentColor" strokeWidth={1.5} />
+          ) : (
+            <Mic size={16} />
+          )}
+        </button>
+        <button
+          className="input-80m-send input-80m-primary-action send-mode"
+          onClick={handlePrimaryAction}
+          disabled={!hasText || disabled || isRecording || isTranscribing}
           title={primaryActionLabel}
           type="button"
         >
           <span className="input-primary-action-send">
             <Send size={18} />
-          </span>
-          <span className="input-primary-action-record">
-            <Mic size={18} />
-            <i />
-          </span>
-          <span className="input-primary-action-stop">
-            <Square size={13} fill="currentColor" strokeWidth={1.5} />
           </span>
         </button>
       </div>

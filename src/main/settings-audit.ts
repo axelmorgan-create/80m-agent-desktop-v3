@@ -25,6 +25,7 @@ import { getToolsets } from "./tools";
 import { listCronJobs, type CronJob } from "./cronjobs";
 import { listKanbanBoard } from "./kanban";
 import { getTailscaleMobileStatus } from "./tailscale";
+import { getCodexRuntimeStatus, runCodexRuntimeAction } from "./codex-runtime";
 import { stripAnsi } from "./utils";
 import {
   buildSettingsAuditBuckets,
@@ -76,6 +77,7 @@ export interface SettingsAudit {
     tailscale: Awaited<ReturnType<typeof getTailscaleMobileStatus>>;
     kanban: Awaited<ReturnType<typeof listKanbanBoard>>;
     kanbanDiagnostics: CommandResult;
+    codexRuntime: Awaited<ReturnType<typeof getCodexRuntimeStatus>>;
   };
 }
 
@@ -176,6 +178,7 @@ export async function getSettingsAudit(
     tailscale,
     kanban,
     kanbanDiagnostics,
+    codexRuntime,
   ] = await Promise.all([
     getHermesCapabilities(targetProfile),
     runHermesCommand(["update", "--check"], undefined, 60000),
@@ -218,6 +221,7 @@ export async function getSettingsAudit(
       error: error instanceof Error ? error.message : String(error),
     })),
     runHermesCommand(["kanban", "diagnostics", "--json"], targetProfile, 30000),
+    getCodexRuntimeStatus(targetProfile),
   ]);
 
   const cards = buildSettingsAuditCards({
@@ -237,6 +241,7 @@ export async function getSettingsAudit(
     profiles,
     kanban,
     kanbanDiagnostics,
+    codexRuntime,
     tailscale,
     credentialProviders,
     env: envFlags(envValues),
@@ -273,6 +278,7 @@ export async function getSettingsAudit(
       tailscale,
       kanban,
       kanbanDiagnostics,
+      codexRuntime,
     },
   };
 }
@@ -282,6 +288,20 @@ export async function runSettingsAuditAction(
   profile?: string,
 ): Promise<SettingsAuditActionResult> {
   const targetProfile = profile || "default";
+  if (action === "codex-runtime-enable" || action === "codex-runtime-disable") {
+    const result = await runCodexRuntimeAction(
+      action === "codex-runtime-enable" ? "enable" : "disable",
+      targetProfile,
+    );
+    return {
+      action,
+      createdAt: Date.now(),
+      success: result.success,
+      output: result.output,
+      error: result.error,
+    };
+  }
+
   const command =
     action === "doctor"
       ? ["doctor"]

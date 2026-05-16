@@ -7,6 +7,7 @@ import {
 import { listKanbanBoard } from "./kanban";
 import { getTailscaleMobileStatus } from "./tailscale";
 import { getToolsets } from "./tools";
+import { getCodexRuntimeStatus } from "./codex-runtime";
 import type { CronJob } from "./cronjobs";
 import type { ProfileInfo } from "./profiles";
 import type { SettingsAuditCard } from "./settings-audit-utils";
@@ -43,6 +44,7 @@ export function buildSettingsAuditCards(input: {
   profiles: ProfileInfo[];
   kanban: Awaited<ReturnType<typeof listKanbanBoard>>;
   kanbanDiagnostics: CommandResult;
+  codexRuntime: Awaited<ReturnType<typeof getCodexRuntimeStatus>>;
   tailscale: Awaited<ReturnType<typeof getTailscaleMobileStatus>>;
   credentialProviders: Array<{ provider: string; count: number }>;
   env: Record<string, boolean>;
@@ -58,6 +60,12 @@ export function buildSettingsAuditCards(input: {
   const kanbanData = input.kanban.success ? input.kanban.data : null;
   const kanbanDiagnosticsText =
     input.kanbanDiagnostics.output || input.kanbanDiagnostics.error || "";
+  const codexRuntime = input.codexRuntime;
+  const codexRuntimeEnabled = codexRuntime.openaiRuntime === "codex_app_server";
+  const codexReady =
+    codexRuntime.cliAvailable &&
+    codexRuntime.codexVersionOk &&
+    codexRuntime.loginOk;
 
   cards.push({
     id: "runtime-version",
@@ -156,6 +164,78 @@ export function buildSettingsAuditCards(input: {
     commandPreview: "hermes tools",
     action: { id: "tool-gateway-docs", label: "Open Docs" },
     bucket: input.capabilities.toolGateway.available ? "ready" : "planGated",
+  });
+
+  cards.push({
+    id: "codex-cli",
+    title: codexRuntime.cliAvailable
+      ? `Codex CLI ${codexRuntime.codexVersion || "installed"}`
+      : "Codex CLI is not installed",
+    summary: codexRuntime.cliAvailable
+      ? `${codexRuntime.loginSummary}. ${codexRuntime.nativePluginCount} native Codex plugin${codexRuntime.nativePluginCount === 1 ? "" : "s"} configured.`
+      : codexRuntime.error ||
+        "Install Codex CLI, then sign in with your ChatGPT account.",
+    severity: codexReady ? "ok" : "warning",
+    category: "Codex",
+    source: "codex --version && codex login status",
+    docsUrl: "https://github.com/openai/codex",
+    commandPreview: "npm i -g @openai/codex && codex login",
+    bucket: codexReady ? "ready" : "needsAttention",
+  });
+
+  cards.push({
+    id: "codex-app-server-runtime",
+    title: codexRuntimeEnabled
+      ? "Codex app-server runtime is enabled"
+      : "Codex app-server runtime is available",
+    summary: codexRuntimeEnabled
+      ? "OpenAI/Codex turns will run through Codex app-server on the next Hermes session."
+      : "Enable this to let Hermes hand OpenAI/Codex turns to Codex while keeping Hermes tools available through MCP.",
+    severity: codexRuntimeEnabled ? "ok" : codexReady ? "info" : "warning",
+    category: "Codex",
+    source: "config.yaml model.openai_runtime",
+    docsUrl:
+      "https://hermes-agent.nousresearch.com/docs/user-guide/features/codex-app-server-runtime",
+    commandPreview: codexRuntimeEnabled
+      ? "/codex-runtime auto"
+      : "/codex-runtime on",
+    action: {
+      id: codexRuntimeEnabled
+        ? "codex-runtime-disable"
+        : "codex-runtime-enable",
+      label: codexRuntimeEnabled ? "Use Hermes Runtime" : "Enable Codex",
+    },
+    bucket: codexRuntimeEnabled
+      ? "ready"
+      : codexReady
+        ? "optional"
+        : "needsAttention",
+  });
+
+  cards.push({
+    id: "codex-hermes-mcp-bridge",
+    title: codexRuntime.hermesToolsMcpRegistered
+      ? "Codex can call Hermes tools over MCP"
+      : "Hermes MCP callback is not migrated to Codex",
+    summary: codexRuntime.hermesToolsMcpRegistered
+      ? `Codex config has ${codexRuntime.codexMcpServerCount} MCP server${codexRuntime.codexMcpServerCount === 1 ? "" : "s"}, including hermes-tools.`
+      : "Enabling the Codex runtime migrates Hermes MCP servers and registers hermes-tools in Codex config.",
+    severity: codexRuntime.hermesToolsMcpRegistered
+      ? "ok"
+      : codexRuntimeEnabled
+        ? "warning"
+        : "info",
+    category: "Codex",
+    source: "~/.codex/config.toml",
+    commandPreview: "codex mcp list",
+    action: codexRuntime.hermesToolsMcpRegistered
+      ? undefined
+      : { id: "codex-runtime-enable", label: "Migrate Bridge" },
+    bucket: codexRuntime.hermesToolsMcpRegistered
+      ? "ready"
+      : codexRuntimeEnabled
+        ? "needsAttention"
+        : "optional",
   });
 
   cards.push({
