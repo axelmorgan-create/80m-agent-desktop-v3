@@ -1,5 +1,6 @@
 import {
   Activity,
+  BookOpen,
   Download,
   ShieldCheck,
   Smartphone,
@@ -14,6 +15,7 @@ export type SettingsTabId =
   | "connection"
   | "mobile"
   | "health"
+  | "notebooklm"
   | "curator"
   | "profiles"
   | "backup"
@@ -28,6 +30,7 @@ export const SETTINGS_TABS: {
   { id: "connection", label: "Connection", icon: <Wifi size={14} /> },
   { id: "mobile", label: "Mobile", icon: <Smartphone size={14} /> },
   { id: "health", label: "Health", icon: <ShieldCheck size={14} /> },
+  { id: "notebooklm", label: "NotebookLM", icon: <BookOpen size={14} /> },
   { id: "curator", label: "Curator", icon: <Sparkles size={14} /> },
   { id: "profiles", label: "Profiles", icon: <User size={14} /> },
   { id: "backup", label: "Backup", icon: <Download size={14} /> },

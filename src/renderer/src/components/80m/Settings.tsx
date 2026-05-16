@@ -18,6 +18,8 @@ import type {
   SettingsAudit,
   SettingsAuditActionResult,
   SettingsAuditCard,
+  NotebookLmInstallResult,
+  NotebookLmStatus,
   TailscaleMobileStatus,
 } from "./settingsTypes";
 
@@ -91,6 +93,12 @@ const Settings80m: React.FC<Props> = ({ onBack, profile }) => {
   const [clipperInfo, setClipperInfo] =
     useState<CortexClipperInstallInfo | null>(null);
   const [clipperStatus, setClipperStatus] = useState("");
+  const [notebookLmStatus, setNotebookLmStatus] =
+    useState<NotebookLmStatus | null>(null);
+  const [notebookLmLoading, setNotebookLmLoading] = useState(false);
+  const [notebookLmInstalling, setNotebookLmInstalling] = useState(false);
+  const [notebookLmInstallResult, setNotebookLmInstallResult] =
+    useState<NotebookLmInstallResult | null>(null);
   const tailscaleQr = useTailscaleQr(tailscale);
 
   const activeModelPresets = buildActiveModelPresets(env, credentialPool);
@@ -199,6 +207,45 @@ const Settings80m: React.FC<Props> = ({ onBack, profile }) => {
     } catch (err) {
       setClipperStatus(err instanceof Error ? err.message : String(err));
     }
+  }, []);
+
+  const refreshNotebookLm = useCallback(async () => {
+    if (!window.hermesAPI?.getNotebookLmStatus) return;
+    setNotebookLmLoading(true);
+    try {
+      const status = await window.hermesAPI.getNotebookLmStatus();
+      setNotebookLmStatus(status as NotebookLmStatus);
+    } finally {
+      setNotebookLmLoading(false);
+    }
+  }, []);
+
+  const installNotebookLm = useCallback(async () => {
+    if (!window.hermesAPI?.installNotebookLm) return;
+    setNotebookLmInstalling(true);
+    setNotebookLmInstallResult(null);
+    try {
+      const result =
+        (await window.hermesAPI.installNotebookLm()) as NotebookLmInstallResult;
+      setNotebookLmInstallResult(result);
+      await refreshNotebookLm();
+    } catch (err) {
+      setNotebookLmInstallResult({
+        success: false,
+        output: "",
+        error: err instanceof Error ? err.message : String(err),
+      });
+    } finally {
+      setNotebookLmInstalling(false);
+    }
+  }, [refreshNotebookLm]);
+
+  const openNotebookLmDocs = useCallback(() => {
+    void window.hermesAPI?.openNotebookLmDocs?.();
+  }, []);
+
+  const openNotebookLm = useCallback(() => {
+    void window.hermesAPI?.openNotebookLm?.();
   }, []);
 
   const runTailscaleAction = useCallback(
@@ -350,6 +397,7 @@ const Settings80m: React.FC<Props> = ({ onBack, profile }) => {
       void refreshAudit();
       void refreshTailscale();
       void refreshClipper();
+      void refreshNotebookLm();
       void runCuratorAction("status");
 
       // Load versions
@@ -371,6 +419,7 @@ const Settings80m: React.FC<Props> = ({ onBack, profile }) => {
     refreshAudit,
     refreshTailscale,
     refreshClipper,
+    refreshNotebookLm,
     runCuratorAction,
   ]);
 
@@ -603,6 +652,14 @@ const Settings80m: React.FC<Props> = ({ onBack, profile }) => {
           void refreshCapabilities();
         }}
         onSafeUpgrade={() => void handleSafeUpgrade()}
+        notebookLmStatus={notebookLmStatus}
+        notebookLmLoading={notebookLmLoading}
+        notebookLmInstalling={notebookLmInstalling}
+        notebookLmInstallResult={notebookLmInstallResult}
+        onRefreshNotebookLm={() => void refreshNotebookLm()}
+        onInstallNotebookLm={() => void installNotebookLm()}
+        onOpenNotebookLmDocs={openNotebookLmDocs}
+        onOpenNotebookLm={openNotebookLm}
         curator={curator}
         curatorBusy={curatorBusy}
         curatorSkill={curatorSkill}
