@@ -1,8 +1,8 @@
 import http, { IncomingMessage, Server, ServerResponse } from "http";
 import https from "https";
 import { randomUUID } from "crypto";
-import { mkdirSync, writeFileSync } from "fs";
-import { join } from "path";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "fs";
+import { extname, join, resolve } from "path";
 import {
   getModelConfig,
   getMobileAccessConfig,
@@ -10,13 +10,21 @@ import {
   DEFAULT_MOBILE_ACCESS_PORT,
   readEnv,
 } from "./config";
-import { listKanbanBoard } from "./kanban";
+import { createKanbanTask, listKanbanBoard } from "./kanban";
+import { addMemoryEntry, readMemory, writeUserProfile } from "./memory";
 import {
   buildManifest,
   buildMobileHtml,
   buildServiceWorker,
 } from "./mobile-companion-web";
+import {
+  buildMobileCompanionSnapshot,
+  getMobileSessionDetail,
+  listMobileSessions,
+  sendMobileChatMessage,
+} from "./mobile-companion-data";
 import { getObsidianVaultInfo } from "./obsidian-vault";
+import { listProfiles } from "./profiles";
 import {
   flashDesktopBuddyState,
   setDesktopBuddyState,
@@ -34,6 +42,27 @@ const BASE_JSON_HEADERS = {
 
 let server: Server | null = null;
 let serverPort: number | null = null;
+
+const MOBILE_ASSET_CONTENT_TYPES: Record<string, string> = {
+  ".glb": "model/gltf-binary",
+  ".js": "application/javascript; charset=utf-8",
+  ".png": "image/png",
+  ".svg": "image/svg+xml; charset=utf-8",
+};
+
+const MOBILE_ASSET_NAMES = new Set([
+  "winged-atm-buddy.glb",
+  "80m-logo.svg",
+  "80m-agent-wordmark.svg",
+  "80m-ascii-mark.svg",
+  "80m-mark-white.svg",
+  "80m-mark-black.svg",
+  "three/build/three.module.js",
+  "three/build/three.core.js",
+  "three/examples/jsm/loaders/GLTFLoader.js",
+  "three/examples/jsm/utils/BufferGeometryUtils.js",
+  "three/examples/jsm/utils/SkeletonUtils.js",
+]);
 
 interface JsonRequestOptions {
   method?: "GET" | "POST";
@@ -75,6 +104,87 @@ function send(
       : "public, max-age=60",
   });
   res.end(body);
+}
+
+function sendBinary(
+  res: ServerResponse,
+  statusCode: number,
+  body: Buffer,
+  contentType: string,
+): void {
+  res.writeHead(statusCode, {
+    "Content-Type": contentType,
+    "Content-Length": body.byteLength,
+    "Cache-Control": "public, max-age=3600",
+  });
+  res.end(body);
+}
+
+function appRoot(): string {
+  return resolve(__dirname, "..", "..");
+}
+
+function resourceAssetPath(name: string): string {
+  return join(process.resourcesPath || appRoot(), "mobile-assets", name);
+}
+
+function mobileAssetCandidates(name: string): string[] {
+  const root = appRoot();
+  if (name.startsWith("three/")) {
+    return [
+      resourceAssetPath(name),
+      join(root, "node_modules", "three", name.replace(/^three\//, "")),
+    ];
+  }
+
+  const sourceCandidates: Record<string, string[]> = {
+    "winged-atm-buddy.glb": [
+      join(root, "src", "renderer", "src", "assets", "models", name),
+    ],
+    "80m-logo.svg": [join(root, "src", "renderer", "src", "assets", name)],
+    "80m-agent-wordmark.svg": [
+      join(root, "src", "renderer", "src", "assets", name),
+    ],
+    "80m-ascii-mark.svg": [
+      join(root, "extensions", "cortex-clipper", "assets", name),
+    ],
+    "80m-mark-white.svg": [
+      join(root, "extensions", "cortex-clipper", "assets", name),
+    ],
+    "80m-mark-black.svg": [
+      join(root, "extensions", "cortex-clipper", "assets", name),
+    ],
+  };
+  return [resourceAssetPath(name), ...(sourceCandidates[name] || [])];
+}
+
+function resolveMobileAsset(name: string): string | null {
+  if (!MOBILE_ASSET_NAMES.has(name)) return null;
+  return (
+    mobileAssetCandidates(name).find((candidate) => existsSync(candidate)) ||
+    null
+  );
+}
+
+function sendMobileAsset(res: ServerResponse, url: URL): void {
+  const name = decodeURIComponent(url.pathname.replace(/^\/assets\//, ""));
+  if (name.startsWith("/") || name.includes("\\") || name.includes("..")) {
+    send(res, 404, "Not found", "text/plain; charset=utf-8");
+    return;
+  }
+
+  const assetPath = resolveMobileAsset(name);
+  if (!assetPath) {
+    send(res, 404, "Not found", "text/plain; charset=utf-8");
+    return;
+  }
+
+  sendBinary(
+    res,
+    200,
+    readFileSync(assetPath),
+    MOBILE_ASSET_CONTENT_TYPES[extname(name)] || "application/octet-stream",
+  );
 }
 
 function getAllowedCorsOrigin(req: IncomingMessage): string {
@@ -595,40 +705,17 @@ async function handleApi(
     return;
   }
 
-  if (req.method === "GET" && url.pathname === "/api/status") {
-    const [runtime, board] = await Promise.allSettled([
-      getRuntimeStatus(),
-      listKanbanBoard(),
-    ]);
-    const vault = getObsidianVaultInfo();
-    const kanban =
-      board.status === "fulfilled"
-        ? {
-            success: board.value.success,
-            total: board.value.data?.tasks.length || 0,
-            columns: board.value.data?.stats.by_status || {},
-            error: board.value.error || "",
-          }
-        : { success: false, total: 0, columns: {}, error: board.reason };
-
-    sendJson(req, res, 200, {
-      success: true,
-      app: "80M Agent Desktop",
-      companion: {
-        running: true,
-        port: serverPort,
-        localUrl: getMobileCompanionLocalUrl(),
-      },
-      runtime: runtime.status === "fulfilled" ? runtime.value : runtime.reason,
-      model: getModelConfig(),
-      vault: {
-        exists: vault.exists,
-        name: vault.name,
-        path: vault.path,
-      },
-      kanban,
-      now: Date.now(),
+  if (
+    req.method === "GET" &&
+    (url.pathname === "/api/status" || url.pathname === "/api/bootstrap")
+  ) {
+    const runtime = await getRuntimeStatus();
+    const snapshot = await buildMobileCompanionSnapshot({
+      port: serverPort,
+      localUrl: getMobileCompanionLocalUrl(),
+      runtime,
     });
+    sendJson(req, res, 200, snapshot);
     return;
   }
 
@@ -638,13 +725,156 @@ async function handleApi(
     return;
   }
 
+  if (req.method === "POST" && url.pathname === "/api/kanban") {
+    const body = await parseJsonBody<{
+      title?: string;
+      body?: string;
+      assignee?: string;
+      priority?: number;
+      triage?: boolean;
+    }>(req);
+    const title = body.title?.trim();
+    if (!title) {
+      sendJson(req, res, 400, {
+        success: false,
+        error: "Task title is required.",
+      });
+      return;
+    }
+    const result = await createKanbanTask({
+      title,
+      body: body.body,
+      assignee: body.assignee,
+      priority: body.priority,
+      triage: body.triage,
+    });
+    sendJson(req, res, result.success ? 200 : 502, result);
+    return;
+  }
+
+  if (req.method === "GET" && url.pathname === "/api/profiles") {
+    sendJson(req, res, 200, {
+      success: true,
+      profiles: await listProfiles(),
+    });
+    return;
+  }
+
+  if (req.method === "GET" && url.pathname === "/api/sessions") {
+    const profile = url.searchParams.get("profile") || undefined;
+    const query = url.searchParams.get("q") || undefined;
+    const limit = Number(url.searchParams.get("limit") || 12);
+    sendJson(req, res, 200, {
+      success: true,
+      sessions: await listMobileSessions({ profile, query, limit }),
+    });
+    return;
+  }
+
+  if (
+    req.method === "GET" &&
+    (url.pathname === "/api/session" ||
+      url.pathname.startsWith("/api/sessions/"))
+  ) {
+    const idFromPath = decodeURIComponent(
+      url.pathname.replace(/^\/api\/sessions\/?/, ""),
+    );
+    const sessionId =
+      url.searchParams.get("id") ||
+      (idFromPath && idFromPath !== "/api/session" ? idFromPath : "");
+    const profile = url.searchParams.get("profile") || undefined;
+    if (!sessionId) {
+      sendJson(req, res, 400, {
+        success: false,
+        error: "Session id is required.",
+      });
+      return;
+    }
+    sendJson(req, res, 200, {
+      success: true,
+      session: getMobileSessionDetail(sessionId, profile),
+    });
+    return;
+  }
+
+  if (req.method === "GET" && url.pathname === "/api/memory") {
+    const profile = url.searchParams.get("profile") || undefined;
+    sendJson(req, res, 200, {
+      success: true,
+      data: readMemory(profile),
+    });
+    return;
+  }
+
+  if (req.method === "POST" && url.pathname === "/api/memory") {
+    const body = await parseJsonBody<{ content?: string; profile?: string }>(
+      req,
+    );
+    const content = body.content?.trim();
+    if (!content) {
+      sendJson(req, res, 400, {
+        success: false,
+        error: "Memory content is required.",
+      });
+      return;
+    }
+    const result = addMemoryEntry(content, body.profile);
+    sendJson(req, res, result.success ? 200 : 400, result);
+    return;
+  }
+
+  if (req.method === "POST" && url.pathname === "/api/user-profile") {
+    const body = await parseJsonBody<{ content?: string; profile?: string }>(
+      req,
+    );
+    const result = writeUserProfile(body.content || "", body.profile);
+    sendJson(req, res, result.success ? 200 : 400, result);
+    return;
+  }
+
+  if (url.pathname.startsWith("/api/tailscale")) {
+    const tailscale = await import("./tailscale");
+    if (req.method === "GET" && url.pathname === "/api/tailscale/status") {
+      sendJson(req, res, 200, {
+        success: true,
+        tailscale: await tailscale.getTailscaleMobileStatus(),
+      });
+      return;
+    }
+    if (req.method === "POST" && url.pathname === "/api/tailscale/enable") {
+      sendJson(req, res, 200, {
+        success: true,
+        tailscale: await tailscale.enableTailscaleMobileAccess(),
+      });
+      return;
+    }
+    if (req.method === "POST" && url.pathname === "/api/tailscale/disable") {
+      sendJson(req, res, 200, {
+        success: true,
+        tailscale: await tailscale.disableTailscaleMobileAccess(),
+      });
+      return;
+    }
+    if (req.method === "POST" && url.pathname === "/api/tailscale/rotate") {
+      sendJson(req, res, 200, {
+        success: true,
+        tailscale: await tailscale.rotateTailscaleMobilePairingToken(),
+      });
+      return;
+    }
+  }
+
   if (req.method === "POST" && url.pathname === "/api/cortex/clip") {
     await handleCortexClip(req, res);
     return;
   }
 
   if (req.method === "POST" && url.pathname === "/api/chat") {
-    const body = await parseJsonBody<{ message?: string }>(req);
+    const body = await parseJsonBody<{
+      message?: string;
+      profile?: string;
+      sessionId?: string;
+    }>(req);
     const message = body.message?.trim();
     if (!message) {
       sendJson(req, res, 400, {
@@ -654,28 +884,12 @@ async function handleApi(
       return;
     }
 
-    const env = readEnv();
-    const model = getModelConfig();
-    const response = await requestJson<unknown>(
-      `${LOCAL_RUNTIME_URL}/v1/chat/completions`,
-      {
-        method: "POST",
-        headers: env.API_SERVER_KEY
-          ? { Authorization: `Bearer ${env.API_SERVER_KEY}` }
-          : {},
-        body: {
-          model: model.model,
-          messages: [{ role: "user", content: message }],
-          stream: false,
-        },
-        timeoutMs: 60000,
-      },
-    );
-    sendJson(req, res, 200, {
-      success: true,
-      response: extractAssistantText(response),
-      raw: response,
+    const result = await sendMobileChatMessage({
+      message,
+      profile: body.profile?.trim() || undefined,
+      sessionId: body.sessionId?.trim() || undefined,
     });
+    sendJson(req, res, 200, result);
     return;
   }
 
@@ -695,11 +909,18 @@ async function handleRequest(
       sendEmpty(req, res, 204);
       return;
     }
+    if (url.pathname.startsWith("/assets/")) {
+      sendMobileAsset(res, url);
+      return;
+    }
     if (url.pathname.startsWith("/api/")) {
       await handleApi(req, res, url);
       return;
     }
-    if (url.pathname === "/manifest.webmanifest") {
+    if (
+      url.pathname === "/manifest.webmanifest" ||
+      url.pathname === "/manifest.json"
+    ) {
       send(res, 200, buildManifest(), "application/manifest+json");
       return;
     }

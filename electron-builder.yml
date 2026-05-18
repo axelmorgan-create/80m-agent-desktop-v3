@@ -15,6 +15,28 @@ extraResources:
     to: hermes-kanban/vendor
   - from: extensions/cortex-clipper
     to: extensions/cortex-clipper
+  - from: src/renderer/src/assets/models/winged-atm-buddy.glb
+    to: mobile-assets/winged-atm-buddy.glb
+  - from: src/renderer/src/assets/80m-logo.svg
+    to: mobile-assets/80m-logo.svg
+  - from: src/renderer/src/assets/80m-agent-wordmark.svg
+    to: mobile-assets/80m-agent-wordmark.svg
+  - from: extensions/cortex-clipper/assets/80m-ascii-mark.svg
+    to: mobile-assets/80m-ascii-mark.svg
+  - from: extensions/cortex-clipper/assets/80m-mark-white.svg
+    to: mobile-assets/80m-mark-white.svg
+  - from: extensions/cortex-clipper/assets/80m-mark-black.svg
+    to: mobile-assets/80m-mark-black.svg
+  - from: node_modules/three/build/three.module.js
+    to: mobile-assets/three/build/three.module.js
+  - from: node_modules/three/build/three.core.js
+    to: mobile-assets/three/build/three.core.js
+  - from: node_modules/three/examples/jsm/loaders/GLTFLoader.js
+    to: mobile-assets/three/examples/jsm/loaders/GLTFLoader.js
+  - from: node_modules/three/examples/jsm/utils/BufferGeometryUtils.js
+    to: mobile-assets/three/examples/jsm/utils/BufferGeometryUtils.js
+  - from: node_modules/three/examples/jsm/utils/SkeletonUtils.js
+    to: mobile-assets/three/examples/jsm/utils/SkeletonUtils.js
 asarUnpack:
   - resources/**
 win:

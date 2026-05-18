@@ -28,13 +28,13 @@ be replaced by logo updates.
 
 ## Install
 
-Download the latest build from the [Releases](https://github.com/guapdad4000/80m-agent-desktop-v3/releases/) page. The current public release is **v0.12.1**, a Linux packaging fix that keeps the client download small while still shipping the desktop app, Desktop Buddy assets, Cortex Chrome Clipper files, and the local companion API that connects them.
+Download the latest build from the [Releases](https://github.com/guapdad4000/80m-agent-desktop-v3/releases/) page. The current public release is **v0.12.3**, the Mobile PWA companion release. It keeps the client download small while shipping the desktop app, Desktop Buddy assets, Cortex Chrome Clipper files, local companion API, mobile 3D mascot assets, and the Tailscale-ready PWA that can auto-pair with the user's desktop app.
 
 | Platform | File                      | Current size |
 | -------- | ------------------------- | ------------ |
-| Linux    | `.deb`                    | ~120 MB      |
-| Linux    | `.snap`                   | ~129 MB      |
-| Linux    | `.AppImage`               | ~151 MB      |
+| Linux    | `.deb`                    | ~129 MB      |
+| Linux    | `.snap`                   | ~138 MB      |
+| Linux    | `.AppImage`               | ~159 MB      |
 | macOS    | Build from source for now | TBD          |
 | Windows  | Build from source for now | TBD          |
 
@@ -72,10 +72,11 @@ Chrome still requires a user-approved browser install step unless the client is 
 - **14 toolsets** — web, browser, terminal, file, code execution, vision, image gen, TTS, skills, memory, session search, delegation, MoA, and task planning
 - **Memory system** — view/edit memory entries, user profile memory, capacity tracking, and discoverable memory providers
 - **Second Brain navigator** — Obsidian-backed Cortex/Memory view with vault indexing, neural map browsing, and note preview
+- **Mobile PWA companion** — tailnet/mobile interface for Hermes profiles, chat sessions, Second Brain data, Kanban task capture, text memory, link capture, and auto-pairing recovery
 - **Desktop Buddy** — packaged 3D buddy with SVG face, idle eye tracking, collapsible controls, mic STT, and Voicebox-aware speech
 - **Cortex Chrome Clipper** — client-friendly browser extension that auto-connects locally, hides pairing codes, and sends pages through Knowledge Knaight into Cortex
 - **Live file preview** — watch the active project and preview files as agent work changes them
-- **Slim client releases** — current Linux builds are ~120-151 MB instead of bundling local build caches
+- **Slim client releases** — current Linux builds are ~129-159 MB instead of bundling local build caches
 - **Persona editor** — edit and reset your agent's SOUL.md personality
 - **Saved models** — CRUD management for model configurations across providers
 - **Scheduled tasks** — cron job builder with 15 delivery targets
@@ -107,6 +108,10 @@ Chrome still requires a user-approved browser install step unless the client is 
 <tr>
 <td width="50%" align="center"><b>Skills</b><br/><img width="100%" alt="80M skills screenshot" src="docs/assets/screenshots/skills.png" /></td>
 <td width="50%" align="center"><b>Settings</b><br/><img width="100%" alt="80M settings screenshot" src="docs/assets/screenshots/settings.png" /></td>
+</tr>
+<tr>
+<td width="50%" align="center"><b>Mobile PWA</b><br/><img width="100%" alt="80M mobile PWA screenshot" src="docs/assets/screenshots/mobile-pwa.png" /></td>
+<td width="50%" align="center"><b>Tailnet Companion</b><br/>Auto-pairs to the desktop companion server, lists live Hermes profiles and sessions, and opens mobile chat without exposing local services publicly.</td>
 </tr>
 </table>
 
@@ -144,22 +149,29 @@ POST http://127.0.0.1:8780/api/cortex/clip
 
 The desktop app sends the page through the Knowledge Knaight synthesis path and writes the resulting Markdown record into the Obsidian-backed Cortex folder. The buddy also reacts while clipping so clients see `Ingesting`, `Saved`, or `Clip failed` without reading logs. More detail is in [docs/CORTEX_CHROME_CLIPPER.md](docs/CORTEX_CHROME_CLIPPER.md).
 
+### Mobile PWA Companion
+
+The desktop app also serves a private mobile companion on `http://127.0.0.1:8780` and through Tailscale Serve when enabled. The PWA reads the same local setup as the desktop app: active Hermes profiles, recent chat sessions, Obsidian-backed Second Brain notes, Kanban tasks, and memory entries. It can capture text, links, and tasks from mobile, and it can resume Hermes chat sessions through the desktop runtime.
+
+Pairing is self-healing for installed PWAs and copied tailnet links. If the browser opens without a `?pair=` query or has an old token in storage, the PWA asks the local companion for the current token, stores it locally, and retries the request automatically.
+
 ## Screens
 
-| Screen        | Description                                                                           |
-| ------------- | ------------------------------------------------------------------------------------- |
-| **Chat**      | Streaming conversation UI with tool progress and token tracking                       |
-| **Sessions**  | Browse, search, and resume past conversations                                         |
-| **Agents**    | Create, delete, and switch between 80M profiles                                       |
-| **Skills**    | Browse, install, and manage bundled and installed skills                              |
-| **Models**    | Manage saved model configurations per provider                                        |
-| **Memory**    | View/edit memory entries, user profile, and configure memory providers                |
-| **Soul**      | Edit the active profile's persona (SOUL.md)                                           |
-| **Tools**     | Enable or disable individual toolsets                                                 |
-| **Schedules** | Create and manage cron jobs with delivery targets                                     |
-| **Kanban**    | Create, assign, block, complete, and inspect 80M multi-agent tasks                    |
-| **Gateway**   | Configure and control messaging platform integrations                                 |
-| **Settings**  | Provider config, credential pools, backup/import, log viewer, network settings, theme |
+| Screen         | Description                                                                           |
+| -------------- | ------------------------------------------------------------------------------------- |
+| **Chat**       | Streaming conversation UI with tool progress and token tracking                       |
+| **Sessions**   | Browse, search, and resume past conversations                                         |
+| **Agents**     | Create, delete, and switch between 80M profiles                                       |
+| **Skills**     | Browse, install, and manage bundled and installed skills                              |
+| **Models**     | Manage saved model configurations per provider                                        |
+| **Memory**     | View/edit memory entries, user profile, and configure memory providers                |
+| **Mobile PWA** | Tailnet companion for profiles, sessions, Second Brain, Kanban, links, and memory     |
+| **Soul**       | Edit the active profile's persona (SOUL.md)                                           |
+| **Tools**      | Enable or disable individual toolsets                                                 |
+| **Schedules**  | Create and manage cron jobs with delivery targets                                     |
+| **Kanban**     | Create, assign, block, complete, and inspect 80M multi-agent tasks                    |
+| **Gateway**    | Configure and control messaging platform integrations                                 |
+| **Settings**   | Provider config, credential pools, backup/import, log viewer, network settings, theme |
 
 ## Supported Providers
 
