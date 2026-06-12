@@ -9,7 +9,6 @@ import { SettingsConnectionPanel } from "./SettingsConnectionPanel";
 import { SettingsCuratorPanel } from "./SettingsCuratorPanel";
 import { SettingsHealthPanel } from "./SettingsHealthPanel";
 import { SettingsMobilePanel } from "./SettingsMobilePanel";
-import { SettingsNotebookLmPanel } from "./SettingsNotebookLmPanel";
 import { SettingsProfilesPanel } from "./SettingsProfilesPanel";
 import type { SettingsTabId } from "./settingsTabs";
 import type {
@@ -18,8 +17,6 @@ import type {
   HermesCapabilities,
   HermesHealth,
   ModelPreset,
-  NotebookLmInstallResult,
-  NotebookLmStatus,
   SettingsAudit,
   SettingsAuditCard,
   TailscaleMobileStatus,
@@ -73,14 +70,6 @@ interface SettingsPanelContentProps {
   upgradeResult: string;
   onRefreshHealth: () => void;
   onSafeUpgrade: () => void;
-  notebookLmStatus: NotebookLmStatus | null;
-  notebookLmLoading: boolean;
-  notebookLmInstalling: boolean;
-  notebookLmInstallResult: NotebookLmInstallResult | null;
-  onRefreshNotebookLm: () => void;
-  onInstallNotebookLm: () => void;
-  onOpenNotebookLmDocs: () => void;
-  onOpenNotebookLm: () => void;
   curator: CuratorCommandResult | null;
   curatorBusy: string | null;
   curatorSkill: string;
@@ -163,14 +152,6 @@ export function SettingsPanelContent({
   upgradeResult,
   onRefreshHealth,
   onSafeUpgrade,
-  notebookLmStatus,
-  notebookLmLoading,
-  notebookLmInstalling,
-  notebookLmInstallResult,
-  onRefreshNotebookLm,
-  onInstallNotebookLm,
-  onOpenNotebookLmDocs,
-  onOpenNotebookLm,
   curator,
   curatorBusy,
   curatorSkill,
@@ -281,19 +262,6 @@ export function SettingsPanelContent({
           setCuratorSkill={setCuratorSkill}
           curatorOutput={curatorOutput}
           onRunCuratorAction={onRunCuratorAction}
-        />
-      )}
-
-      {activeTab === "notebooklm" && (
-        <SettingsNotebookLmPanel
-          status={notebookLmStatus}
-          loading={notebookLmLoading}
-          installing={notebookLmInstalling}
-          installResult={notebookLmInstallResult}
-          onRefresh={onRefreshNotebookLm}
-          onInstall={onInstallNotebookLm}
-          onOpenDocs={onOpenNotebookLmDocs}
-          onOpenNotebookLm={onOpenNotebookLm}
         />
       )}
 

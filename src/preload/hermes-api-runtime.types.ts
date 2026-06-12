@@ -2,8 +2,6 @@ import type {
   InstallStatus,
   InstallProgress,
   HermesHealth,
-  NotebookLmInstallResult,
-  NotebookLmStatus,
   TailscaleMobileStatus,
   HermesCapabilities,
   SettingsAudit,
@@ -81,10 +79,6 @@ export interface HermesRuntimeAPI {
   ) => Promise<boolean>;
   testRemoteConnection: (url: string, apiKey?: string) => Promise<boolean>;
   getHermesHealth: (profile?: string) => Promise<HermesHealth>;
-  getNotebookLmStatus: () => Promise<NotebookLmStatus>;
-  installNotebookLm: () => Promise<NotebookLmInstallResult>;
-  openNotebookLmDocs: () => Promise<void>;
-  openNotebookLm: () => Promise<void>;
   getTailscaleMobileStatus: () => Promise<TailscaleMobileStatus>;
   enableTailscaleMobileAccess: () => Promise<TailscaleMobileStatus>;
   disableTailscaleMobileAccess: () => Promise<TailscaleMobileStatus>;

@@ -133,14 +133,6 @@ export const hermesRuntimeApi = {
     ipcRenderer.invoke("test-remote-connection", url, apiKey),
   getHermesHealth: (profile?: string): Promise<unknown> =>
     ipcRenderer.invoke("get-hermes-health", profile),
-  getNotebookLmStatus: (): Promise<unknown> =>
-    ipcRenderer.invoke("notebooklm-get-status"),
-  installNotebookLm: (): Promise<unknown> =>
-    ipcRenderer.invoke("notebooklm-install"),
-  openNotebookLmDocs: (): Promise<void> =>
-    ipcRenderer.invoke("notebooklm-open-docs"),
-  openNotebookLm: (): Promise<void> =>
-    ipcRenderer.invoke("notebooklm-open-app"),
   getTailscaleMobileStatus: (): Promise<unknown> =>
     ipcRenderer.invoke("get-tailscale-mobile-status"),
   enableTailscaleMobileAccess: (): Promise<unknown> =>

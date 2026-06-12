@@ -22,7 +22,6 @@ import { stopGateway, stopHealthPolling } from "./hermes";
 import { HERMES_HOME } from "./installer";
 import { stopBrowserService } from "./playwright";
 import { createProfileWatcher } from "./profile-watch";
-import { registerNotebookLmIpc } from "./notebooklm-ipc";
 import { registerProfileDataIpc } from "./profile-data-ipc";
 import { registerRuntimeIpc } from "./runtime-ipc";
 import { bootstrapMobileAccess } from "./tailscale";
@@ -207,7 +206,6 @@ function setupIPC(): void {
   registerBrowserIpc(getMainWindow);
   registerDesktopBuddyIpc({ getMainWindow });
   registerCortexClipperIpc();
-  registerNotebookLmIpc();
 }
 
 function buildMenu(): void {

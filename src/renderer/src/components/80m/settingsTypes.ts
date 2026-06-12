@@ -69,25 +69,6 @@ export interface HermesCapabilities {
   };
 }
 
-export interface NotebookLmStatus {
-  cliFound: boolean;
-  pythonModuleFound: boolean;
-  version: string;
-  authFileFound: boolean;
-  authFilePath: string;
-  authFileUpdatedAt: number | null;
-  ready: boolean;
-  state: "not_installed" | "needs_auth" | "connected";
-  message: string;
-  nextAction: string;
-}
-
-export interface NotebookLmInstallResult {
-  success: boolean;
-  output: string;
-  error?: string;
-}
-
 export interface TailscaleMobileStatus {
   installed: boolean;
   daemonRunning: boolean;

@@ -315,35 +315,6 @@ export const installTauriBridge = (): void => {
           credentialProviders: [],
         },
       ),
-    getNotebookLmStatus: () =>
-      call(
-        "notebooklm_get_status",
-        {},
-        {
-          cliFound: false,
-          pythonModuleFound: false,
-          version: "",
-          authFileFound: false,
-          authFilePath: "",
-          authFileUpdatedAt: null,
-          ready: false,
-          state: "not_installed",
-          message: fallbackNotice("notebooklm_get_status"),
-          nextAction: "Use the Electron build for NotebookLM integration.",
-        },
-      ),
-    installNotebookLm: () =>
-      call(
-        "notebooklm_install",
-        {},
-        {
-          success: false,
-          output: "",
-          error: fallbackNotice("notebooklm_install"),
-        },
-      ),
-    openNotebookLmDocs: async () => undefined,
-    openNotebookLm: async () => undefined,
     getTailscaleMobileStatus: () =>
       call("get_tailscale_mobile_status", {}, fallbackTailscaleMobileStatus()),
     enableTailscaleMobileAccess: () =>
@@ -949,6 +920,7 @@ export const installTauriBridge = (): void => {
     getBrowserState: () => call("get_browser_state", {}, null),
     onPlaywrightNavigated: (callback) =>
       onEvent("playwright-navigated", callback),
+    openBrowserWindow: () => Promise.resolve(false),
     transcribeAudio: () => Promise.resolve(""),
     ttsSpeak: () => Promise.resolve(""),
   };
